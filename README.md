@@ -8,7 +8,7 @@ This repository contains data, code, and other items needed to reproduce this wo
 ## Goals:
 The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor changes in indicators that may signal changes in COVID-19 case numbers in health systems from our eight partnering countries: Haiti, Lesotho, Liberia, Madagascar, Malawi, Mexico, Peru, and Rwanda.
 
-This goal is achieved through our code in the following two efforts: (1) Monitoring symptoms and other indicators for direct syndromic surveillance work, and (2) To monitor changes in health service utilization. The latter is done not only as a complement to syndromic surveillance, but also to aid decision making regarding the usage and changes in regular functions of systems in partner sites.
+This goal is achieved through our code in the following two efforts: (1) Monitoring symptoms and other indicators for direct syndromic surveillance work, and (2) By monitoring changes in health service utilization. The latter is done not only as a complement to syndromic surveillance, but also to aid decision making regarding the usage and changes in regular functions of systems in partner sites.
 
 ## Modelling technique:
 
