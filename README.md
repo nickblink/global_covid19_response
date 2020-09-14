@@ -11,14 +11,6 @@ The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor ch
 This goal is achieved through our code in the following two efforts: (1) Monitoring symptoms and other indicators for direct syndromic surveillance work, and (2) By monitoring changes in health service utilization. The latter is done not only as a complement to syndromic surveillance, but also to aid decision making regarding the usage and changes in regular functions of systems in partner sites.
 
 ## Modelling technique:
-latexImg = function(latex){
 
-    link = paste0('http://latex.codecogs.com/gif.latex?',
-           gsub('\\=','%3D',URLencode(latex)))
-
-    link = gsub("(%..)","\\U\\1",link,perl=TRUE)
-    return(paste0('![](',link,')'))
-    r latexImg('a = \\frac{b}{c}')
-}
 
 ## Overview of folders and files:
