@@ -14,3 +14,8 @@ This goal is achieved through our code in the following two efforts: (1) Monitor
 
 
 ## Overview of folders and files:
+### data
+
+### R
+
+### maps
