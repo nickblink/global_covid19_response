@@ -11,6 +11,18 @@ The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor ch
 This goal is achieved through our code in the following two efforts: (1) Monitoring symptoms and other indicators for direct syndromic surveillance work, and (2) By monitoring changes in health service utilization. The latter is done not only as a complement to syndromic surveillance, but also to aid decision making regarding the usage and changes in regular functions of systems in partner sites.
 
 ## Modelling technique:
+The process starting with the raw data and finishing with the various outputs is referred to as the Data Processing Pipeline (see Figure 1 below):
+
+INSERT PIPELINE GRAPHIC HERE!!!!!!!!
+
+## 1: Cleaning
+
+## 2: Analyses
+
+## 3: Figures and Maps
+### 3a
+
+### 3b
 
 
 ## Overview of folders and files:
