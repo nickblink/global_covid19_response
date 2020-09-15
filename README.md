@@ -11,6 +11,18 @@ The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor ch
 This goal is achieved through our code in the following two efforts: (1) Monitoring symptoms and other indicators for direct syndromic surveillance work, and (2) By monitoring changes in health service utilization. The latter is done not only as a complement to syndromic surveillance, but also to aid decision making regarding the usage and changes in regular functions of systems in partner sites.
 
 ## Modelling technique:
+The process starting with the raw data and finishing with the various outputs is referred to as the Data Processing Pipeline (see Figure 1 below):
+
+![\log(E[Y \lvert year, t \rvert] ) = \beta_0 + \beta_1year + \sum_{k=1}^{3}\beta_{k1}cos(2\pi kt/12) + \beta_{k2}sin(2\pi kt/12)] (https://latex.codecogs.com/svg.latex?%5Clog%28E%5BY%20%5Clvert%20year%2C%20t%20%5Crvert%5D%20%29%20%3D%20%5Cbeta_0%20&plus;%20%5Cbeta_1year%20&plus;%20%5Csum_%7Bk%3D1%7D%5E%7B3%7D%5Cbeta_%7Bk1%7Dcos%282%5Cpi%20kt/12%29%20&plus;%20%5Cbeta_%7Bk2%7Dsin%282%5Cpi%20kt/12%29)
+
+### 1: Cleaning
+
+### 2: Analyses
+
+### 3: Figures and Maps
+### 3a
+
+### 3b
 
 
 ## Overview of folders and files:
