@@ -37,8 +37,12 @@ For the second reason, facilities with ANY missing monthly data during the evalu
 
 ## Overview of folders and files:
 ### data
+This folder contains example data used to demonstrate functions.
+#### data.example_singlecounty.rds
+The facility-level dataset used to demonstrate the functions throughout this repository. Note- specific names and numbers have been altered to respect the privcy of our sites.
 
 ### R
+This folder contains the functions used to create the key data visualization figures and maps.
 
 ### maps
 
