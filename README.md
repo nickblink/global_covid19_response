@@ -2,28 +2,30 @@
 ## About:
 This repository contains code to follow the Data Processing Pipeline for the Global Covid-19 Syndromic Surveillance Team - a partnership between sites at Partners in Health, the Global Health Research Core at Harvard Medical School, and Brigham and Women's Hospital. The data has been modified to respect the privacy of our sites, in hopes that other groups can benefit from the functions we have written.
 
-This repository contains data, code, and other items needed to reproduce this work. Outputs include cleaned datasets, figures, reports, Shiny apps, and Leaflet maps. Further explanation of analysis and output use and construction is given in the "Overview of folders and files" section, which includes detailed explanations of the functions we have written.
+This repository contains data, code, and other items needed to reproduce this work. Outputs include figures, tables, and Leaflet maps. Further explanation of outputs and their construction is given in the "Overview of folders and files" section, which includes detailed explanations of the functions we have written.
 
 
 ## Goals:
-The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor changes in indicators that may signal changes in COVID-19 case numbers in health systems from our eight partnering countries: Haiti, Lesotho, Liberia, Madagascar, Malawi, Mexico, Peru, and Rwanda.
-
-This goal is achieved through our code in the following two efforts: (1) Monitoring symptoms and other indicators for direct syndromic surveillance work, and (2) By monitoring changes in health service utilization. The latter is done not only as a complement to syndromic surveillance, but also to aid decision making regarding the usage and changes in regular functions of systems in partner sites.
+The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor changes in indicators that may signal changes in COVID-19 case numbers in health systems from our eight partnering countries: Haiti, Lesotho, Liberia, Madagascar, Malawi, Mexico, Peru, and Rwanda. This is accomplished through establishing a baseline using prior data, and monitoring for deviations for relevant indicators. The data visualization tools created using our functions allow identification of local areas that are experiencing upticks in COVID-19-related symptoms.
 
 ## Modelling technique:
 The process starting with the raw data and finishing with the various outputs is referred to as the Data Processing Pipeline (see Figure 1 below):
+<img src="figures\pipeline.png">
+The functions included in this repository focus on stages 2 and 3 (Fig. 1).
 
+After data has been cleaned, it is processed according to the level it is available at (either on a facility of county/district basis) for each indicator. This is done by taking data from a historic baseline period, and then projecting it into the evaluation period. This then is compared to the observed counts/proportions. A 95% confidence interval has been chosen, and we have defined the baseline period to be data from January 2016-January 2020. 
+
+### Facility-level models:
+
+The following generalized linear model using the negative binomial distribution with log link to account for overdispersion was used:
 <img src="figures\modelling_equation_1.png">
+Where time, t, is defined as the cumulative month number (e.g. January 2016 is month 1). The year term captures trend, and the harmonic term, k, captures seasonality. Note that year is a linear term and will only capture monotonic trends. In theory, one could model each year with a binary indicator to allow for flexible yearly deviations. We were unable to do this because our baseline period does not contain any 2020 months, which would render expected counts during this period unidentifiable.
 
-### 1: Cleaning
+### District and county-level models:
 
-### 2: Analyses
-
-### 3: Figures and Maps
-### 3a
-
-### 3b
-
+The following generalized linear mixed model was used to model the expected counts at the district or county level. We included random intercepts for each facility (denoted by j). The negative binomial distribution with log link was used to account for overdispersion:
+<img src="figures\modelling_equation_2.png">
+Importantly, we did not report facility-level estimates using this model. Instead, we estimated the marginal (population-level) total count by integrating over the random effect distribution. The facility-level estimates from this model will NOT match results from the individual facility-level models above. The facility-level models allowed for facility-specific year and seasonality trends, whereas the GLMM assumed common year and seasonality trends across all facilities in the district or county, allowing only the baseline counts to vary by facility via the random intercepts.
 
 ## Overview of folders and files:
 ### data
