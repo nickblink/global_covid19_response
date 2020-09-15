@@ -11,9 +11,10 @@ The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor ch
 ## Modelling technique:
 The process starting with the raw data and finishing with the various outputs is referred to as the Data Processing Pipeline (see Figure 1 below):
 <img src="figures\pipeline.png">
-The functions included in this repository focus on stages 2 and 3 (Fig. 1).
 
-After data has been cleaned, it is processed according to the level it is available at (either on a facility of county/district basis) for each indicator. This is done by taking data from a historic baseline period, and then projecting it into the evaluation period. This then is compared to the observed counts/proportions. A 95% confidence interval has been chosen, and we have defined the baseline period to be data from January 2016-January 2020. 
+After data has been cleaned, it is processed according to the level it is available at (either on a facility of county/district basis) for each indicator. This is done by taking data from a historic baseline period, and then projecting it into the evaluation period. This then is compared to the observed counts/proportions. A 95% confidence interval has been chosen, and we have defined the baseline period to be data from January 2016-December 2019. 
+
+The functions included in this repository focus on the modelling and processing stages.
 
 ### Facility-level models:
 
@@ -27,9 +28,18 @@ The following generalized linear mixed model was used to model the expected coun
 <img src="figures\modelling_equation_2.png">
 Importantly, we did not report facility-level estimates using this model. Instead, we estimated the marginal (population-level) total count by integrating over the random effect distribution. The facility-level estimates from this model will NOT match results from the individual facility-level models above. The facility-level models allowed for facility-specific year and seasonality trends, whereas the GLMM assumed common year and seasonality trends across all facilities in the district or county, allowing only the baseline counts to vary by facility via the random intercepts.
 
+### Missing data considerations:
+We excluded facilities from our analysis for two reasons: (1) missing dates in the baseline period (creation of the expected counts model) (2) missing observed counts in the evaluation period.
+
+For the first reason, facilities with high levels of missing data (more than 20% of baseline dates missing) were excluded. Although there are statistical methods that can handle missing time series data, we decided to only include sites that demonstrated ability to collect data over time. A complete case (time) analysis was conducted with included facilities, which assumes that the counts were missing completely at random (MCAR). Specifically, we assumed the reason for missing counts was independent of time and count value. If the MCAR assumption was violated and we had information about the missing data mechanism, one could impute values for the missing data and report unbiased expected counts and correct inference.
+
+For the second reason, facilities with ANY missing monthly data during the evaluation period (January 2020 onward) were removed. As the syndromic surveillance exercise hinges on comparing the observed counts to the expected and flagging for deviations, we require complete observed data during this period. In this context, it would be invalid to impute observed counts based on information from the baseline period. In theory, one could attempt to impute the observed count based on information during the evaluation period.
+
 ## Overview of folders and files:
 ### data
 
 ### R
 
 ### maps
+
+### figures
