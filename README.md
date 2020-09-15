@@ -2,6 +2,8 @@
 _Last updated: 15 Sep 2020_
 ## Table of Contents
 - [About](#About)
+- [Goals] (#Goals)
+- [Modelling technique] (#Modelling technique)
 
 ## About:
 This repository contains code to follow the Data Processing Pipeline for the Global Covid-19 Syndromic Surveillance Team - a partnership between sites at Partners in Health, the Global Health Research Core at Harvard Medical School, and Brigham and Women's Hospital. The data has been modified to respect the privacy of our sites, in hopes that other groups can benefit from the functions we have written.
