@@ -5,9 +5,9 @@ _Last updated: 15 Sep 2020_
 - [Goals](#Goals)
 - [Modelling technique](#Modelling-technique)
   - [Facility-level models](#Facility-level models)
-  - [District and county-level models](#District and county-level models)
-  - [Missing data considerations](#Missing data considerations)
-- [Overview of folders and files](#Overview of folders and files)
+  - [District and county-level models](#District-and-county-level models)
+  - [Missing data considerations](#Missing-data-considerations)
+- [Overview of folders and files](#Overview-of-folders-and-files)
 
 ## About:
 This repository contains code to follow the Data Processing Pipeline for the Global Covid-19 Syndromic Surveillance Team - a partnership between sites at Partners in Health, the Global Health Research Core at Harvard Medical School, and Brigham and Women's Hospital. The data has been modified to respect the privacy of our sites, in hopes that other groups can benefit from the functions we have written.
