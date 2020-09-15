@@ -13,6 +13,7 @@ This goal is achieved through our code in the following two efforts: (1) Monitor
 ## Modelling technique:
 The process starting with the raw data and finishing with the various outputs is referred to as the Data Processing Pipeline (see Figure 1 below):
 
+<img src="figures\modelling_equation_1.png">
 
 ### 1: Cleaning
 
