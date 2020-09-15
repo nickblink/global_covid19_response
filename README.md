@@ -1,4 +1,5 @@
 # Global COVID-19 Response
+_Last updated: 15 Sep 2020_
 ## Table of Contents
 - [About](#About)
 
