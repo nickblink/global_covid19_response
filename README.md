@@ -3,7 +3,7 @@ _Last updated: 15 Sep 2020_
 ## Table of Contents
 - [About](#About)
 - [Goals](#Goals)
-- [Modelling technique](#Modelling technique)
+- [Modelling technique](#Modelling-technique)
   - [Facility-level models](#Facility-level models)
   - [District and county-level models](#District and county-level models)
   - [Missing data considerations](#Missing data considerations)
