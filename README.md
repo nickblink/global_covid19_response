@@ -13,13 +13,13 @@ This goal is achieved through our code in the following two efforts: (1) Monitor
 ## Modelling technique:
 The process starting with the raw data and finishing with the various outputs is referred to as the Data Processing Pipeline (see Figure 1 below):
 
-INSERT PIPELINE GRAPHIC HERE!!!!!!!!
+![first equation] (https://latex.codecogs.com/gif.latex?%5Clog%28E%5BY%20%5Clvert%20year%2C%20t%20%5Crvert%5D%20%29%20%3D%20%5Cbeta_0%20&plus;%20%5Cbeta_1year%20&plus;%20%5Csum_%7Bk%3D1%7D%5E%7B3%7D%5Cbeta_%7Bk1%7Dcos%282%5Cpi%20kt/12%29%20&plus;%20%5Cbeta_%7Bk2%7Dsin%282%5Cpi%20kt/12%29)
 
-## 1: Cleaning
+### 1: Cleaning
 
-## 2: Analyses
+### 2: Analyses
 
-## 3: Figures and Maps
+### 3: Figures and Maps
 ### 3a
 
 ### 3b
