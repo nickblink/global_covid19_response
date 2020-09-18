@@ -57,7 +57,7 @@ processing stages.
 
 The following generalized linear model using the negative binomial
 distribution with log link to account for overdispersion was used:
-
+\[ \log(E[Y | year, t ]) = \beta_0 + \beta_1year + \sum_{k=1}^{3} \beta_{k1} cos(2 \pi kt/12) + \beta_{k2} sin(2 \pi kt/12) \]
 Where time, t, is defined as the cumulative month number (e.g. January
 2016 is month 1). The year term captures trend, and the harmonic term,
 k, captures seasonality. Note that year is a linear term and will only
@@ -72,7 +72,7 @@ The following generalized linear mixed model was used to model the
 expected counts at the district or county level. We included random
 intercepts for each facility (denoted by j). The negative binomial
 distribution with log link was used to account for overdispersion:
-
+\[ \log(E[Y_j | year, t ]) = \beta_0 ^* + \beta_1^*year + \sum_{k=1}^{3} \beta_{k1}^* cos(2 \pi kt/12) + \beta_{k2}^* sin(2 \pi kt/12) + \gamma _{0j} \]
 Importantly, we did not report facility-level estimates using this
 model. Instead, we estimated the marginal (population-level) total count
 by integrating over the random effect distribution. The facility-level
