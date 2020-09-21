@@ -3,12 +3,18 @@ README
 
 # Global COVID-19 Response
 
-*Last updated: 15 Sep 2020* \#\# Table of Contents - [About](#About) -
-[Goals](#Goals) - [Modelling technique](#Modelling-technique) -
-[Facility-level models](#Facility-level-models) - [District and
-county-level models](#District-and-county-level-models) - [Missing data
-considerations](#Missing-data-considerations) - [Overview of folders and
-files](#Overview-of-folders-and-files)
+*Last updated: 15 Sep 2020*
+
+## Table of Contents
+
+  - [About](#About)
+  - [Goals](#Goals)
+  - [Modelling technique](#Modelling-technique)
+      - [Facility-level models](#Facility-level-models)
+      - [District and county-level
+        models](#District-and-county-level-models)
+      - [Missing data considerations](#Missing-data-considerations)
+  - [Overview of folders and files](#Overview-of-folders-and-files)
 
 ## About:
 
