@@ -4,7 +4,7 @@
 library(dplyr)
 
 #read in original data
-dummy <- readRDS("liberia/data/cleaned/liberia_cleaned_08-25-2020.rds")
+dummy <- readRDS("../../global_covid19_ss/liberia/data/cleaned/liberia_cleaned_08-25-2020.rds")
 
 #Change names/perturb numbers (note- only filtering for Maryland county)
 dummy <- dummy %>% filter(county== "Maryland") %>%
@@ -58,4 +58,4 @@ dummy <- dummy %>% filter(county== "Maryland") %>%
 
 
 # Export new dummy data as an RDS into new repo
-data_example_singlecounty <- saveRDS(dummy, file = "../global_covid19_response/data/data_example_singlecounty.rds")
+data_example_singlecounty <- saveRDS(dummy, file = "../../global_covid19_response/data/data_example_singlecounty.rds")
