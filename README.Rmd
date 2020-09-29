@@ -1,9 +1,10 @@
 ---
 title: "README"
 output:
+  github_document: default
   html_document:
-    html_preview: true
-    toc: true
+    html_preview: yes
+    toc: yes
 ---
 ```{r, include=FALSE}
 library(leaflet)
