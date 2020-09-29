@@ -1,8 +1,7 @@
 ---
 title: "README"
-output:
-  md_document
-    html_preview: no
+output: 
+  md_document:
     toc: yes
 ---
 ```{r, include=FALSE}
@@ -14,6 +13,7 @@ library(GLMMadaptive)
 library(ciTools)
 library(prettyGraphs)
 ```
+
 ```{r, inclue=FALSE,warning=FALSE,message=FALSE}
 liberia_shape <- readOGR("../global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp")
 ```
