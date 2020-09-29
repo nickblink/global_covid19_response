@@ -1,6 +1,15 @@
 README
 ================
 
+``` r
+liberia_shape <- readOGR("../global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp")
+```
+
+    ## OGR data source with driver: ESRI Shapefile 
+    ## Source: "/Users/nicholekulikowski/Dropbox/global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp", layer: "Export_Output_2"
+    ## with 15 features
+    ## It has 4 fields
+
 # Global COVID-19 Response
 
 *Last updated: 15 Sep 2020*
@@ -130,7 +139,7 @@ names and numbers have been altered to respect the privacy of our sites.
 This folder contains the functions used to create the key data
 visualization figures and maps.
 
-### maps
+![](README_files/figure-gfm/unnamed-chunk-3-1.png)<!-- -->
 
 ### figures
 
