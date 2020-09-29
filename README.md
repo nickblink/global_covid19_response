@@ -1,25 +1,3 @@
--   [Global COVID-19 Response](#global-covid-19-response)
-    -   [Table of Contents](#table-of-contents)
-    -   [About:](#about)
-    -   [Goals:](#goals)
-    -   [Modelling technique:](#modelling-technique)
-        -   [Facility-level models:](#facility-level-models)
-        -   [District and county-level
-            models:](#district-and-county-level-models)
-        -   [Missing data considerations:](#missing-data-considerations)
-    -   [Overview of folders and files:](#overview-of-folders-and-files)
-        -   [data](#data)
-        -   [R](#r)
-        -   [figures](#figures)
-        -   [Example](#example)
-
-    liberia_shape <- readOGR("../global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp")
-
-    ## OGR data source with driver: ESRI Shapefile 
-    ## Source: "/Users/nicholekulikowski/Dropbox/global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp", layer: "Export_Output_2"
-    ## with 15 features
-    ## It has 4 fields
-
 Global COVID-19 Response
 ========================
 
