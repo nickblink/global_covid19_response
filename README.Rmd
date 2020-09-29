@@ -1,8 +1,8 @@
 ---
 title: "README"
 output:
-  html_document:
-    html_preview: yes
+  md_document
+    html_preview: no
     toc: yes
   github_document: default
 ---
