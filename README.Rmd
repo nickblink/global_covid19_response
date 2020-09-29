@@ -4,7 +4,6 @@ output:
   md_document
     html_preview: no
     toc: yes
-  github_document: default
 ---
 ```{r, include=FALSE}
 library(leaflet)
