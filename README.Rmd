@@ -2,7 +2,7 @@
 title: "README"
 output: 
   md_document:
-    toc: yes
+    toc: no
 ---
 ```{r, include=FALSE}
 library(leaflet)
@@ -21,6 +21,7 @@ liberia_shape <- readOGR("../global_covid19_ss/liberia/data/shape/liberia_fixed/
 ```{r setup, include=FALSE, cache = TRUE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
 # Global COVID-19 Response
 _Last updated: 15 Sep 2020_
 
