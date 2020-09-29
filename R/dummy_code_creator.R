@@ -8,7 +8,7 @@ dummy <- readRDS("liberia/data/cleaned/liberia_cleaned_08-25-2020.rds")
 
 #Change names/perturb numbers (note- only filtering for Maryland county)
 dummy <- dummy %>% filter(county== "Maryland") %>%
-  dplyr::select(date, county, district, facility, starts_with("indicator_count_ari")) %>%
+  dplyr::select(date, county, district, facility, starts_with("indicator_count_ari"), indicator_denom, indicator_denom_under5, indicator_denom_over5) %>%
   mutate(facility = recode(facility,
                            "Barraken Clinic" = "Facility A",
                            "Boniken Clinic" = "Facility B",
@@ -45,16 +45,12 @@ dummy <- dummy %>% filter(county== "Maryland") %>%
          county = recode(county,
                          "Maryland" = "County Alpha"))
 
-         dummy <- mutate(indicator_count_ari_total = round(runif(n(),indicator_count_ari_total/1.25,indicator_count_ari_total*1.25),0),
-         indicator_count_ari_total_proxy = round(runif(n(),indicator_count_ari_total_proxy/1.25,indicator_count_ari_total_proxy*1.25),0),
-         indicator_count_ari_under5 = round(runif(n(),indicator_count_ari_under5/1.25,indicator_count_ari_under5*1.25),0),
-         indicator_count_ari_over5 = round(runif(n(),indicator_count_ari_over5/1.25,indicator_count_ari_over5*1.25),0),
-         indicator_count_ari_ipd_death_under5 = round(runif(n(),indicator_count_ari_ipd_death_under5/1.25,indicator_count_ari_ipd_death_under5*1.25),0),
-         indicator_count_ari_ipd_death_over5 = round(runif(n(),indicator_count_ari_ipd_death_over5/1.25,indicator_count_ari_ipd_death_over5*1.25),0),
-         indicator_count_ari_opd_death_under5 = round(runif(n(),indicator_count_ari_opd_death_under5/1.25,indicator_count_ari_opd_death_under5*1.25),0),
-         indicator_count_ari_opd_death_over5  = round(runif(n(),indicator_count_ari_opd_death_over5/1.25,indicator_count_ari_opd_death_over5*1.25),0),
-         indicator_count_ari_discharge_under5 = round(runif(n(),indicator_count_ari_discharge_under5/1.25,indicator_count_ari_discharge_under5*1.25),0),
-         indicator_count_ari_discharge_over5 = round(runif(n(),indicator_count_ari_discharge_over5/1.25,indicator_count_ari_discharge_over5*1.25),0))
+         dummy <-  dummy %>% mutate(indicator_count_ari_total = round(runif(n(),indicator_count_ari_total/1.25,indicator_count_ari_total*1.25),0),
+         indicator_count_ari_under5 = round(runif(n(),indicator_count_ari_under5/1.25,indicator_count_ari_total_proxy*1.25),0),
+         indicator_count_ari_over5 = round(runif(n(),indicator_count_ari_over5/1.25,indicator_count_ari_under5*1.25),0),
+         indicator_denom = round(runif(n(),indicator_denom/1.25,indicator_count_ari_over5*1.25),0),
+         indicator_denom_under5 = round(runif(n(),indicator_denom_under5/1.25,indicator_count_ari_ipd_death_under5*1.25),0),
+         indicator_denom_over5 = round(runif(n(),indicator_denom_over5/1.25,indicator_count_ari_ipd_death_over5*1.25),0))
 
 
 # Export new dummy data as an RDS into new repo
