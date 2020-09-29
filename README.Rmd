@@ -1,16 +1,19 @@
 ---
 title: "README"
 output:
-  github_document: default
   html_document:
     html_preview: yes
     toc: yes
+  github_document: default
 ---
 ```{r, include=FALSE}
 library(leaflet)
 library(dplyr)
 library(rgdal)
 library(tigris)
+library(GLMMadaptive)
+library(ciTools)
+library(prettyGraphs)
 ```
 ```{r, inclue=FALSE,warning=FALSE,message=FALSE}
 liberia_shape <- readOGR("../global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp")
@@ -281,7 +284,7 @@ county_results <- fit.cluster.pi(data = data,
 
 
 ```{r}
-county_test <- readRDS("/Users/anuraaggopaluni/Documents/Rotation_2/global_covid19_ss/liberia/results/liberia_county_ari_total_final_08_25_2020.rds")
+county_test <- readRDS("../global_covid19_ss/liberia/results/liberia_county_ari_total_final_08_25_2020.rds")
 
 plot_heatmap_county(df = county_results %>% mutate(site = "County Alpha"),
              indicator = "indicator_count_ari_total",
