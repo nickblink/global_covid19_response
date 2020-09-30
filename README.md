@@ -1,3 +1,11 @@
+Global COVID-19 Response
+========================
+
+*Last updated: 15 Sep 2020*
+
+Table of Contents
+-----------------
+
 -   [Global COVID-19 Response](#global-covid-19-response)
     -   [Table of Contents](#table-of-contents)
     -   [About:](#about)
@@ -14,26 +22,6 @@
         -   [R](#r)
         -   [Figures](#figures)
         -   [Examples](#examples)
-
- 
-
-Global COVID-19 Response
-========================
-
-*Last updated: 15 Sep 2020*
-
-Table of Contents
------------------
-
--   [About](#About)
--   [Goals](#Goals)
--   [Modeling technique](#Modeling-technique)
-    -   [Facility-level models](#Facility-level-models)
-    -   [District and county-level
-        models](#District-and-county-level-models)
-    -   [Missing data considerations](#Missing-data-considerations)
--   [Overview of folders and files](#Overview-of-folders-and-files)
--   [Examples](#Examples)
 
 About:
 ------
