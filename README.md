@@ -2,7 +2,7 @@
 Global COVID-19 Response
 ========================
 
-*Last updated: 15 Sep 2020*
+*Last updated: 30 Sep 2020*
 
 Table of Contents
 -----------------
@@ -56,7 +56,7 @@ After data has been cleaned, it is processed according to the level it
 is available at (either on a facility of county/district basis) for each
 indicator. This is done by taking data from a historic baseline period,
 and then projecting it into the evaluation period. This then is compared
-to the observed counts/proportions. A 95% confidence interval has been
+to the observed counts/proportions. A 95% prediction interval has been
 chosen, and we have defined the baseline period to be data from January
 2016-December 2019.
 
@@ -168,9 +168,7 @@ Overview of folders and files:
 
 ### Data
 
-This folder contains example data used to demonstrate functions.
-\#\#\#\# data.example\_singlecounty.rds The facility-level dataset used
-to demonstrate the functions throughout this repository. Note- specific
+This folder contains example data used to demonstrate functions. Note- specific
 names and numbers have been altered to respect the privacy of our sites.
 
 ### R
