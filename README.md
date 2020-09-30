@@ -15,12 +15,7 @@
         -   [Figures](#figures)
         -   [Examples](#examples)
 
-    liberia_shape <- readOGR("../global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp")
-
-    ## OGR data source with driver: ESRI Shapefile 
-    ## Source: "/Users/anuraaggopaluni/Documents/Rotation_2/global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp", layer: "Export_Output_2"
-    ## with 15 features
-    ## It has 4 fields
+ 
 
 Global COVID-19 Response
 ========================
