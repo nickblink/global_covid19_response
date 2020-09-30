@@ -1,11 +1,3 @@
-Global COVID-19 Response
-========================
-
-*Last updated: 15 Sep 2020*
-
-Table of Contents
------------------
-
 -   [Global COVID-19 Response](#global-covid-19-response)
     -   [Table of Contents](#table-of-contents)
     -   [About:](#about)
@@ -21,7 +13,29 @@ Table of Contents
         -   [Data](#data)
         -   [R](#r)
         -   [Figures](#figures)
-        -   [Examples](#examples)
+    -   [Examples](#examples)
+        -   [Loading Data and Functions](#loading-data-and-functions)
+        -   [Example 1: Single Facility](#example-1-single-facility)
+        -   [Example 2: All Facilities](#example-2-all-facilities)
+        -   [Example 3: County-level](#example-3-county-level)
+
+Global COVID-19 Response
+========================
+
+*Last updated: 15 Sep 2020*
+
+Table of Contents
+-----------------
+
+-   [About](#About)
+-   [Goals](#Goals)
+-   [Modeling technique](#Modeling-technique)
+    -   [Facility-level models](#Facility-level-models)
+    -   [District and county-level
+        models](#District-and-county-level-models)
+    -   [Missing data considerations](#Missing-data-considerations)
+-   [Overview of folders and files](#Overview-of-folders-and-files)
+-   [Examples](#Examples)
 
 About:
 ------
@@ -57,7 +71,7 @@ Modeling technique:
 The process starting with the raw data and finishing with the various
 outputs is referred to as the Data Processing Pipeline (see Figure 1
 below):
-![](figures/pipeline.png)
+
 After data has been cleaned, it is processed according to the level it
 is available at (either on a facility of county/district basis) for each
 indicator. This is done by taking data from a historic baseline period,
@@ -75,7 +89,7 @@ For facility-level assessments, we fit a generalized linear model with
 negative binomial distribution and log-link to estimate expected monthly
 counts. Only data from the baseline period will be used to estimate the
 expected counts:
-![](figures/modelling_equation_1.png)
+$$ \\log(E\[Y | year, t \]) = \\beta\_0 + \\beta\_1year + \\sum\_{k=1}^{3} \\beta\_{k1} cos(2 \\pi kt/12) + \\beta\_{k2} sin(2 \\pi kt/12) $$
 where Y indicates monthly indicator count, t indicates the cumulative
 month number. The year term captures trend, and the harmonic term
 captures seasonality. This model is an adaptation of that proposed by
@@ -127,8 +141,7 @@ region. The region-level count estimates can then be obtained by
 integrating over the random effects distribution. Ultimately, we did not
 choose this model due to its lack of flexibility in dealing with missing
 data.
-
-![](figures/modelling_equation_2.png)
+$$ \\log(E\[Y\_j | year, t \]) = \\beta\_0 ^\* + \\beta\_1^\*year + \\sum\_{k=1}^{3} \\beta\_{k1}^\* cos(2 \\pi kt/12) + \\beta\_{k2}^\* sin(2 \\pi kt/12) + \\gamma \_{0j} $$
 
 ### Deviations and data visualizations:
 
@@ -189,7 +202,8 @@ visualization figures and maps.
 
 This folder contains figures that have been included in README.md.
 
-### Examples
+Examples
+--------
 
 #### Loading Data and Functions
 
@@ -197,6 +211,7 @@ This folder contains figures that have been included in README.md.
     source("R/model_figures.R")
 
     data <- readRDS("data/data_example_singlecounty.rds")
+
     head(data)
 
     ## # A tibble: 6 x 10
@@ -257,7 +272,7 @@ model, and look at the results through the counts and proportion lenses.
 
     plot_heatmap(input = example_1_results)
 
-![](README_files/figure-markdown_strict/unnamed-chunk-6-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-7-1.png)
 
 **Note:** the black border boxes indicate statistical significance
 (e.g. significantly higher than expected or significantly lower than
@@ -265,7 +280,7 @@ expected depending on the color)
 
     plot_site(input = example_1_results)
 
-![](README_files/figure-markdown_strict/unnamed-chunk-7-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-8-1.png)
 
 The observed count is given by the **black line** (raw data from DHIS2).
 The expected (predicted) count is given by the <font color='red'>**red
@@ -276,7 +291,7 @@ model described above).
 
     plot_heatmap_prop(input = example_1_results)
 
-![](README_files/figure-markdown_strict/unnamed-chunk-8-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-9-1.png)
 
 **Note:** the black border boxes indicate statistical significance
 (e.g. significantly higher than expected or significantly lower than
@@ -284,7 +299,7 @@ expected depending on the color)
 
     plot_site_prop(input = example_1_results)
 
-![](README_files/figure-markdown_strict/unnamed-chunk-9-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-10-1.png)
 
 The observed **proportion** is given by the **black line** (raw data
 from DHIS2). The expected (predicted) proportion is given by the
@@ -382,7 +397,7 @@ Below, we see results for ari counts for all facilities:
 
     plot_facet(input = facility.list[["indicator_count_ari_total"]])
 
-![](README_files/figure-markdown_strict/unnamed-chunk-12-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-15-1.png)
 
 The observed count is given by the **black line** (raw data from DHIS2).
 The expected (predicted) count is given by the <font color='red'>**red
@@ -405,7 +420,7 @@ course be done for the other indicators of interest.
                                n_count_base = 0,
                                p_miss_base = 0.2,
                                p_miss_eval = 0.5,
-                               R=250) 
+                               R=250)
 
     head(county_results)
 
@@ -433,7 +448,7 @@ course be done for the other indicators of interest.
 
     plot_heatmap_county(input = county_results)
 
-![](README_files/figure-markdown_strict/unnamed-chunk-14-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-18-1.png)
 
 **Note:** the black border boxes indicate statistical signficance
 (e.g. significantly higher than expected or significantly lower than
@@ -441,7 +456,7 @@ expected depending on the color)
 
     plot_site_county(input = county_results)
 
-![](README_files/figure-markdown_strict/unnamed-chunk-15-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-19-1.png)
 
 The observed count is given by the **black line** (raw data from DHIS2).
 The expected (predicted) count is given by the <font color='red'>**red
