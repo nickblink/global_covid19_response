@@ -89,8 +89,10 @@ For facility-level assessments, we fit a generalized linear model with
 negative binomial distribution and log-link to estimate expected monthly
 counts. Only data from the baseline period will be used to estimate the
 expected counts:
-$$ \\log(E\[Y | year, t \]) = \\beta\_0 + \\beta\_1year + \\sum\_{k=1}^{3} \\beta\_{k1} cos(2 \\pi kt/12) + \\beta\_{k2} sin(2 \\pi kt/12) $$
- where Y indicates monthly indicator count, t indicates the cumulative
+
+(https://latex.codecogs.com/gif.latex?%5Clog%28E%5C%5BY%20%7C%20year%2C%20t%20%5C%5D%29%20%3D%20%5Cbeta0%20&plus;%20%5Cbeta1year%20&plus;%20%5Csum%7Bk%3D1%7D%5E%7B3%7D%20%5Cbeta%7Bk1%7D%20cos%282%20%5Cpi%20kt/12%29%20&plus;%20%5Cbeta%7Bk2%7D%20sin%282%20%5Cpi%20kt/12%29)
+
+where Y indicates monthly indicator count, t indicates the cumulative
 month number. The year term captures trend, and the harmonic term
 captures seasonality. This model is an adaptation of that proposed by
 Dan Weinberger lab (CITE). If data is available on a more granular
@@ -140,6 +142,7 @@ region. The region-level count estimates can then be obtained by
 integrating over the random effects distribution. Ultimately, we did not
 choose this model due to its lack of flexibility in dealing with missing
 data.
+
 $$ \\log(E\[Y\_j | year, t \]) = \\beta\_0 ^\* + \\beta\_1^\*year + \\sum\_{k=1}^{3} \\beta\_{k1}^\* cos(2 \\pi kt/12) + \\beta\_{k2}^\* sin(2 \\pi kt/12) + \\gamma \_{0j} $$
 
 ### Missing data considerations:
