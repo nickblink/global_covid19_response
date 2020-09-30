@@ -28,11 +28,12 @@ _Last updated: 15 Sep 2020_
 ## Table of Contents
 - [About](#About)
 - [Goals](#Goals)
-- [Modelling technique](#Modelling-technique)
+- [Modeling technique](#Modeling-technique)
   - [Facility-level models](#Facility-level-models)
   - [District and county-level models](#District-and-county-level-models)
   - [Missing data considerations](#Missing-data-considerations)
 - [Overview of folders and files](#Overview-of-folders-and-files)
+- [Examples](#Examples)
 
 ## About:
 This repository contains code to follow the Data Processing Pipeline for the Global Covid-19 Syndromic Surveillance Team - a partnership between sites at Partners in Health, the Global Health Research Core at Harvard Medical School, and Brigham and Women's Hospital. The data has been modified to respect the privacy of our sites, in hopes that other groups can benefit from the functions we have written.
@@ -41,20 +42,20 @@ This repository contains data, code, and other items needed to reproduce this wo
 
 
 ## Goals:
-The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor changes in indicators that may signal changes in COVID-19 case numbers in health systems from our eight partnering countries: Haiti, Lesotho, Liberia, Madagascar, Malawi, Mexico, Peru, and Rwanda. This is accomplished through establishing a baseline using prior data, and monitoring for deviations for relevant indicators. The data visualization tools created using our functions allow identification of local areas that are experiencing upticks in COVID-19-related symptoms.
+The main goal of the Global COVID-19 Syndromic Survillance Team is to monitor changes in indicators that may signal changes in COVID-19 case numbers in health systems from our eight partnering countries: Haiti, Lesotho, Liberia, Malawi, Mexico, Peru, and Rwanda. This is accomplished through establishing a baseline using prior data, and monitoring for deviations for relevant indicators. The data visualization tools created using our functions allow identification of local areas that are experiencing upticks in COVID-19-related symptoms.
 
-## Modelling technique:
+## Modeling technique:
 The process starting with the raw data and finishing with the various outputs is referred to as the Data Processing Pipeline (see Figure 1 below):
 
 After data has been cleaned, it is processed according to the level it is available at (either on a facility of county/district basis) for each indicator. This is done by taking data from a historic baseline period, and then projecting it into the evaluation period. This then is compared to the observed counts/proportions. A 95% confidence interval has been chosen, and we have defined the baseline period to be data from January 2016-December 2019. 
 
-The functions included in this repository focus on the modelling and processing stages.
+The functions included in this repository focus on the modeling and processing stages.
 
 ### Facility-level models:
 
 For facility-level assessments, we fit a generalized linear model with negative binomial distribution and log-link to estimate expected monthly counts. Only data from the baseline period will be used to estimate the expected counts:
 $$ \log(E[Y | year, t ]) = \beta_0 + \beta_1year + \sum_{k=1}^{3} \beta_{k1} cos(2 \pi kt/12) + \beta_{k2} sin(2 \pi kt/12) $$
-where Y indicates monthly indicator count, t indicates the cumulative month number. The year term captures trend, and the harmonic term captures seasonality. This model is an adaptation of that proposed by Dan Weinberger lab (CITE). If data is available on a more granular level, then weekly or daily terms could be added to the equation to capture other types of trend. To calculate the prediction intervals, we used ciTools R package (https://cran.r-project.org/web/packages/ciTools/ciTools.pdf).
+where Y indicates monthly indicator count, t indicates the cumulative month number. The year term captures trend, and the harmonic term captures seasonality. This model is an adaptation of that proposed by Dan Weinberger lab (https://weinbergerlab.github.io/ExcessILI/articles/PImortality.html). If data is available on a more granular level, then weekly or daily terms could be added to the equation to capture other types of trend. To calculate the prediction intervals, we used ciTools R package (https://cran.r-project.org/web/packages/ciTools/ciTools.pdf).
  
 For proportions, in which the numerator is indicator counts and the denominator is outpatient visits, we produced similar prediction intervals using the following procedure: we performed a parametric bootstrap procedure that generates random monthly indicator counts from the prediction intervals described above and kept the total outpatient visits fixed. This gives empirical estimates and prediction intervals for proportions.  If there were missing values for the monthly outpatient visit count, instead of deleting those months and doing a complete-case analysis which would waste existing indicator count data, we performed an imputation procedure as follows: first, we fit the aforementioned model for outpatient visits instead of indicator counts, and using that model’s estimates, imputed the missing denominator values. Then, we can do the parametric bootstrap procedure with the additional step of randomly imputing missing denominator values in order to account for variation and uncertainty in these imputed outpatient values. 
 
@@ -67,6 +68,9 @@ In Liberia, it was also of interest to perform syndromic surveillance at the dis
 Alternatively, one could fit a generalized linear mixed model using the above equation with a random effect terms for each facility within the region. The region-level count estimates can then be obtained by integrating over the random effects distribution. Ultimately, we did not choose this model due to its lack of flexibility in dealing with missing data.
 $$ \log(E[Y_j | year, t ]) = \beta_0 ^* + \beta_1^*year + \sum_{k=1}^{3} \beta_{k1}^* cos(2 \pi kt/12) + \beta_{k2}^* sin(2 \pi kt/12) + \gamma _{0j} $$
 
+### Deviations and data visualizations: 
+We defined a deviation as the difference between the predicted and observed count. To allow interpretation across facilities and regions of different sizes, we divided by the predicted count for a scaled deviation measure ((expected-observed)/expected), where positive values mean that the observed number of acute respiratory infections is higher than expected, potentially indicating circulation of COVID-19. In our data visualizations, we report this scaled deviation measure in addition to indicating if the observed count falls outside of the 95% prediction interval. We provide 2 ways here to visualize the results: time series plots and tiled heatmaps, with examples shown below.
+
 
 ### Missing data considerations:
 We excluded facilities from our analysis for two reasons: (1) missing dates in the baseline period (creation of the expected counts model) (2) missing observed counts in the evaluation period.
@@ -76,7 +80,7 @@ For the first reason, facilities with high levels of missing data (more than 20%
 For the second reason, facilities with ANY missing monthly data during the evaluation period (January 2020 onward) were removed. As the syndromic surveillance exercise hinges on comparing the observed counts to the expected and flagging for deviations, we require complete observed data during this period. In this context, it would be invalid to impute observed counts based on information from the baseline period. In theory, one could attempt to impute the observed count based on information during the evaluation period.
 
 ## Overview of folders and files:
-### data
+### Data
 This folder contains example data used to demonstrate functions.
 #### data.example_singlecounty.rds
 The facility-level dataset used to demonstrate the functions throughout this repository. Note- specific names and numbers have been altered to respect the privacy of our sites.
@@ -85,11 +89,11 @@ The facility-level dataset used to demonstrate the functions throughout this rep
 This folder contains the functions used to create the key data visualization figures and maps.
 
 
-### figures
+### Figures
 This folder contains figures that have been included in README.md.
 
 
-### Example
+### Examples
 
 #### Loading Data and Functions
 
@@ -123,37 +127,42 @@ example_1_results <- fit.site.specific.denom.pi(data=data,
                               site_var="facility",
                               date_var="date",
                               R=500)
+
+head(example_1_results)
 ```
 
 ##### Single Facility Counts Results
 
 ```{r}
-plot_heatmap(df = example_1_results,
-             indicator = "indicator_count_ari_total",
-             extrapolation_date = "2020-01-01")
-
-plot_site(input = example_1_results,
-          site_name = "Facility K")
+plot_heatmap(input = example_1_results)
 ```
+
+__Note:__ the black border boxes indicate statistical significance (e.g. significantly higher than expected or significantly lower than expected depending on the color) 
+
+```{r}
+plot_site(input = example_1_results)
+```
+The observed count is given by the __black line__ (raw data from DHIS2). The expected (predicted) count is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
+
 
 ##### Single Facility Proportions Results
 
 ```{r}
+plot_heatmap_prop(input = example_1_results)
+```
 
-plot_heatmap_prop(df = example_1_results,
-             indicator = "indicator_count_ari_total",
-             extrapolation_date = "2020-01-01")
+__Note:__ the black border boxes indicate statistical significance (e.g. significantly higher than expected or significantly lower than expected depending on the color) 
 
-
-plot_site_prop(input = example_1_results,
-          site_name = "Facility K")
+```{r}
+plot_site_prop(input = example_1_results)
 
 ```
 
+The observed __proportion__ is given by the __black line__ (raw data from DHIS2). The expected (predicted) proportion is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
 
 #### Example 2: All Facilities
 
-We repeat the process above for all indicators and all facilites. In this example dataset, there are 25 facilites, 3 syndromic surveillance indicators--ARI, ARI under 5, ARI over 5--and 3 denominator indicators--total denominator, denominator under 5, denominator over 5. Note these results are needed for the subsequent county-level analyses. 
+We repeat the process above for all indicators and all facilites. In this example dataset, there are 25 facilites, 1 syndromic surveillance indicator (ARI) and 1 denominator indicator (total denominator or outpatient visits--a measure of healthcare utilization). 
 
 
 ```{r,cache=TRUE}
@@ -163,47 +172,33 @@ all_sites <- data %>% distinct(facility) %>% pull()
 
 # loop over all syndromic surveillance indicators and facilities
 
-lapply(c("indicator_count_ari_total","indicator_count_ari_under5","indicator_count_ari_over5"), function(y){
-
-  if ("under5" %in% y){
-    do.call(rbind, lapply(all_sites,function(x)
+lapply(c("indicator_count_ari_total"), function(y){    #can have a list of more indicators than just ARI
+  
+  do.call(rbind, lapply(all_sites,function(x)
       fit.site.specific.denom.pi(data=data,
                               site_name=x,
                               extrapolation_date=extrapolation_date,
                               indicator_var=y,
-                              denom_var="indicator_denom_under5",
+                              denom_var="indicator_denom",   #corresponding denominator indicator needed for proportions
                               site_var="facility",
                               date_var="date",
                               R=500)))
   }
-  else if ("over5" %in% y){
-    do.call(rbind, lapply(all_sites,function(x)
-      fit.site.specific.denom.pi(data=data,
-                              site_name=x,
-                              extrapolation_date=extrapolation_date,
-                              indicator_var=y,
-                              denom_var="indicator_denom_over5",
-                              site_var="facility",
-                              date_var="date",
-                              R=500)))
-  }
-  else {
-    do.call(rbind, lapply(all_sites,function(x)
-      fit.site.specific.denom.pi(data=data,
-                              site_name=x,
-                              extrapolation_date=extrapolation_date,
-                              indicator_var=y,
-                              denom_var="indicator_denom",
-                              site_var="facility",
-                              date_var="date",
-                              R=500)))
-  }
-}) -> facility.list
+) -> facility.list
+
+names(facility.list) <- c("indicator_count_ari_total")
+
+head(facility.list[["indicator_count_ari_total"]])
+```
 
 
+We need to repeat the same process above but for the denominator indicator variables. This is needed for the subsequent district-level and county-level analyses because we use the facility-level estimates for denominator to randomly impute, just as we randomly impute missing syndromic surveillance indicator values using the code chunk above. 
+
+
+```{r,cache=TRUE}
 # loop over all denominator(outpatient) indicators and facilities
 
-lapply(c("indicator_denom","indicator_denom_under5","indicator_denom_over5"), function(y){
+lapply(c("indicator_denom"), function(y){    #can have a list of more utilization indicators 
 
     do.call(rbind, lapply(all_sites,function(x)
       fit.site.specific.denom.pi(data=data,
@@ -217,17 +212,18 @@ lapply(c("indicator_denom","indicator_denom_under5","indicator_denom_over5"), fu
 }) -> facility.list.denom
 
 
+names(facility.list.denom) <- c("indicator_denom")
 
-names(facility.list) <- c("indicator_count_ari_total","indicator_count_ari_under5","indicator_count_ari_over5")
-names(facility.list.denom) <- c("indicator_denom","indicator_denom_under5","indicator_denom_over5")
+head(facility.list.denom[["indicator_denom"]])
 ```
+
+Below, we see results for ari counts for all facilities:
 
 ```{r}
-
-plot_facet(input = facility.list[["indicator_count_ari_total"]] %>% dplyr::rename(facet_var=`site`),
-           counts_var = "est_raw_counts")
+plot_facet(input = facility.list[["indicator_count_ari_total"]])
 ```
 
+The observed count is given by the __black line__ (raw data from DHIS2). The expected (predicted) count is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
 
 
 #### Example 3: County-level
@@ -238,6 +234,7 @@ Now we run the county-level model for the ARI indicator. The same can of course 
 county_results <- fit.cluster.pi(data = data,
                            indicator_var = "indicator_count_ari_total",
                            denom_var = "indicator_denom",
+                           site_var = "county",
                            date_var = "date",
                            denom_results_all = facility.list.denom, 
                            indicator_results_all= facility.list, 
@@ -245,34 +242,24 @@ county_results <- fit.cluster.pi(data = data,
                            n_count_base = 0,
                            p_miss_base = 0.2,
                            p_miss_eval = 0.5,
-                           R=250)
+                           R=250) 
+
+head(county_results)
 ```
 
 
 ```{r}
-county_test <- readRDS("../global_covid19_ss/liberia/results/liberia_county_ari_total_final_08_25_2020.rds")
-
-plot_heatmap_county(df = county_results %>% mutate(site = "County Alpha"),
-             indicator = "indicator_count_ari_total",
-             extrapolation_date = "2020-01-01")
-
-
-plot_site_county(input = county_results %>% mutate(site = "County Alpha"),
-          site_name = "County Alpha")
-
+plot_heatmap_county(input = county_results)
 ```
-
+__Note:__ the black border boxes indicate statistical signficance (e.g. significantly higher than expected or significantly lower than expected depending on the color) 
 
 
 ```{r}
-# for figures, for first part, use output to make 2 figures, tile plot and standard thing
-# nicole using real data maps
-# save output for single facility and multiple facilities to create figures later..another folder called results or output like results_example1 or something
-# example 1 facility counts, example 2 facility proportions, example 3 multiple fac, facet wrap for all of em, example 4, county counts, tile thing
-# separate r script for figures (heat map, time series single, time series facet wrap)
-#
-#
+plot_site_county(input = county_results)
+
 ```
+
+The observed count is given by the __black line__ (raw data from DHIS2). The expected (predicted) count is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
 
 
 

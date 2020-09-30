@@ -9,9 +9,10 @@ library(lubridate)
 library(prettyGraphs)
 
 # uses data frame from formatted_df() function
-plot_heatmap <- function(df,indicator,extrapolation_date){
+plot_heatmap <- function(input,extrapolation_date = "2020-01-01"){
   
-  df %>% 
+  
+  input %>% 
     filter(date >= extrapolation_date)  %>% 
     mutate(date_new = paste0("0",month(date),"-2020")) %>% 
     mutate(deviation_final = (observed - est_raw_counts)/est_raw_counts,
@@ -40,9 +41,9 @@ plot_heatmap <- function(df,indicator,extrapolation_date){
   
 }
 
-plot_heatmap_county <- function(df,indicator,extrapolation_date){
+plot_heatmap_county <- function(input,extrapolation_date = "2020-01-01"){
   
-  df %>% 
+  input %>% 
     filter(date >= extrapolation_date)  %>% 
     mutate(date_new = paste0("0",month(date),"-2020")) %>% 
     mutate(deviation_final = (observed_count - est_raw_counts)/est_raw_counts,
@@ -72,9 +73,9 @@ plot_heatmap_county <- function(df,indicator,extrapolation_date){
 }
 
 
-plot_heatmap_prop <- function(df,indicator,extrapolation_date){
+plot_heatmap_prop <- function(input,extrapolation_date = "2020-01-01"){
   
-  df %>% 
+  input %>% 
     filter(date >= extrapolation_date)  %>% 
     mutate(date_new = paste0("0",month(date),"-2020")) %>% 
     mutate(deviation_final = (observed_prop - est_prop)/est_prop,
@@ -136,8 +137,9 @@ plot_heatmap_by_indicator <- function(df,extrapolation_date){
 }
 
 
-
-plot_site <- function(input,site_name=0,ylab="Number of New Cases",xlab="Date",text_size=14){
+plot_site <- function(input,ylab="Number of New Cases",xlab="Date",text_size=14){
+  
+  site_name <- input %>% distinct(site) %>% pull()
   
   if(site_name!=0){ input %>% filter(site==site_name) -> input }
   
@@ -152,7 +154,9 @@ plot_site <- function(input,site_name=0,ylab="Number of New Cases",xlab="Date",t
   
 }
 
-plot_site_county <- function(input,site_name=0,ylab="Number of New Cases",xlab="Date",text_size=14){
+plot_site_county <- function(input,ylab="Number of New Cases",xlab="Date",text_size=14){
+  
+  site_name <- input %>% distinct(site) %>% pull()
   
   if(site_name!=0){ input %>% filter(site==site_name) -> input }
   
@@ -168,7 +172,10 @@ plot_site_county <- function(input,site_name=0,ylab="Number of New Cases",xlab="
 }
 
 
-plot_site_prop <- function(input,site_name=0,ylab="Proportion of New Cases",xlab="Date",text_size=14){
+plot_site_prop <- function(input,ylab="Proportion of New Cases",xlab="Date",text_size=14){
+  
+  site_name <- input %>% distinct(site) %>% pull()
+  
   
   if(site_name!=0){ input %>% filter(site==site_name) -> input }
   
@@ -183,7 +190,9 @@ plot_site_prop <- function(input,site_name=0,ylab="Proportion of New Cases",xlab
 
 
 
-plot_facet <- function(input,counts_var,ylab="Number of New Cases",xlab="Date",text_size=10){
+plot_facet <- function(input,counts_var = "est_raw_counts",ylab="Number of New Cases",xlab="Date",text_size=10){
+  
+  input <- input %>% dplyr::rename(facet_var=`site`)
   if (grepl("raw",counts_var)){
     ggplot(input) + geom_line(aes(date,est_raw_counts),color="red") + 
       geom_ribbon(aes(x=date,ymin=ci_raw_counts_low,ymax=ci_raw_counts_up),fill="red",alpha=.2) + 

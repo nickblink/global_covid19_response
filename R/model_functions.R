@@ -8,23 +8,6 @@ library(lme4)
 library(GLMMadaptive)
 library(ciTools)
 
-# data=data
-# site_name="Facility K"
-# extrapolation_date="2020-01-01"
-# indicator_var="indicator_count_ari_total"
-# denom_var="indicator_denom"
-# site_var="facility"
-# date_var="date"
-# R = 500
-# 
-# fit.site.specific.denom.pi(data=data,
-#                            site_name="Facility K",
-#                            extrapolation_date="2020-01-01",
-#                            indicator_var="indicator_count_ari_total",
-#                            denom_var="indicator_denom", 
-#                            site_var="facility",
-#                            date_var="date",
-#                            R=R)
 
 
 # SINGLE FACILITY COUNT & PROPORTION WITH PREDICTION INTERVAL
@@ -240,6 +223,7 @@ fit.cluster.pi <- function(data,
                            indicator_var,
                            denom_var,
                            date_var,
+                           site_var,
                            denom_results_all, # list
                            indicator_results_all, # list
                            counts_only=FALSE,
@@ -299,6 +283,7 @@ fit.cluster.pi <- function(data,
   
   data %>% 
     dplyr::rename(indicator = indicator_var,
+                  site = site_var,
                   date = date_var) %>% 
     filter(facility %in% facility_complete_list) -> data.new
   
@@ -425,6 +410,8 @@ fit.cluster.pi <- function(data,
            ci_up_prop = ifelse(ci_up_prop > 1, 0, ci_up_prop),
            ci_raw_counts_low=ifelse(ci_raw_counts_low < 0,0,ci_raw_counts_low),
            ci_raw_counts_up=ifelse(ci_raw_counts_up < 0,0,ci_raw_counts_up)) -> results
+  
+  results <- results %>% mutate(site = data %>% rename(site = site_var) %>% distinct(site) %>% pull())
   
   return(results)
   
