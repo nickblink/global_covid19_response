@@ -1,3 +1,25 @@
+-   [Global COVID-19 Response](#global-covid-19-response)
+    -   [Table of Contents](#table-of-contents)
+    -   [About:](#about)
+    -   [Goals:](#goals)
+    -   [Modelling technique:](#modelling-technique)
+        -   [Facility-level models:](#facility-level-models)
+        -   [District and county-level
+            models:](#district-and-county-level-models)
+        -   [Missing data considerations:](#missing-data-considerations)
+    -   [Overview of folders and files:](#overview-of-folders-and-files)
+        -   [data](#data)
+        -   [R](#r)
+        -   [figures](#figures)
+        -   [Example](#example)
+
+    liberia_shape <- readOGR("../global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp")
+
+    ## OGR data source with driver: ESRI Shapefile 
+    ## Source: "/Users/nicholekulikowski/Dropbox/global_covid19_ss/liberia/data/shape/liberia_fixed/Export_Output_2.shp", layer: "Export_Output_2"
+    ## with 15 features
+    ## It has 4 fields
+
 Global COVID-19 Response
 ========================
 
@@ -162,8 +184,6 @@ names and numbers have been altered to respect the privacy of our sites.
 This folder contains the functions used to create the key data
 visualization figures and maps.
 
-![](README_files/figure-markdown_strict/unnamed-chunk-3-1.png)
-
 ### figures
 
 This folder contains figures that have been included in README.md.
@@ -221,12 +241,12 @@ model, and look at the results through the counts and proportion lenses.
                  indicator = "indicator_count_ari_total",
                  extrapolation_date = "2020-01-01")
 
-![](README_files/figure-markdown_strict/unnamed-chunk-7-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-6-1.png)
 
     plot_site(input = example_1_results,
               site_name = "Facility K")
 
-![](README_files/figure-markdown_strict/unnamed-chunk-7-2.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-6-2.png)
 
 ##### Single Facility Proportions Results
 
@@ -234,12 +254,12 @@ model, and look at the results through the counts and proportion lenses.
                  indicator = "indicator_count_ari_total",
                  extrapolation_date = "2020-01-01")
 
-![](README_files/figure-markdown_strict/unnamed-chunk-8-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-7-1.png)
 
     plot_site_prop(input = example_1_results,
               site_name = "Facility K")
 
-![](README_files/figure-markdown_strict/unnamed-chunk-8-2.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-7-2.png)
 
 #### Example 2: All Facilities
 
@@ -319,7 +339,7 @@ Note these results are needed for the subsequent county-level analyses.
     ## Warning in max(ids, na.rm = TRUE): no non-missing arguments to max; returning -
     ## Inf
 
-![](README_files/figure-markdown_strict/unnamed-chunk-10-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-9-1.png)
 
 #### Example 3: County-level
 
@@ -344,12 +364,12 @@ course be done for the other indicators of interest.
                  indicator = "indicator_count_ari_total",
                  extrapolation_date = "2020-01-01")
 
-![](README_files/figure-markdown_strict/unnamed-chunk-12-1.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-11-1.png)
 
     plot_site_county(input = county_results %>% mutate(site = "County Alpha"),
               site_name = "County Alpha")
 
-![](README_files/figure-markdown_strict/unnamed-chunk-12-2.png)
+![](README_files/figure-markdown_strict/unnamed-chunk-11-2.png)
 
     # for figures, for first part, use output to make 2 figures, tile plot and standard thing
     # nicole using real data maps

@@ -2,7 +2,7 @@
 title: "README"
 output: 
   md_document:
-    toc: no
+    toc: yes
 ---
 ```{r, include=FALSE}
 library(leaflet)
@@ -84,40 +84,6 @@ The facility-level dataset used to demonstrate the functions throughout this rep
 ### R
 This folder contains the functions used to create the key data visualization figures and maps.
 
-```{r,echo=FALSE,message=FALSE,warning=FALSE,error=FALSE}
-june_deviation <- readRDS(paste0("../global_covid19_ss/liberia/results/liberia_county_ari_total_final_08_05_2020.rds")) %>% dplyr::mutate(deviation_final = (observed - est_raw_counts)/est_raw_counts) %>% filter(date == "2020-06-01")
-
-
-
-proj4string(liberia_shape) <- CRS("+proj=longlat +datum=WGS84")
-liberia_shape <- spTransform(liberia_shape, CRS("+proj=longlat +datum=WGS84"))
-
-
-liberia_county_merged <- geo_join(liberia_shape, june_deviation, "ID", "county")
-
-    pal_rev <- colorNumeric(palette = "RdBu", domain = -2.5:2.5)
-    pal <- colorNumeric(palette = "RdBu", domain = -2.5:2.5, reverse = TRUE)
-    popup_liberia_county <-     paste(paste0("County: ", as.character(liberia_county_merged$county)),  
-                                   paste0("Total deviation: ", as.character(round(liberia_county_merged$deviation_final,2))),
-                                   paste0("Observed count: ", as.character(round(liberia_county_merged$observed,0))),
-                                   paste0("Expected count: ", as.character(round(liberia_county_merged$est_raw_counts,0))), sep = "<br/>")
-    
-    leaflet() %>%
-        addProviderTiles("CartoDB.Positron") %>%
-        addPolygons(data=liberia_county_merged,
-                    color = "#444444",
-                    fillColor = ~pal(liberia_county_merged$deviation_final),
-                    fillOpacity = .7,
-                    weight = .8,
-                    smoothFactor = .2,
-                    popup = ~popup_liberia_county) %>%
-        addLegend(pal=pal_rev,
-                  values = -2.5:2.5,
-                  position = "bottomright",
-                  title = "Amount deviated from expected:",
-                  labFormat = labelFormat(transform = function(x) sort(x, decreasing = TRUE)))
-
-```
 
 ### figures
 This folder contains figures that have been included in README.md.
