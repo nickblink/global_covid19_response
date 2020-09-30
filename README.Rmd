@@ -142,6 +142,7 @@ __Note:__ the black border boxes indicate statistical significance (e.g. signifi
 ```{r}
 plot_site(input = example_1_results)
 ```
+
 The observed count is given by the __black line__ (raw data from DHIS2). The expected (predicted) count is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
 
 
@@ -251,6 +252,7 @@ head(county_results)
 ```{r}
 plot_heatmap_county(input = county_results)
 ```
+
 __Note:__ the black border boxes indicate statistical signficance (e.g. significantly higher than expected or significantly lower than expected depending on the color) 
 
 

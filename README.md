@@ -281,9 +281,10 @@ expected depending on the color)
 
     plot_site(input = example_1_results)
 
-![](README_files/figure-markdown_strict/unnamed-chunk-7-1.png) The
-observed count is given by the **black line** (raw data from DHIS2). The
-expected (predicted) count is given by the <font color='red'>**red
+![](README_files/figure-markdown_strict/unnamed-chunk-7-1.png)
+
+The observed count is given by the **black line** (raw data from DHIS2).
+The expected (predicted) count is given by the <font color='red'>**red
 line**</font> with 95% prediction intervals in light red (using the
 model described above).
 
@@ -449,6 +450,7 @@ course be done for the other indicators of interest.
     plot_heatmap_county(input = county_results)
 
 ![](README_files/figure-markdown_strict/unnamed-chunk-14-1.png)
+
 **Note:** the black border boxes indicate statistical signficance
 (e.g. significantly higher than expected or significantly lower than
 expected depending on the color)
