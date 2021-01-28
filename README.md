@@ -22,7 +22,7 @@
 Global COVID-19 Response
 ========================
 
-*Last updated: 15 Sep 2020*
+*Last updated: 29 January 2021*
 
 Table of Contents
 -----------------
