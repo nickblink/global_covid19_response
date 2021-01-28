@@ -1,7 +1,7 @@
 ---
 title: "README"
 output: 
-  md_document:
+  md_document: variant: markdown_github
     toc: yes
 ---
 ```{r, include=FALSE}
