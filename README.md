@@ -89,7 +89,7 @@ For facility-level assessments, we fit a generalized linear model with
 negative binomial distribution and log-link to estimate expected monthly
 counts. Only data from the baseline period will be used to estimate the
 expected counts:
-$$ \\log(E\[Y | year, t \]) = \\beta\_0 + \\beta\_1year + \\sum\_{k=1}^{3} \\beta\_{k1} cos(2 \\pi kt/12) + \\beta\_{k2} sin(2 \\pi kt/12) $$
+<img src="http://www.sciweavers.org/tex2img.php?eq=%24%24%20%5Clog%28E%5BY%20%7C%20year%2C%20t%20%5D%29%20%3D%20%5Cbeta_0%20%2B%20%5Cbeta_1year%20%2B%20%5Csum_%7Bk%3D1%7D%5E%7B3%7D%20%5Cbeta_%7Bk1%7D%20cos%282%20%5Cpi%20kt%2F12%29%20%2B%20%5Cbeta_%7Bk2%7D%20sin%282%20%5Cpi%20kt%2F12%29%20%24%24&bc=White&fc=Black&im=jpg&fs=12&ff=arev&edit=0" align="center" border="0" alt="$$ \log(E[Y | year, t ]) = \beta_0 + \beta_1year + \sum_{k=1}^{3} \beta_{k1} cos(2 \pi kt/12) + \beta_{k2} sin(2 \pi kt/12) $$" width="626" height="28" />
 where Y indicates monthly indicator count, t indicates the cumulative
 month number. The year term captures trend, and the harmonic term
 captures seasonality. This model is an adaptation of that proposed by
