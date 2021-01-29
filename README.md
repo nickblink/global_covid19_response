@@ -1,3 +1,24 @@
+-   [Global COVID-19 Response](#global-covid-19-response)
+    -   [Table of Contents](#table-of-contents)
+    -   [About:](#about)
+    -   [Goals:](#goals)
+    -   [Modeling technique:](#modeling-technique)
+        -   [Facility-level models:](#facility-level-models)
+        -   [District and county-level
+            models:](#district-and-county-level-models)
+        -   [Deviations and data
+            visualizations:](#deviations-and-data-visualizations)
+        -   [Missing data considerations:](#missing-data-considerations)
+    -   [Overview of folders and files:](#overview-of-folders-and-files)
+        -   [Data](#data)
+        -   [R](#r)
+        -   [Figures](#figures)
+    -   [Examples](#examples)
+        -   [Loading Data and Functions](#loading-data-and-functions)
+        -   [Example 1: Single Facility](#example-1-single-facility)
+        -   [Example 2: All Facilities](#example-2-all-facilities)
+        -   [Example 3: County-level](#example-3-county-level)
+
 Global COVID-19 Response
 ========================
 
@@ -67,7 +88,9 @@ processing stages.
 For facility-level assessments, we fit a generalized linear model with
 negative binomial distribution and log-link to estimate expected monthly
 counts. Only data from the baseline period will be used to estimate the
-expected counts:
+expected counts: \[equation\]
+(<a href="https://latex.codecogs.com/svg.latex?%5Clog%28E%5BY%20%7C%20year%2C%20t%20%5D%29%20%3D%20%5Cbeta_0%20+%20%5Cbeta_1year%20+%20%5Csum_%7Bk%3D1%7D%5E%7B3%7D%20%5Cbeta_%7Bk1%7D%20cos%282%20%5Cpi%20kt/12%29%20+%20%5Cbeta_%7Bk2%7D%20sin%282%20%5Cpi%20kt/12%29" class="uri">https://latex.codecogs.com/svg.latex?%5Clog%28E%5BY%20%7C%20year%2C%20t%20%5D%29%20%3D%20%5Cbeta_0%20+%20%5Cbeta_1year%20+%20%5Csum_%7Bk%3D1%7D%5E%7B3%7D%20%5Cbeta_%7Bk1%7D%20cos%282%20%5Cpi%20kt/12%29%20+%20%5Cbeta_%7Bk2%7D%20sin%282%20%5Cpi%20kt/12%29</a>)
+
 $$ \\log(E\[Y | year, t \]) = \\beta\_0 + \\beta\_1year + \\sum\_{k=1}^{3} \\beta\_{k1} cos(2 \\pi kt/12) + \\beta\_{k2} sin(2 \\pi kt/12) $$
 where Y indicates monthly indicator count, t indicates the cumulative
 month number. The year term captures trend, and the harmonic term
