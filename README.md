@@ -1,24 +1,3 @@
--   [Global COVID-19 Response](#global-covid-19-response)
-    -   [Table of Contents](#table-of-contents)
-    -   [About:](#about)
-    -   [Goals:](#goals)
-    -   [Modeling technique:](#modeling-technique)
-        -   [Facility-level models:](#facility-level-models)
-        -   [District and county-level
-            models:](#district-and-county-level-models)
-        -   [Deviations and data
-            visualizations:](#deviations-and-data-visualizations)
-        -   [Missing data considerations:](#missing-data-considerations)
-    -   [Overview of folders and files:](#overview-of-folders-and-files)
-        -   [Data](#data)
-        -   [R](#r)
-        -   [Figures](#figures)
-    -   [Examples](#examples)
-        -   [Loading Data and Functions](#loading-data-and-functions)
-        -   [Example 1: Single Facility](#example-1-single-facility)
-        -   [Example 2: All Facilities](#example-2-all-facilities)
-        -   [Example 3: County-level](#example-3-county-level)
-
 Global COVID-19 Response
 ========================
 
