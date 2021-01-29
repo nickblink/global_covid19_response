@@ -110,7 +110,7 @@ data <- readRDS("data/data_example_singlecounty.rds")
 head(data)
 ```
 
-The data loaded here are taken from a county in Liberia and perturbed slightly. The indicator of interest is acute respiratory infections, disaggregated by age, and we also see total outpatient visits (indicator_denom)--a measure of healthcare utilization--disaggregated by age. 
+The data loaded here are taken from a county in Liberia and perturbed slightly. The indicator of interest is acute respiratory infections (first column: indicqtor_count_ari_total), disaggregated by age (following 2 columns), and we also see total outpatient visits (indicator_denom)--a measure of healthcare utilization--disaggregated by age. 
 
 #### Example 1: Single Facility
 
@@ -168,7 +168,7 @@ The observed __proportion__ is given by the __black line__ (raw data from DHIS2)
 
 #### Example 2: All Facilities
 
-We repeat the process above for all indicators and all facilites. In this example dataset, there are 25 facilites, 1 syndromic surveillance indicator (ARI) and 1 denominator indicator (total denominator or outpatient visits--a measure of healthcare utilization). 
+We repeat the process above for all indicators and all facilities. In this example dataset, there are 25 facilities, 1 syndromic surveillance indicator (ARI) and 1 denominator indicator (total denominator or outpatient visits--a measure of healthcare utilization). 
 
 
 ```{r,cache=TRUE}
@@ -201,7 +201,7 @@ head(facility.list[["indicator_count_ari_total"]])
 ```
 
 
-We need to repeat the same process above but for the denominator indicator variables. This is needed for the subsequent district-level and county-level analyses because we use the facility-level estimates for denominator to randomly impute, just as we randomly impute missing syndromic surveillance indicator values using the code chunk above. 
+We repeat the same process above but for the denominator indicator variables. This is needed for the subsequent district-level and county-level analyses (and is implemented within those corresponding functions; this example is for demonstration's sake) because we use the facility-level estimates for denominator to randomly impute, just as we randomly impute missing syndromic surveillance indicator values using the code chunk above. 
 
 
 ```{r,cache=TRUE}
@@ -229,7 +229,7 @@ names(facility.list.denom) <- c("indicator_denom")
 head(facility.list.denom[["indicator_denom"]])
 ```
 
-Below, we see results for ari counts for all facilities:
+Below, we see results for ARI counts for all facilities:
 
 ```{r}
 plot_facet(input = facility.list[["indicator_count_ari_total"]])
@@ -246,15 +246,15 @@ Now we run the county-level model for the ARI indicator. The same can of course 
 county_results <- fit.cluster.pi(data = data,
                            indicator_var = "indicator_count_ari_total",
                            denom_var = "indicator_denom",
-                           site_var = "county",
+                           site_var = "facility",
                            date_var = "date",
-                           denom_results_all = facility.list.denom, 
-                           indicator_results_all= facility.list, 
                            counts_only=FALSE,
                            n_count_base = 0,
                            p_miss_base = 0.2,
                            p_miss_eval = 0.5,
                            R=250)
+
+
 ```
 
 

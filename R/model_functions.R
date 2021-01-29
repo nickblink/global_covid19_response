@@ -12,8 +12,8 @@ library(ciTools)
 
 # SINGLE FACILITY COUNT & PROPORTION WITH PREDICTION INTERVAL
 fit.site.specific.denom.pi <-function(data,site_name,extrapolation_date,
-                                       indicator_var,site_var,date_var,denom_var=NULL,
-                                       level="month",counts_only=FALSE,R=250){
+                                      indicator_var,site_var,date_var,denom_var=NULL,
+                                      level="month",counts_only=FALSE,R=250){
   if(counts_only==FALSE & is.null(denom_var)){
     warning("You must supply a denominator variable")
   }
@@ -63,74 +63,100 @@ fit.site.specific.denom.pi <-function(data,site_name,extrapolation_date,
                     sin3 = sin(2*3*pi*total/period)) -> data.new
     
     #raw counts model 
-    data.new %>% filter(!is.na(indicator)) %>% 
+    data.new %>% filter(!is.na(indicator) & !is.na(denom)) %>% 
       filter(date < extrapolation_date) -> data.base 
     
-    # remove NAs and dates after extrapolation date 
-    data.new %>% filter(!is.na(indicator)) %>% 
-      filter(!is.na(denom)) %>% 
-      filter(date < extrapolation_date) %>% 
-      dplyr::select(-indicator) -> data.base.denom
-    
-    data.new %>% dplyr::select(-indicator) -> data.new.denom
   }
   # fit model (add 0.5 in case denom is zero)
   formula_counts = "indicator ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"
-  formula_denom = "denom ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"
+  formula_prop = "indicator ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3 + offset(log(denom))"
   
   
   #fit unadjusted counts model
   tryCatch({
     
     mod_counts <- glm(as.formula(formula_counts), data=data.base, family=quasipoisson)
-    count.predict <- exp(predict(mod_counts,newdata=data.new))
     
+    #check dispersion parameter
+    overdisp <- summary(mod_counts)$dispersion
+    if(overdisp > 1){
+      
+      count.predict <- exp(predict(mod_counts,newdata=data.new))
+      
+    } else {
+      
+      mod_counts <- glm(as.formula(formula_counts), data=data.base, family=poisson)
+      count.predict <- exp(predict(mod_counts,newdata=data.new))
+      print(paste0("underdispersion detected for ",site_name," with dispersion ",overdisp))
+    }
     #add_pi() function cannot have missing data - fill in with predicted value 
     data.new.filled <- data.new %>% mutate(indicator = ifelse(is.na(indicator),count.predict,indicator))
     
-    #prediction interval 
+    #prediction interval - what to do with 
     pi <- suppressWarnings(add_pi(data.new.filled,mod_counts)) #warning is just about approximation
     pi.low <- pi$LPB0.025 
     pi.up <- pi$UPB0.975
+    
     
     if (counts_only==FALSE){
       #if denominator data given, calculate adjusted counts and proportion estimates
       tryCatch({
         
-        #model for denom
-        mod_counts_denom <- suppressWarnings(glm(as.formula(formula_denom), data=data.base.denom, family=quasipoisson))
-        count.predict.denom <- exp(predict(mod_counts_denom,newdata=data.new.denom))
+        if(sum(is.na(data.new$denom))>0){
+          
+          formula_denom = "denom ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"
+          mod_denom <- glm(as.formula(formula_denom), data=data.base, family=quasipoisson)
+          alpha_hat <- mod_denom$coefficients
+          alpha_vcov <- vcov(mod_denom)
+          
+          sapply(1:R, function(r) {
+            set.seed(10*r)
+            alpha_boot <- MASS::mvrnorm(1,alpha_hat,alpha_vcov)
+            
+            pred_boot_denom <- (data.new %>% 
+                                  mutate(intercept=1) %>%
+                                  dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                                  as.matrix())%*%as.matrix(alpha_boot)
+            pred_boot_denom_exp <- exp(pred_boot_denom)
+            
+            denom_updated <- data.new$denom
+            denom_updated[is.na(data.new$denom)] <- pred_boot_denom_exp[is.na(data.new$denom)]
+            
+            denom_updated
+            
+          }) -> denom_no_miss
+          
+        } else { 
+          
+          denom_no_miss <- matrix(data.new$denom, length(data.new$denom), R) 
+          
+        } # END UPDATE: add NA in denom
         
-        #add_pi() function cannot have missing data - fill in with predicted value 
-        data.new.denom.filled <- data.new.denom %>% mutate(denom = ifelse(is.na(denom),count.predict.denom,denom))
+        mod_prop <- glm(as.formula(formula_prop), data=data.base, family=quasipoisson)
+        beta_hat <- mod_prop$coefficients
+        beta_vcov <- vcov(mod_prop)
+        overdisp <- summary(mod_prop)$dispersion
         
-        #prediction interval 
-        pi.denom <- suppressWarnings(add_pi(data.new.denom.filled,mod_counts_denom)) #warning is just about approximation
-        pi.low.denom <- pi.denom$LPB0.025 
-        pi.up.denom <- pi.denom$UPB0.975
+        sapply(1:R, function(r){
+          
+          #indicator 
+          beta_boot <- MASS::mvrnorm(1,beta_hat,beta_vcov)
+          pred_boot <- (data.new %>% 
+                          mutate(intercept=1) %>%
+                          dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                          as.matrix())%*%as.matrix(beta_boot)
+          pred_boot_exp <- exp(pred_boot + log(denom_no_miss[,r])) # UPDATE
+          pred_boot_exp[which(is.na(pred_boot_exp))] <- 1 # have to do this so the rnegbin runs - will be ignored in final step
+          se_boot <- pred_boot_exp/(overdisp - 1)
+          x = MASS::rnegbin(n = nrow(data.new),mu = pred_boot_exp,theta = se_boot)
+          
+          x/denom_no_miss[,r] # UPDATE
+          
+        }) -> sim.boot
         
-        #get empirical prediction interval for proportion using parametric bootstrap 
-        #TO DO: double check pred interval is approx normal (sample from betas instead?)
-        
-        se.indicator <- (pi.up-pi.low)/(2*qnorm(.975))
-        # se.denom <- (pi.up.denom-pi.low.denom)/(2*qnorm(.975))
-        prop.boot <- sapply(1:R, function(x){
-          boot.indicator <- rnorm(nrow(data.new),count.predict,se.indicator)
-          # boot.denom <- rnorm(nrow(data.new),count.predict.denom,se.denom)
-          boot.denom <- data.new.denom %>% 
-            mutate(se_denom = (as.numeric(pi.up.denom)-as.numeric(pi.low.denom))/(2*qnorm(.975))) %>%
-            mutate(boot_value = case_when(is.na(denom) ~ rnorm(1,count.predict.denom,se_denom),
-                                          TRUE ~ as.numeric(denom))) %>% pull(boot_value)
-          boot.indicator/boot.denom
-        })
-        
-        prop.predict <- apply(prop.boot,1,quantile,.50)
-        
-        prop.pi.low <- apply(prop.boot,1,quantile,.025)
-        prop.pi.low[which(prop.pi.low<0)] <- 0
-        
-        prop.pi.up <- apply(prop.boot,1,quantile,.975)
-        prop.pi.up[which(prop.pi.up>1)] <- 1
+        prop.pi.low <- apply(sim.boot,1,quantile,.025,na.rm=TRUE)
+        prop.pi.up <- apply(sim.boot,1,quantile,.975,na.rm=TRUE)
+        prop.predict <- apply(sim.boot,1,quantile,.50,na.rm=TRUE)
         
         # create data frame with predictions, 95% CIs, and observed values 
         results.df <<- data.frame(site=site_name,
@@ -219,88 +245,272 @@ fit.site.specific.denom.pi <-function(data,site_name,extrapolation_date,
 
 
 # CLUSTER PROPORTION AND COUNTS WITH PREDICTION INTERVALS (Bootstrap!)
+# EXTRACT BETA COEFFICIENTS 
+# SINGLE FACILITY COUNT & PROPORTION WITH PREDICTION INTERVAL 
+site.model.coefficients <-function(data,
+                                   site_name,
+                                   extrapolation_date,
+                                   indicator_var,
+                                   denom_var=NA, # if proportions are desired
+                                   site_var,
+                                   date_var,
+                                   level="month",
+                                   R=250){
+  
+  # period 
+  if (level == "month") {
+    period = 12 
+  } else if (level == "biweek"){
+    period = 26 
+  } else if (level == "week"){
+    period = 52
+  } else if (level == "day"){
+    period= 365
+  }
+  # create data frame
+  if (is.na(denom_var)){
+    data %>% 
+      dplyr::rename(site=site_var,indicator=indicator_var,date=date_var) %>%
+      filter(site==site_name) %>%
+      dplyr::select(date,indicator) %>%
+      arrange(date) %>% 
+      dplyr::mutate(year = year(date) - min(year(date)) + 1,
+                    total=1:n(),
+                    cos1 = cos(2*1*pi*total/period),
+                    sin1 = sin(2*1*pi*total/period),
+                    cos2 = cos(2*2*pi*total/period),
+                    sin2 = sin(2*2*pi*total/period),
+                    cos3 = cos(2*3*pi*total/period),
+                    sin3 = sin(2*3*pi*total/period)) -> data.new
+    
+    # remove NAs and dates after extrapolation date 
+    data.new %>% filter(!is.na(indicator)) %>% 
+      filter(date < extrapolation_date) -> data.base
+  } else {
+    data %>% 
+      dplyr::rename(site=site_var,indicator=indicator_var,date=date_var,denom=denom_var) %>%
+      filter(site==site_name) %>%
+      dplyr::select(date,indicator,denom) %>%
+      arrange(date) %>% 
+      dplyr::mutate(year = year(date) - min(year(date)) + 1,
+                    total=1:n(),
+                    cos1 = cos(2*1*pi*total/period),
+                    sin1 = sin(2*1*pi*total/period),
+                    cos2 = cos(2*2*pi*total/period),
+                    sin2 = sin(2*2*pi*total/period),
+                    cos3 = cos(2*3*pi*total/period),
+                    sin3 = sin(2*3*pi*total/period)) -> data.new
+    
+    #raw counts model 
+    data.new %>% filter(!is.na(indicator)) %>% # UPDATE: remove no NA in denom
+      filter(date < extrapolation_date) -> data.base 
+    
+  }
+  
+  # COUNT MODEL
+  formula_counts = "indicator ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"
+  mod_counts <- glm(as.formula(formula_counts), data=data.base, family=quasipoisson)
+  overdisp <- summary(mod_counts)$dispersion
+  if(overdisp < 1){
+    
+    mod_counts <- glm(as.formula(formula_counts), data=data.base, family=poisson)
+    print(paste0("underdispersion detected for ",site_name," with dispersion ",overdisp))
+    
+  }
+  beta_hat <- mod_counts$coefficients
+  beta_vcov <- vcov(mod_counts)
+  predictions <- exp(predict(mod_counts,data.new))
+  
+  
+  # PROPORTION MODEL (if applicable)
+  if(!is.na(denom_var)){
+    
+    formula_prop = "indicator ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3 + offset(log(denom))"
+    mod_prop <- glm(as.formula(formula_prop), data=data.base, family=quasipoisson)
+    overdisp_adj <- summary(mod_prop)$dispersion
+    if(overdisp_adj < 1){
+      mod_prop <- glm(as.formula(formula_prop), data=data.base, family=poisson)
+      print(paste0("underdispersion detected for ",site_name," with dispersion ",overdisp))
+    }
+    
+    beta_adj_hat <- mod_prop$coefficients
+    beta_adj_vcov <- vcov(mod_prop)
+    
+  } else {
+    
+    beta_adj_hat <- NA
+    beta_adj_vcov <- NA
+    overdisp_adj <- NA
+  }
+  
+  results.list <- list(model_matrix = data.new,
+                       predictions = predictions,
+                       beta_estimates=beta_hat,
+                       beta_var=beta_vcov,
+                       overdispersion=overdisp,
+                       beta_estimates_adj=beta_adj_hat,
+                       beta_var_adj=beta_adj_vcov,
+                       overdispersion_adj=overdisp_adj)
+  
+  return(results.list)
+}
+
+sites_included_cluster <- function(data,indicator,p_miss_eval,p_miss_base,n_count_base){
+  
+  data %>% 
+    rename(observed = indicator) %>%
+    filter(date < as.Date(extrapolation_date)) %>% 
+    group_by(facility) %>% 
+    dplyr::summarize(mean = mean(is.na(observed))) %>% 
+    filter(mean <= p_miss_base) %>% dplyr::select(facility) %>% pull(facility) -> sites.base
+  
+  data %>% 
+    rename(observed = indicator) %>%
+    filter(date < as.Date(extrapolation_date)) %>% 
+    group_by(facility) %>% 
+    dplyr::summarize(median = median(observed,na.rm=TRUE)) %>% 
+    filter(median > n_count_base) %>% dplyr::select(facility) %>% pull(facility) -> sites.sparse.base
+  
+  data %>% 
+    rename(observed = indicator) %>%
+    filter(date >= as.Date(extrapolation_date)) %>% 
+    group_by(facility) %>% 
+    dplyr::summarize(mean = mean(is.na(observed))) %>% 
+    filter(mean <= p_miss_eval) %>% dplyr::select(facility) %>% pull(facility) -> sites.eval 
+  
+  sites.baseline <- intersect(sites.base,sites.sparse.base)
+  sites.included <- intersect(sites.eval,sites.baseline)
+  
+  return(sites.included)
+  
+}
+
+
+data = data
+indicator_var = "indicator_count_ari_total"
+denom_var = "indicator_denom"
+site_var = "facility"
+date_var = "date"
+counts_only=FALSE
+n_count_base = 0
+p_miss_base = 0.2
+p_miss_eval = 0.5
+R=250
+
+# CLUSTER PROPORTION AND COUNTS WITH PREDICTION INTERVALS 
 fit.cluster.pi <- function(data,
                            indicator_var,
                            denom_var,
                            date_var,
                            site_var,
-                           denom_results_all, # list
-                           indicator_results_all, # list
                            counts_only=FALSE,
                            n_count_base,p_miss_base,p_miss_eval,
                            R=250){
   
-  # filter & arrange date in both data sources
-  data %>% arrange(date) -> data.new
   
-  indicator_results_all[[`indicator_var`]] %>% 
-    filter(site %in% unique(data.new$facility)) %>% arrange(date) -> indicator_results
-  
-  # remove sites with sparse or missing indicator and/or denom data
-  sparse(data,indicator_var=indicator_var,date_var="date",site_var="facility",count=n_count_base) -> site_notsparse
-  observed(data,indicator_var=indicator_var,date_var="date",site_var="facility",prop_miss=p_miss_eval) -> site_observed
-  complete(data,indicator_var=indicator_var,date_var="date",site_var="facility",prop_miss=p_miss_base) -> site_complete
-  indicator_results %>% filter(!is.na(est_raw_counts)) %>% distinct(site) %>% pull() -> results_notNA
-  
-  
-  if (counts_only==FALSE){  
-    denom_results_all[[`denom_var`]] %>%
-      filter(site %in% unique(data.new$facility)) %>% arrange(date) -> denom_results
-    
-    sparse(data,indicator_var=denom_var,date_var="date",site_var="facility",count=n_count_base) -> site_notsparse_denom
-    observed(data,indicator_var=denom_var,date_var="date",site_var="facility",prop_miss=p_miss_eval) -> site_observed_denom
-    complete(data,indicator_var=denom_var,date_var="date",site_var="facility",prop_miss=p_miss_base) -> site_complete_denom
-    denom_results %>% filter(!is.na(est_raw_counts)) %>% distinct(site) %>% pull() -> results_notNA_denom
-    
-    facility_complete_list <- Reduce(intersect, list(site_observed,site_complete,site_notsparse,results_notNA,
-                                                     site_observed_denom,site_complete_denom,site_notsparse_denom,results_notNA_denom))
-    
-  } else { 
-    
-    facility_complete_list <- Reduce(intersect, list(site_observed,site_complete,site_notsparse,results_notNA))
-    
-    
+  # for function debugging
+  if(FALSE){
+    data=df %>% filter(county=="Maryland")
+    indicator_var="indicator_count_ari_total"
+    denom_var="indicator_denom"
+    date_var="date"
+    site_var="facility"
+    counts_only=FALSE
+    R=2
   }
   
-  p_facility_excluded <- 1-length(facility_complete_list)/length(unique(data.new$facility))
-  facility_excluded <- unique(data.new$facility)[which(!unique(data.new$facility) %in% facility_complete_list)]
   
-  if(length(facility_complete_list)==0){ #exit function if no facilities are included 
-    
-    data.frame(date=as.Date(unique(data.new$date)),
-               est_raw_counts=NA,
-               ci_raw_counts_low=NA,
-               ci_raw_counts_up=NA,
-               observed=NA,
-               est_prop=NA,
-               ci_low_prop=NA,
-               ci_up_prop=NA,
-               observed_prop=NA) -> df
-    
-    return(df)
-    
-  }
+  # Filtering out sites with not enough data
+  site_list <- sites_included_cluster(data,indicator_var,p_miss_eval,p_miss_base,n_count_base)
+  data %>% filter(facility %in% site_list) -> data_filtered
   
-  data %>% 
+  # FORMAT DATA FRAME
+  data_filtered %>% 
     dplyr::rename(indicator = indicator_var,
-                  site = site_var,
-                  date = date_var) %>% 
-    filter(facility %in% facility_complete_list) -> data.new
+                  denom = denom_var,
+                  date = date_var,
+                  site = site_var) %>% 
+    dplyr::select(date,site,indicator,denom) -> data.new
+
+  
+  facility_complete_list <- data.new %>% distinct(site) %>% pull()
+  
+  # MODEL FITS (COEFFICIENTS & VARIANCE FOR BOOTSTRAP)
+  # denominator (if proportions)
+  if(counts_only==FALSE){
+    lapply(facility_complete_list,function(x){
+      
+      site.model.coefficients(data=data.new %>% dplyr::select(-indicator),
+                              site_name=x,
+                              extrapolation_date=extrapolation_date,
+                              indicator_var="denom",
+                              site_var="site",
+                              date_var="date",
+                              R=R)
+      
+    }) -> facility_denom
+    
+    # indicator
+    lapply(facility_complete_list,function(x){
+      
+      site.model.coefficients(data=data.new,
+                              site_name=x,
+                              extrapolation_date=extrapolation_date,
+                              indicator_var="indicator",
+                              denom_var="denom",
+                              site_var="site",
+                              date_var="date",
+                              R=R)
+      
+    }) -> facility_indicator
+    
+  } else {
+    
+    # indicator only
+    lapply(facility_complete_list,function(x){
+      
+      site.model.coefficients(data=data.new,
+                              site_name=x,
+                              extrapolation_date=extrapolation_date,
+                              indicator_var="indicator",
+                              site_var="site",
+                              date_var="date",
+                              R=R)
+      
+    }) -> facility_indicator
+    
+  }
   
   
-  # start bootstrap 
+  # BOOTSTRAP  
   lapply(1:R, function(r){
+    set.seed(10*r)
     
     # counts
-    sapply(facility_complete_list, function(z){
+    sapply(1:length(facility_complete_list), function(z){
       
-      # subset data to site
-      indicator_results2 <- indicator_results %>% filter(site == z)
+      model_matrix <- facility_indicator[[z]]$model_matrix
+      beta_hat <- facility_indicator[[z]]$beta_estimates
+      beta_vcov <- facility_indicator[[z]]$beta_var
+      overdisp <- facility_indicator[[z]]$overdispersion
       
-      indicator_results2 %>% 
-        mutate(se_indicator = (as.numeric(ci_raw_counts_up)-as.numeric(ci_raw_counts_low))/(2*qnorm(.975))) %>%
-        mutate(boot_value = rnorm(nrow(indicator_results2),est_raw_counts,se_indicator)) %>% pull(boot_value)
+      beta_boot <- MASS::mvrnorm(1,beta_hat,beta_vcov)
+      pred_boot <- (model_matrix %>% 
+                      mutate(intercept=1) %>%
+                      dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                      as.matrix())%*%as.matrix(beta_boot)
+      pred_boot_exp <- exp(pred_boot)
+      pred_boot_exp[which(is.na(pred_boot_exp))] <- 1 # have to do this so the rnegbin runs - will be ignored in final step
       
+      # negative binomial or poisson?
+      if (overdisp >= 1){
+        se_boot <- pred_boot_exp/(overdisp - 1)
+        x = MASS::rnegbin(n = nrow(model_matrix),mu = pred_boot_exp,theta = se_boot)
+      } else {
+        x = rpois(n = nrow(model_matrix),pred_boot_exp)
+      }
+      
+      x
       
     }) -> counts.boot
     
@@ -309,30 +519,80 @@ fit.cluster.pi <- function(data,
     # proportions (if applicable)
     if(counts_only==FALSE){
       
-      sapply(facility_complete_list, function(z){
+      lapply(1:length(facility_complete_list), function(z){
         
-        # subset data to site
-        denom_results2 <- denom_results %>% filter(site == z)
+        # are there missing denominator values for this facility?
+        data.new %>% 
+          filter(site == facility_complete_list[z]) %>%
+          dplyr::summarize(na_denom = sum(is.na(denom)))%>% 
+          pull(na_denom) -> na_denom
         
-        # draw from normal approx (but only for those with missing values - this is "fixed")
-        denom_results2 %>% 
-          mutate(se_denom = (as.numeric(ci_raw_counts_up)-as.numeric(ci_raw_counts_low))/(2*qnorm(.975))) %>%
-          mutate(boot_value = case_when(is.na(observed) ~ rnorm(1,est_raw_counts,se_denom),
-                                        TRUE ~ as.numeric(observed))) %>% pull(boot_value)
+        if(na_denom>0){
+          
+          model_matrix <- facility_denom[[z]]$model_matrix
+          alpha_hat <- facility_denom[[z]]$beta_estimates
+          alpha_vcov <- facility_denom[[z]]$beta_var
+          
+          alpha_boot <- MASS::mvrnorm(1,alpha_hat,alpha_vcov)
+          
+          pred_boot_denom <- (model_matrix %>% 
+                                mutate(intercept=1) %>%
+                                dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                                as.matrix())%*%as.matrix(alpha_boot)
+          pred_boot_denom_exp <- exp(pred_boot_denom)
+          
+          denom_updated <- model_matrix$indicator
+          denom_updated[is.na(model_matrix$indicator)] <- pred_boot_denom_exp[is.na(model_matrix$indicator)]
+          
+          denom_no_miss <- as.matrix(denom_updated)
+          
+        } else { 
+          
+          denom_no_miss <- data.new %>% filter(site == facility_complete_list[z]) %>% pull(denom) %>% as.matrix()
+          
+        } 
         
-      }) -> denom.boot
+        # bootstrap step
+        model_matrix <- facility_indicator[[z]]$model_matrix
+        beta_hat_adj <- facility_indicator[[z]]$beta_estimates_adj
+        beta_vcov_adj <- facility_indicator[[z]]$beta_var_adj
+        overdisp_adj <- facility_indicator[[z]]$overdispersion_adj
+        
+        beta_boot <- MASS::mvrnorm(1,beta_hat_adj,beta_vcov_adj)
+        pred_boot <- (model_matrix %>% 
+                        mutate(intercept=1) %>%
+                        dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                        as.matrix())%*%as.matrix(beta_boot)
+        pred_boot_exp <- exp(pred_boot + log(denom_no_miss)) # UPDATE
+        pred_boot_exp[which(is.na(pred_boot_exp))] <- 1 # have to do this so the rnegbin runs - will be ignored in final step
+        
+        # negative binomial or poisson?
+        if (overdisp_adj >= 1){
+          se_boot <- pred_boot_exp/(overdisp_adj - 1)
+          y = MASS::rnegbin(n = nrow(model_matrix),mu = pred_boot_exp,theta = se_boot)
+        } else {
+          y = rpois(n = nrow(model_matrix),pred_boot_exp)
+        }
+        
+        cbind(as.matrix(y)/denom_no_miss,denom_no_miss)
+        
+        
+      }) -> prop.boot
       
-      sum.denom.boot<- apply(denom.boot,1,sum) #TO DO: does this need to be embedded in the above bootstrap or no?
-      prop.boot <- sum.counts.boot/sum.denom.boot
+      # total number of outpatient visits each month
+      N_r <- apply(do.call(cbind,lapply(1:length(facility_complete_list), function(z) prop.boot[[z]][,2])),1,sum)
       
-      list(sum.counts.boot,prop.boot,sum.denom.boot)
+      # weighted average of proportions (based on facility size)
+      mean.prop.boot.list <- lapply(1:length(facility_complete_list), function(z) prop.boot[[z]][,1]*(prop.boot[[z]][,2]/N_r)) 
+      mean.prop.boot <- apply(do.call(cbind,mean.prop.boot.list),1,sum)
+      
+      list(sum.counts.boot,mean.prop.boot)
       
     } else {
       
       sum.counts.boot
       
     }
-    
   }) -> results.boot.list
   
   # collate results
@@ -341,8 +601,8 @@ fit.cluster.pi <- function(data,
     results.boot <- do.call(cbind,results.boot.list)
     
     pred <- apply(results.boot,1,median)
-    pi.low <- apply(results.boot,1,quantile,.025)
-    pi.up <- apply(results.boot,1,quantile,.975)
+    pi.low <- apply(results.boot,1,quantile,.025,na.action=na.omit,na.rm=TRUE)
+    pi.up <- apply(results.boot,1,quantile,.975,na.action=na.omit,na.rm=TRUE)
     
     pred.prop <- NA
     pi.low.prop <- NA
@@ -352,20 +612,17 @@ fit.cluster.pi <- function(data,
     
     results.boot <- do.call(cbind, lapply(results.boot.list, `[[`, 1))
     pred <- apply(results.boot,1,median)
-    pi.low <- apply(results.boot,1,quantile,.025)
-    pi.up <- apply(results.boot,1,quantile,.975)
+    pi.low <- apply(results.boot,1,quantile,.025,na.action=na.omit,na.rm=TRUE)
+    pi.up <- apply(results.boot,1,quantile,.975,na.action=na.omit,na.rm=TRUE)
     
     results.boot.prop <- do.call(cbind, lapply(results.boot.list, `[[`, 2))
     pred.prop <- apply(results.boot.prop,1,median)
-    pi.low.prop <- apply(results.boot.prop,1,quantile,.025)
-    pi.up.prop <- apply(results.boot.prop,1,quantile,.975)
-    
-    results.boot.denom <- do.call(cbind, lapply(results.boot.list, `[[`, 3))
-    pred.denom <- apply(results.boot.denom,1,median)
+    pi.low.prop <- apply(results.boot.prop,1,quantile,.025,na.action=na.omit,na.rm=TRUE)
+    pi.up.prop <- apply(results.boot.prop,1,quantile,.975,na.action=na.omit,na.rm=TRUE)
     
   }
   
-  data_predicted <- data.frame(date=as.Date(unique(data.new$date)),
+  data_predicted <- data.frame(date=unique(data.new$date),
                                est_raw_counts=pred,
                                ci_raw_counts_low=pi.low,
                                ci_raw_counts_up=pi.up,
@@ -373,35 +630,50 @@ fit.cluster.pi <- function(data,
                                ci_low_prop=pi.low.prop,
                                ci_up_prop=pi.up.prop)
   
-  # Calculate observed (fill in missing with predicted values) 
-  indicator_results %>% 
-    filter(site %in% facility_complete_list) %>%
-    mutate(observed = case_when(is.na(observed) ~ est_raw_counts,
-                                TRUE ~ as.numeric(observed)))  %>% 
-    dplyr::select(site,date,observed) -> indicator_results_nomiss
-  
-  if (counts_only==TRUE){
+  # Calculate observed (fill in missing with predicted values)
+  if(counts_only==FALSE){
     
-    indicator_results_nomiss %>% 
-      group_by(date) %>%
-      dplyr::summarize(observed_count=sum(observed),
-                       observed_prop=NA) -> data_observed
+    do.call(rbind,lapply(1:length(facility_complete_list), function(z) {
+      
+      data.frame(date=unique(data.new$date),
+                 site=facility_complete_list[z],
+                 observed_indicator=facility_indicator[[z]]$model_matrix$indicator,
+                 observed_denominator=facility_denom[[z]]$model_matrix$indicator,
+                 pred=facility_indicator[[z]]$predictions,
+                 pred_denominator=facility_denom[[z]]$predictions) %>%
+        mutate(observed_indicator_new = case_when(is.na(observed_indicator) ~ pred,
+                                                  TRUE ~ observed_indicator)) %>%
+        mutate(observed_denominator_new = case_when(is.na(observed_denominator) ~ pred_denominator,
+                                                    TRUE ~ observed_denominator)) %>% 
+        dplyr::select(date,site,observed_indicator_new,observed_denominator_new) 
+      
+    })) -> observed
+    
     
   } else {
     
-    denom_results %>% 
-      filter(site %in% facility_complete_list) %>%
-      mutate(observed = case_when(is.na(observed) ~ est_raw_counts,
-                                  TRUE ~ as.numeric(observed))) %>% 
-      dplyr::select(site,date,observed) -> denom_results_nomiss
-    
-    left_join(indicator_results_nomiss,denom_results_nomiss,by=c("site","date")) %>%
-      group_by(date) %>%
-      dplyr::summarize(observed_count=sum(observed.x),
-                       observed_denom=sum(observed.y),
-                       observed_prop=observed_count/observed_denom) -> data_observed
+    do.call(rbind,lapply(1:length(facility_complete_list), function(z) {
+      
+      data.frame(date=unique(data.new$date),
+                 site=facility_complete_list[z],
+                 observed_indicator=facility_indicator[[z]]$model_matrix$indicator,
+                 pred=facility_indicator[[z]]$predictions) %>%
+        mutate(observed_indicator_new = case_when(is.na(observed_indicator) ~ pred,
+                                                  TRUE ~ observed_indicator)) %>%
+        dplyr::select(date,site,observed_indicator_new) %>% 
+        mutate(observed_denominator_new=NA)
+      
+    })) -> observed
     
   }
+  
+  observed %>% 
+    group_by(date) %>% 
+    dplyr::summarize(observed_indicator_sum = sum(observed_indicator_new),
+                     observed_denominator_sum = sum(observed_denominator_new)) %>% 
+    mutate(observed_count = observed_indicator_sum,
+           observed_prop = observed_indicator_sum/observed_denominator_sum) %>% 
+    dplyr::select(date,observed_count,observed_prop) -> data_observed
   
   
   # final data frame
@@ -411,7 +683,7 @@ fit.cluster.pi <- function(data,
            ci_raw_counts_low=ifelse(ci_raw_counts_low < 0,0,ci_raw_counts_low),
            ci_raw_counts_up=ifelse(ci_raw_counts_up < 0,0,ci_raw_counts_up)) -> results
   
-  results <- results %>% mutate(site = data %>% rename(site = site_var) %>% distinct(site) %>% pull())
+  results <- results %>% mutate(site = data %>% distinct(county) %>% pull())
   
   return(results)
   
