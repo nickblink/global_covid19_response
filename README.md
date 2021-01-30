@@ -1,3 +1,23 @@
+-   [Global COVID-19 Response](#global-covid-19-response)
+    -   [Table of Contents](#table-of-contents)
+    -   [About:](#about)
+    -   [Goals:](#goals)
+    -   [Modeling technique:](#modeling-technique)
+        -   [Facility-level models:](#facility-level-models)
+        -   [District and county-level
+            models:](#district-and-county-level-models)
+        -   [Deviations and data
+            visualizations:](#deviations-and-data-visualizations)
+        -   [Missing data considerations:](#missing-data-considerations)
+    -   [Overview of folders and files:](#overview-of-folders-and-files)
+        -   [Data](#data)
+        -   [R](#r)
+        -   [Figures](#figures)
+    -   [Examples](#examples)
+        -   [Loading Data and Functions](#loading-data-and-functions)
+        -   [Example 1: Single Facility](#example-1-single-facility)
+        -   [Example 2: All Facilities](#example-2-all-facilities)
+        -   [Example 3: County-level](#example-3-county-level)
 
 Global COVID-19 Response
 ========================
@@ -52,8 +72,6 @@ The process starting with the raw data and finishing with the various
 outputs is referred to as the Data Processing Pipeline (see Figure 1
 below):
 
-![](figures/pipeline.png)
-
 After data has been cleaned, it is processed according to the level it
 is available at (either on a facility of county/district basis) for each
 indicator. This is done by taking data from a historic baseline period,
@@ -70,10 +88,9 @@ processing stages.
 For facility-level assessments, we fit a generalized linear model with
 negative binomial distribution and log-link to estimate expected monthly
 counts. Only data from the baseline period will be used to estimate the
-expected counts: 
+expected counts:
 
-![](figures/modelling_equation_1.png)
-
+$$ \\log(E\[Y | year, t \]) = \\beta\_0 + \\beta\_1year + \\sum\_{k=1}^{3} \\beta\_{k1} cos(2 \\pi kt/12) + \\beta\_{k2} sin(2 \\pi kt/12) $$
 where Y indicates monthly indicator count, t indicates the cumulative
 month number. The year term captures trend, and the harmonic term
 captures seasonality. This model is an adaptation of that proposed by
@@ -125,7 +142,7 @@ region. The region-level count estimates can then be obtained by
 integrating over the random effects distribution. Ultimately, we did not
 choose this model due to its lack of flexibility in dealing with missing
 data.
-![](figures/modelling_equation_2.png)
+$$ \\log(E\[Y\_j | year, t \]) = \\beta\_0 ^\* + \\beta\_1^\*year + \\sum\_{k=1}^{3} \\beta\_{k1}^\* cos(2 \\pi kt/12) + \\beta\_{k2}^\* sin(2 \\pi kt/12) + \\gamma \_{0j} $$
 
 ### Deviations and data visualizations:
 
@@ -212,8 +229,9 @@ Examples
     ## #   indicator_denom_over5 <dbl>
 
 The data loaded here are taken from a county in Liberia and perturbed
-slightly. The indicator of interest is acute respiratory infections,
-disaggregated by age, and we also see total outpatient visits
+slightly. The indicator of interest is acute respiratory infections
+(first column: indicqtor\_count\_ari\_total), disaggregated by age
+(following 2 columns), and we also see total outpatient visits
 (indicator\_denom)–a measure of healthcare utilization–disaggregated by
 age.
 
@@ -238,19 +256,19 @@ model, and look at the results through the counts and proportion lenses.
     head(example_1_results)
 
     ##         site       date est_raw_counts ci_raw_counts_low ci_raw_counts_up
-    ## 1 Facility K 2016-01-01       282.6626               159              436
-    ## 2 Facility K 2016-02-01       294.4013               171              449
-    ## 3 Facility K 2016-03-01       294.5908               173              452
-    ## 4 Facility K 2016-04-01       280.8624               162              436
-    ## 5 Facility K 2016-05-01       296.5714               170              450
-    ## 6 Facility K 2016-06-01       322.2265               193              486
+    ## 1 Facility K 2016-01-01       278.9518               163              436
+    ## 2 Facility K 2016-02-01       291.6721               167              455
+    ## 3 Facility K 2016-03-01       292.0675               167              435
+    ## 4 Facility K 2016-04-01       277.7879               155              428
+    ## 5 Facility K 2016-05-01       292.9597               167              453
+    ## 6 Facility K 2016-06-01       319.0795               190              491
     ##   observed   est_prop ci_low_prop ci_up_prop observed_prop
-    ## 1      275 0.06627292  0.03416126 0.09819841    0.06340789
-    ## 2      258 0.06421627  0.03223817 0.09361499    0.05638112
-    ## 3      249 0.05696364  0.03061136 0.08394457    0.04912211
-    ## 4      172 0.05886302  0.02894142 0.08918248    0.03553719
-    ## 5      230 0.06637652  0.03648612 0.09771720    0.05070547
-    ## 6      342 0.05935893  0.03160090 0.08458903    0.06226106
+    ## 1      275 0.06064100  0.03412497 0.09617247    0.06340789
+    ## 2      258 0.06381119  0.03562063 0.10173186    0.05638112
+    ## 3      249 0.06667982  0.03993391 0.09738114    0.04912211
+    ## 4      172 0.06280992  0.03583161 0.09548554    0.03553719
+    ## 5      230 0.06238977  0.03526235 0.09986772    0.05070547
+    ## 6      342 0.06835973  0.04149827 0.10285818    0.06226106
 
 ##### Single Facility Counts Results
 
@@ -292,8 +310,8 @@ light red (using the model described above).
 
 #### Example 2: All Facilities
 
-We repeat the process above for all indicators and all facilites. In
-this example dataset, there are 25 facilites, 1 syndromic surveillance
+We repeat the process above for all indicators and all facilities. In
+this example dataset, there are 25 facilities, 1 syndromic surveillance
 indicator (ARI) and 1 denominator indicator (total denominator or
 outpatient visits–a measure of healthcare utilization).
 
@@ -336,11 +354,13 @@ outpatient visits–a measure of healthcare utilization).
     ## 5       17 0.1056909 0.009684995  0.1928747    0.06273063
     ## 6       44 0.1098465 0.013500311  0.2040849    0.16117216
 
-We need to repeat the same process above but for the denominator
-indicator variables. This is needed for the subsequent district-level
-and county-level analyses because we use the facility-level estimates
-for denominator to randomly impute, just as we randomly impute missing
-syndromic surveillance indicator values using the code chunk above.
+We repeat the same process above but for the denominator indicator
+variables. This is needed for the subsequent district-level and
+county-level analyses (and is implemented within those corresponding
+functions; this example is for demonstration’s sake) because we use the
+facility-level estimates for denominator to randomly impute, just as we
+randomly impute missing syndromic surveillance indicator values using
+the code chunk above.
 
     # loop over all denominator(outpatient) indicators and facilities
 
@@ -377,7 +397,7 @@ syndromic surveillance indicator values using the code chunk above.
     ## 5      271       NA          NA         NA            NA
     ## 6      273       NA          NA         NA            NA
 
-Below, we see results for ari counts for all facilities:
+Below, we see results for ARI counts for all facilities:
 
     plot_facet(input = facility.list[["indicator_count_ari_total"]])
 
@@ -396,15 +416,18 @@ course be done for the other indicators of interest.
     county_results <- fit.cluster.pi(data = data,
                                indicator_var = "indicator_count_ari_total",
                                denom_var = "indicator_denom",
-                               site_var = "county",
+                               site_var = "facility",
                                date_var = "date",
-                               denom_results_all = facility.list.denom, 
-                               indicator_results_all= facility.list, 
                                counts_only=FALSE,
                                n_count_base = 0,
                                p_miss_base = 0.2,
                                p_miss_eval = 0.5,
                                R=250)
+
+    ## Note: Using an external vector in selections is ambiguous.
+    ## ℹ Use `all_of(indicator)` instead of `indicator` to silence this message.
+    ## ℹ See <https://tidyselect.r-lib.org/reference/faq-external-vector.html>.
+    ## This message is displayed once per session.
 
     head(county_results)
 
