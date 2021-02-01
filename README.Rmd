@@ -265,7 +265,7 @@ plot_heatmap(facility.list[["indicator_count_ari_total"]],"proportion")
 
 #### Example 3: County-level
 
-Now we run the county-level model for the ARI indicator. The same can of course be done for the other indicators of interest. Note that the parameters we supply are mostly the same as for the facility-level model, except now we have a few additional parameter specifications:  "counts_only = FALSE", which means run the model for counts and proportions, "n_count_base = 0", which means we want to filter for facilities whose median indicator counts is greater than 0, "p_miss_baseline", which means we accept facilities with 20% of months missing or fewer from the baseline period, and "p_miss_eval = 0.5", which means we accept facilities with 50% of months missing or fewer from the evaluation period. 
+Now we run the county-level model for the ARI indicator. The same can of course be done for the other indicators of interest. Note that the parameters we supply are mostly the same as for the facility-level model, except now we have a few additional parameter specifications:"n_count_base = 0", which means we want to filter for facilities whose median indicator counts is greater than 0, "p_miss_baseline", which means we accept facilities with 20% of months missing or fewer from the baseline period, and "p_miss_eval = 0.5", which means we accept facilities with 50% of months missing or fewer from the evaluation period. 
 
 
 ```{r,cache=TRUE}
