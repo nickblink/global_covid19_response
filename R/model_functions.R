@@ -385,17 +385,18 @@ sites_included_cluster <- function(data,indicator,p_miss_eval,p_miss_base,n_coun
   
 }
 
+# For Debugging
 
-data = data
-indicator_var = "indicator_count_ari_total"
-denom_var = "indicator_denom"
-site_var = "facility"
-date_var = "date"
-counts_only=FALSE
-n_count_base = 0
-p_miss_base = 0.2
-p_miss_eval = 0.5
-R=250
+# data = data
+# indicator_var = "indicator_count_ari_total"
+# denom_var = "indicator_denom"
+# site_var = "facility"
+# date_var = "date"
+# counts_only=FALSE
+# n_count_base = 0
+# p_miss_base = 0.2
+# p_miss_eval = 0.5
+# R=250
 
 # CLUSTER PROPORTION AND COUNTS WITH PREDICTION INTERVALS 
 fit.cluster.pi <- function(data,
@@ -406,18 +407,6 @@ fit.cluster.pi <- function(data,
                            counts_only=FALSE,
                            n_count_base,p_miss_base,p_miss_eval,
                            R=250){
-  
-  
-  # for function debugging
-  if(FALSE){
-    data=df %>% filter(county=="Maryland")
-    indicator_var="indicator_count_ari_total"
-    denom_var="indicator_denom"
-    date_var="date"
-    site_var="facility"
-    counts_only=FALSE
-    R=2
-  }
   
   
   # Filtering out sites with not enough data
@@ -671,9 +660,9 @@ fit.cluster.pi <- function(data,
     group_by(date) %>% 
     dplyr::summarize(observed_indicator_sum = sum(observed_indicator_new),
                      observed_denominator_sum = sum(observed_denominator_new)) %>% 
-    mutate(observed_count = observed_indicator_sum,
+    mutate(observed = observed_indicator_sum,
            observed_prop = observed_indicator_sum/observed_denominator_sum) %>% 
-    dplyr::select(date,observed_count,observed_prop) -> data_observed
+    dplyr::select(date,observed,observed_prop) -> data_observed
   
   
   # final data frame
@@ -688,6 +677,9 @@ fit.cluster.pi <- function(data,
   return(results)
   
 }
+
+
+
 
 
 is.zero <- function(x) { as.numeric(x == 0)}

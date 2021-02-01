@@ -4,6 +4,13 @@ output:
   md_document:
     toc: yes
 ---
+
+
+```{r setup, include=FALSE, cache = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
 ```{r, include=FALSE}
 library(leaflet)
 library(dplyr)
@@ -15,9 +22,6 @@ library(prettyGraphs)
 ```
 
 
-```{r setup, include=FALSE, cache = TRUE}
-knitr::opts_chunk$set(echo = TRUE)
-```
 
 # Global COVID-19 Response
 _Last updated: 29 January 2021_
@@ -114,7 +118,7 @@ The data loaded here are taken from a county in Liberia and perturbed slightly. 
 
 #### Example 1: Single Facility
 
-We take an example facility--"Facility K", run the facility-specific model, and look at the results through the counts and proportion lenses. 
+We take an example facility--"Facility K", run the facility-specific model for one specific indicator--"indicator_count_ari_total", with the associated denominator--"indicator_denom" and other parameter specifications as seen below, and look at the results through the counts and proportion lenses. 
 
 ```{r,warning=FALSE,message=FALSE}
 # Declare this for all functions
@@ -123,77 +127,78 @@ extrapolation_date <- "2020-01-01"
 # Run Facility-level Model
 example_1_results <- fit.site.specific.denom.pi(data=data,
                               site_name="Facility K",
-                              extrapolation_date="2020-01-01",
+                              extrapolation_date=extrapolation_date,
                               indicator_var="indicator_count_ari_total",
                               denom_var="indicator_denom", 
                               site_var="facility",
                               date_var="date",
-                              R=500)
+                              R=500)   # Number of Boostrap resamples
 ```
+
+The dataframe *example_1_results* contains the following fields: estimated counts, confidence intervals for counts, observed counts, estimated proportions, confidence intervals for proportions, and observed proportions.
 
 
 ```{r,warning=FALSE,message=FALSE}
 head(example_1_results)
 ```
 
+We can view plots of the results for Facility K, for counts and for proportions, by running the following function and passing in the facility-specific model results dataframe as the first parameter and either "count" or "proportion" as the second parameter. 
+
+
 ##### Single Facility Counts Results
 
-```{r}
-plot_heatmap(input = example_1_results)
-```
 
-__Note:__ the black border boxes indicate statistical significance (e.g. significantly higher than expected or significantly lower than expected depending on the color) 
 
 ```{r}
-plot_site(input = example_1_results)
+plot_site(example_1_results,"count")
 ```
+
 
 The observed count is given by the __black line__ (raw data from DHIS2). The expected (predicted) count is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
 
 
 ##### Single Facility Proportions Results
 
-```{r}
-plot_heatmap_prop(input = example_1_results)
-```
-
-__Note:__ the black border boxes indicate statistical significance (e.g. significantly higher than expected or significantly lower than expected depending on the color) 
 
 ```{r}
-plot_site_prop(input = example_1_results)
+plot_site(example_1_results, "proportion")
 
 ```
 
-The observed __proportion__ is given by the __black line__ (raw data from DHIS2). The expected (predicted) proportion is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
+
 
 #### Example 2: All Facilities
 
-We repeat the process above for all indicators and all facilities. In this example dataset, there are 25 facilities, 1 syndromic surveillance indicator (ARI) and 1 denominator indicator (total denominator or outpatient visits--a measure of healthcare utilization). 
+We repeat the process above for all indicators and all facilities. In this example dataset, there are 25 facilities, 1 syndromic surveillance indicator (ARI) and 1 denominator indicator (total denominator or outpatient visits--a measure of healthcare utilization). We provide code below that can be adapted for more than 1 indicator. 
 
 
 ```{r,cache=TRUE}
-#get all sites
+# get all sites
 
 all_sites <- data %>% distinct(facility) %>% pull()
 
 # loop over all syndromic surveillance indicators and facilities
 
-lapply(c("indicator_count_ari_total"), function(y){    #can have a list of more indicators than just ARI
+lapply(c("indicator_count_ari_total"), function(y){    # can have a list of more indicators than just ARI
   
   do.call(rbind, lapply(all_sites,function(x)
       fit.site.specific.denom.pi(data=data,
                               site_name=x,
                               extrapolation_date=extrapolation_date,
                               indicator_var=y,
-                              denom_var="indicator_denom",   #corresponding denominator indicator needed for proportions
+                              denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
                               site_var="facility",
                               date_var="date",
                               R=500)))
   }
 ) -> facility.list
 
-names(facility.list) <- c("indicator_count_ari_total")
+# label each dataframe in the output with the respective indicator names; note this example has only 1
+
+names(facility.list) <- c("indicator_count_ari_total")  
 ```
+
+The dataframe *facility.list[["indicator_count_ari_total"]]* contains, for each facility, the same fields as for a single facility: estimated counts, confidence intervals for counts, observed counts, estimated proportions, confidence intervals for proportions, and observed proportions. 
 
 
 ```{r,cache=TRUE}
@@ -201,13 +206,13 @@ head(facility.list[["indicator_count_ari_total"]])
 ```
 
 
-We repeat the same process above but for the denominator indicator variables. This is needed for the subsequent district-level and county-level analyses (and is implemented within those corresponding functions; this example is for demonstration's sake) because we use the facility-level estimates for denominator to randomly impute, just as we randomly impute missing syndromic surveillance indicator values using the code chunk above. 
+We repeat the same process above but for the denominator indicator variables. This is needed for the subsequent district-level and county-level analyses, and it is implemented within those corresponding functions, but we show this explicitly for demonstration's sake (output not directly used in subsequent examples). We need the following facility-level estimates for denominator to randomly impute, just as we randomly impute missing syndromic surveillance indicator values using the facility-level model output from the code chunk above.  
 
 
 ```{r,cache=TRUE}
 # loop over all denominator(outpatient) indicators and facilities
 
-lapply(c("indicator_denom"), function(y){    #can have a list of more utilization indicators 
+lapply(c("indicator_denom"), function(y){    # can have a list of more utilization indicators 
 
     do.call(rbind, lapply(all_sites,function(x)
       fit.site.specific.denom.pi(data=data,
@@ -229,18 +234,39 @@ names(facility.list.denom) <- c("indicator_denom")
 head(facility.list.denom[["indicator_denom"]])
 ```
 
-Below, we see results for ARI counts for all facilities:
+Below, we see results for ARI counts and proportions for all facilities:
 
 ```{r}
-plot_facet(input = facility.list[["indicator_count_ari_total"]])
+plot_facet(facility.list[["indicator_count_ari_total"]], "count")
+
 ```
 
 The observed count is given by the __black line__ (raw data from DHIS2). The expected (predicted) count is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
 
 
+```{r}
+plot_facet(facility.list[["indicator_count_ari_total"]], "proportion")
+```
+
+
+Also useful are heatmaps, especially for comparison between the different facilities using the deviation metric as described above. Again, the first parameter in the function below is the model output, and the second parameter is either "count" or "proportion":
+
+
+```{r}
+plot_heatmap(facility.list[["indicator_count_ari_total"]],"count")
+```
+
+__Note:__ the black border boxes indicate statistical significance (e.g. significantly higher than expected or significantly lower than expected depending on the color) 
+
+```{r}
+plot_heatmap(facility.list[["indicator_count_ari_total"]],"proportion")
+```
+
+
 #### Example 3: County-level
 
-Now we run the county-level model for the ARI indicator. The same can of course be done for the other indicators of interest. 
+Now we run the county-level model for the ARI indicator. The same can of course be done for the other indicators of interest. Note that the parameters we supply are mostly the same as for the facility-level model, except now we have a few additional parameter specifications:  "counts_only = FALSE", which means run the model for counts and proportions, "n_count_base = 0", which means we want to filter for facilities whose median indicator counts is greater than 0, "p_miss_baseline", which means we accept facilities with 20% of months missing or fewer from the baseline period, and "p_miss_eval = 0.5", which means we accept facilities with 50% of months missing or fewer from the evaluation period. 
+
 
 ```{r,cache=TRUE}
 county_results <- fit.cluster.pi(data = data,
@@ -252,30 +278,31 @@ county_results <- fit.cluster.pi(data = data,
                            n_count_base = 0,
                            p_miss_base = 0.2,
                            p_miss_eval = 0.5,
-                           R=250)
+                           R=250)   # Number of Bootstrap resamples)
 
 
 ```
+
+The fields in the output are the same as for a facility-level model: estimated counts, confidence intervals for counts, observed counts, estimated proportions, confidence intervals for proportions, and observed proportions. 
 
 
 ```{r,cache=TRUE}
 head(county_results)
 ```
 
-
-```{r}
-plot_heatmap_county(input = county_results)
-```
-
-__Note:__ the black border boxes indicate statistical signficance (e.g. significantly higher than expected or significantly lower than expected depending on the color) 
+We can view similar plots as for the facility-specific plots above but now for the county of interest, using the same plotting function:
 
 
 ```{r}
-plot_site_county(input = county_results)
+plot_site(county_results, "count")
 
 ```
+
 
 The observed count is given by the __black line__ (raw data from DHIS2). The expected (predicted) count is given by the <font color='red'>__red line__</font> with 95% prediction intervals in light red (using the model described above).
 
 
+```{r}
+plot_site(county_results,"proportion")
+```
 
