@@ -47,10 +47,6 @@ plot_site <- function(input,type){
 
   
 }
- 
-  
-  
-
 
 plot_facet <- function(input,type){
   
@@ -96,8 +92,6 @@ plot_facet <- function(input,type){
   }
   
 }
-
-
 
 # CREATE HEATMAP (similar to NYT graphs)
 

@@ -75,16 +75,20 @@ fit.site.specific.denom.pi <-function(data,site_name,extrapolation_date,
   #fit unadjusted counts model
   tryCatch({
     
+    ### First, filling in the indicator missing values and generating prediction intervals around the indicator.
     mod_counts <- glm(as.formula(formula_counts), data=data.base, family=quasipoisson)
     
     #check dispersion parameter
     overdisp <- summary(mod_counts)$dispersion
+    
+    # if there is overdispersion, keep the quasipoisson results. Otherwise, keep the poisson.
     if(overdisp > 1){
       
+      # Nick comment: this is the same as doing predict(..., type = 'response')
       count.predict <- exp(predict(mod_counts,newdata=data.new))
       
     } else {
-      
+ 
       mod_counts <- glm(as.formula(formula_counts), data=data.base, family=poisson)
       count.predict <- exp(predict(mod_counts,newdata=data.new))
       print(paste0("underdispersion detected for ",site_name," with dispersion ",overdisp))
@@ -97,11 +101,13 @@ fit.site.specific.denom.pi <-function(data,site_name,extrapolation_date,
     pi.low <- pi$LPB0.025 
     pi.up <- pi$UPB0.975
     
-    
+    ### Running both count and proportion on fixed indicator variable
     if (counts_only==FALSE){
       #if denominator data given, calculate adjusted counts and proportion estimates
       tryCatch({
+        # print(sum(is.na(data.new$denom))) <- not many. Max of 4. It would be interesting to mess around with this number to test missing data methods.
         
+        # filling in missing denominator values
         if(sum(is.na(data.new$denom))>0){
           
           formula_denom = "denom ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"
@@ -126,17 +132,22 @@ fit.site.specific.denom.pi <-function(data,site_name,extrapolation_date,
             
           }) -> denom_no_miss
           
+          # denom_no_miss is a matrix of the all the bootstrapped iterations filling in the missing data. So all the non-missing values (rows) will be identical but the previously missing values will have different predicted values now based off of the originally trained model and multivariate normal sampling from that model (aka parametric bootstrap).
+          
         } else { 
           
           denom_no_miss <- matrix(data.new$denom, length(data.new$denom), R) 
           
         } # END UPDATE: add NA in denom
         
+        # training without the denominator NAs filled in.
         mod_prop <- glm(as.formula(formula_prop), data=data.base, family=quasipoisson)
+        
+        # model doesn't return the offset - there's not beta for that. Hence the addition of the offset in the later part.
         beta_hat <- mod_prop$coefficients
         beta_vcov <- vcov(mod_prop)
         overdisp <- summary(mod_prop)$dispersion
-        
+
         sapply(1:R, function(r){
           
           #indicator 
@@ -148,7 +159,7 @@ fit.site.specific.denom.pi <-function(data,site_name,extrapolation_date,
           pred_boot_exp <- exp(pred_boot + log(denom_no_miss[,r])) # UPDATE
           pred_boot_exp[which(is.na(pred_boot_exp))] <- 1 # have to do this so the rnegbin runs - will be ignored in final step
           se_boot <- pred_boot_exp/(overdisp - 1)
-          x = MASS::rnegbin(n = nrow(data.new),mu = pred_boot_exp,theta = se_boot)
+          x = MASS::rnegbin(n = nrow(data.new),mu = pred_boot_exp, theta = se_boot)
           
           x/denom_no_miss[,r] # UPDATE
           
