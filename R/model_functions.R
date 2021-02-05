@@ -256,8 +256,10 @@ fit.site.specific.denom.pi <-function(data,site_name,extrapolation_date,
 
 
 # CLUSTER PROPORTION AND COUNTS WITH PREDICTION INTERVALS (Bootstrap!)
-# EXTRACT BETA COEFFICIENTS 
+# EXTRACT BETA COEFFICIENTS (and overdispersion)
 # SINGLE FACILITY COUNT & PROPORTION WITH PREDICTION INTERVAL 
+#
+# why is R here? There is no bootstrapping in this function
 site.model.coefficients <-function(data,
                                    site_name,
                                    extrapolation_date,
@@ -265,8 +267,7 @@ site.model.coefficients <-function(data,
                                    denom_var=NA, # if proportions are desired
                                    site_var,
                                    date_var,
-                                   level="month",
-                                   R=250){
+                                   level="month"){
   
   # period 
   if (level == "month") {
@@ -366,6 +367,7 @@ site.model.coefficients <-function(data,
   return(results.list)
 }
 
+# selects sites to keep based on missing criteria and minimum count
 sites_included_cluster <- function(data,indicator,p_miss_eval,p_miss_base,n_count_base){
   
   data %>% 
@@ -445,8 +447,7 @@ fit.cluster.pi <- function(data,
                               extrapolation_date=extrapolation_date,
                               indicator_var="denom",
                               site_var="site",
-                              date_var="date",
-                              R=R)
+                              date_var="date")
       
     }) -> facility_denom
     
@@ -459,8 +460,7 @@ fit.cluster.pi <- function(data,
                               indicator_var="indicator",
                               denom_var="denom",
                               site_var="site",
-                              date_var="date",
-                              R=R)
+                              date_var="date")
       
     }) -> facility_indicator
     
@@ -474,14 +474,12 @@ fit.cluster.pi <- function(data,
                               extrapolation_date=extrapolation_date,
                               indicator_var="indicator",
                               site_var="site",
-                              date_var="date",
-                              R=R)
+                              date_var="date")
       
     }) -> facility_indicator
     
   }
-  
-  
+
   # BOOTSTRAP  
   lapply(1:R, function(r){
     set.seed(10*r)
@@ -527,6 +525,7 @@ fit.cluster.pi <- function(data,
           dplyr::summarize(na_denom = sum(is.na(denom)))%>% 
           pull(na_denom) -> na_denom
         
+        # fill in missing data
         if(na_denom>0){
           
           model_matrix <- facility_denom[[z]]$model_matrix
@@ -563,7 +562,7 @@ fit.cluster.pi <- function(data,
                         mutate(intercept=1) %>%
                         dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
                         as.matrix())%*%as.matrix(beta_boot)
-        pred_boot_exp <- exp(pred_boot + log(denom_no_miss)) # UPDATE
+        pred_boot_exp <- exp(pred_boot + log(denom_no_miss)) # UPDATE (with offset)
         pred_boot_exp[which(is.na(pred_boot_exp))] <- 1 # have to do this so the rnegbin runs - will be ignored in final step
         
         # negative binomial or poisson?
