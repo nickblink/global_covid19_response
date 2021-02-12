@@ -1,6 +1,6 @@
 # testing the code for the facility-level modeling of syndromatic surveillance
 
-# set the workind directory
+# set the working directory
 setwd('C:/Users/nickl/Documents/global_covid19_response/')
 
 # load in functions and data
@@ -17,8 +17,19 @@ table(data$facility)
 
 for(col in 5:10){
   print(sum(is.na(data[,col])))
+  print(mean(is.na(data[,col])))
 }
 # ok so not all the same.
+
+tmp = data %>% dplyr::select(date, facility, indicator_denom)
+data_missing = tidyr::spread(tmp, facility, indicator_denom)
+tmp2 = data_missing[,-1]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = as.matrix(tmp2)
+heatmap(tmp2, Rowv = NA)
+# ok other than M not much of continuous missingness in columns
 
 # is under5 the age? That seems pretty important doesn't it? That is actually quite nice for looking at COVID. I would actually expect that to be more important than ari total. Or rather, that over5 would be more important than ari total.
 
