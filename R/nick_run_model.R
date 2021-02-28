@@ -21,15 +21,58 @@ for(col in 5:10){
 }
 # ok so not all the same.
 
+##### Correlation plotting #####
+
+
+
+data$facility2 = sapply(1:nrow(data), function(xx) sprintf('%s (%s)', data$facility[xx], data$district[xx]))
+
+# missingness
 tmp = data %>% dplyr::select(date, facility, indicator_denom)
-data_missing = tidyr::spread(tmp, facility, indicator_denom)
-tmp2 = data_missing[,-1]
+data_spread = tidyr::spread(tmp, facility, indicator_denom)
+tmp2 = data_spread[,-1]
 for(col in colnames(tmp2)){
   tmp2[,col] = as.integer(is.na(tmp2[,col]))
 }
 tmp2 = as.matrix(tmp2)
 heatmap(tmp2, Rowv = NA)
 # ok other than M not much of continuous missingness in columns
+
+
+# looking at correlation of data
+corrplot::corrplot(cor(data_spread[,-1], use = 'complete.obs'), order = 'hclust', type = 'upper')
+# so there is definitely enough correlation to do some analysis. At least for some/most of the sites. Some of the other sites are kinda screwed.
+
+# make unique district plots
+par(mfrow = c(2,3))
+for(dist in unique(data$district)){
+  tmp = data %>% filter(district == dist) %>% dplyr::select(date, facility, indicator_denom)
+  tmp = tidyr::spread(tmp, facility, indicator_denom)
+  corrplot::corrplot(cor(tmp[,-1], use = 'complete.obs'), order = 'hclust', type = 'upper', main = dist)
+}
+
+# doing this the long way
+fac_dist = data %>% dplyr::select(facility, district) %>% unique()
+within = c()
+without = c()
+for(i in 1:(nrow(fac_dist)-1)){
+  fac = fac_dist$facility[i]
+  for(j in (i+1):nrow(fac_dist)){
+    fac2 = fac_dist$facility[j]
+    if(fac_dist$district[i] == fac_dist$district[j]){
+      within = c(within, cor(data_spread[,fac], data_spread[,fac2], use = 'complete.obs'))
+    }else{
+      without = c(without, cor(data_spread[,fac], data_spread[,fac2], use = 'complete.obs'))
+    }
+  }
+}
+par(mfrow = c(1,2))
+hist(within, main = 'within-district correlations')
+hist(without, main = 'between-district correlations')
+
+
+#
+##### github examples #####
 
 # is under5 the age? That seems pretty important doesn't it? That is actually quite nice for looking at COVID. I would actually expect that to be more important than ari total. Or rather, that over5 would be more important than ari total.
 
