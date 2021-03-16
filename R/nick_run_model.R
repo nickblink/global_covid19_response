@@ -81,7 +81,7 @@ extrapolation_date <- "2020-01-01"
 
 # Run Facility-level Model
 example_1_results <- fit.site.specific.denom.pi(data=data,
-                                                site_name="Facility K",
+                                                site_name="Facility B",
                                                 extrapolation_date=extrapolation_date,
                                                 indicator_var="indicator_count_ari_total",
                                                 denom_var="indicator_denom", 
