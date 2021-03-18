@@ -42,6 +42,7 @@ summary(mod_freq)
 
 # bayes negative binomial now
 mod_bayes <- stan_glm(formula_col, data = df, family = neg_binomial_2)
+# can also do stan_glmer
 describe_posterior(mod_bayes)
 colMeans(insight::get_parameters(mod_bayes))
 # ok good it's basically the same. How to predict though?

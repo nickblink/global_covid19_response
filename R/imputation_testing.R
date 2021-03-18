@@ -93,8 +93,15 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'quasipois
     
     df <- data.table::rbindlist(tmp)
 
-  }else{
-    stop('havent coded negative binomial or other ways yet')
+  }else if(family %in% c('NB','negative binomial','neg_bin')){
+    tmp <- lapply(uni_group, function(xx) {
+      tt <- df %>% filter(get(group) == xx)
+      mod_col <- MASS::glm.nb(formula_col, data = tt)
+      tt[,paste0(col, '_pred_harmonic')] = predict(mod_col, tt, type = 'response')
+      return(tt)
+    })
+    
+    df <- data.table::rbindlist(tmp)
   }
   
 }
@@ -119,40 +126,51 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-impute_wrapper <- function(df, p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff_cor = NULL, cutoff_method = 'number', group = 'facility'){
+impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff_cor = NULL, harmonic_family = 'NB', cutoff_method = 'number', group = 'facility'){
+  
+  if(col != 'indicator_denom'){
+    warning('cutoff not coded to do imputation on other columns')
+  }
+  
   # create the res data frame
   res = NULL
   group_res = NULL
 
   for(i in (1:length(p_vec))){
     p = p_vec[i]
-    df_miss <- simulate_imputation(df, 'indicator_denom', p = p, group = 'facility')
+    df_miss <- simulate_imputation(df, col, p = p, group = 'facility')
     # run two imputations
     df_imp <- tryCatch({
-      periodic_imputation(df_miss, 'indicator_denom')
+      periodic_imputation(df_miss, col, family = harmonic_family)
     }, error = function(e){
       print(sprintf('error for periodic with p = %s', p))
       browser()
     })
     #df_imp <- periodic_imputation(df_miss, 'indicator_denom')
     
-    df_imp <- tryCatch({
-      cutoff_imputation(df_imp, cutoff = cutoff_cor, N = N, method = cutoff_method)
-    }, error = function(e){
-      print(sprintf('error for cutoff with p = %s', p))
-      tmp <- df_imp
-      tmp$indicator_denom_pred_cutoff = NA
-      return(tmp)
-    })
+    if(!is.na(cutoff_method)){
+      df_imp <- tryCatch({
+        cutoff_imputation(df_imp, cutoff = cutoff_cor, N = N, method = cutoff_method)
+      }, error = function(e){
+        print(sprintf('error for cutoff with p = %s', p))
+        tmp <- df_imp
+        tmp$indicator_denom_pred_cutoff = NA
+        return(tmp)
+      })
+    }
 
-    # get the eval period
-    eval <- df_imp %>% filter(!is.na(indicator_denom_true))
+    # get the "true" column names
+    true_col = paste0(col,'_true')
     
+    # get the eval period
+    eval <- df_imp %>% filter(!is.na(UQ(true_col)))
+    
+    browser()
     ### get the results over all districts
-    for(imputation_method in c('indicator_denom_pred_harmonic', 'indicator_denom_pred_cutoff')){
+    for(imputation_method in grep(paste0(col,'_pred'), colnames(eval), value = T)){
       
       # create the res data frame and the comparison vectors
-      y_true = eval$indicator_denom_true
+      y_true = eval[,get(true_col)]
       y_pred = eval %>% pull(imputation_method)
       
       # calculate metrics
@@ -165,17 +183,17 @@ impute_wrapper <- function(df, p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff
       # update full results
       res = rbind(res, res_row)
     }
-    
+   
     ### get the group level results
     # get the unique groups
     uni_group = eval %>% pull(get(group)) %>% unique()
     
-    for(imputation_method in c('indicator_denom_pred_harmonic', 'indicator_denom_pred_cutoff')){
+    for(imputation_method in grep(paste0(col,'_pred'), colnames(eval), value = T)){
       
       # cycle through each group/facility
       for(g in uni_group){
         eval2 = eval %>% filter(get(group) == g)
-        y_true = eval2 %>% pull(indicator_denom_true)
+        y_true = eval2 %>% pull(UQ(paste0(col,'_true')))
         y_pred = eval2 %>% pull(imputation_method)
         
         # calculate metrics
@@ -198,8 +216,10 @@ impute_wrapper <- function(df, p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff
 }
 
 ##### Running imputation #####
-  
-res = impute_wrapper(data, p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8))
+tmp_df = data %>% filter(facility == 'Facility A')
+tt = periodic_imputation(tmp_df, 'indicator_denom', family = 'NB')
+
+res = impute_wrapper(data, p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA)
 res$full_results
 
 
