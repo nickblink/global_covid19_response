@@ -7,7 +7,7 @@ model <- lm(Sepal.Length ~ Petal.Length, data=iris)
 summary(model)
 insight::get_parameters(model)
 
-model <- stan_glm(Sepal.Length ~ Petal.Length, data=iris)
+model <- stan_glm(Sepal.Length ~ Petal.Length, data=iris)#, iter = 2000)
 describe_posterior(model)
 posteriors <- insight::get_parameters(model)
 
