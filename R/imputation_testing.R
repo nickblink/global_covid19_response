@@ -7,11 +7,29 @@ source("R/model_functions.R")
 source("R/model_figures.R")
 data <- readRDS("data/data_example_singlecounty.rds")
 # removing M! (for now). It's missing tooo much
-data = data %>% 
+data = data %>%
   filter(facility != 'Facility M',
          date <  as.Date("2020-01-01"))
 
+data2 <- readRDS('data/ari_total_county_revisions.rds')
+mean(is.na(data)) # ok no missingness
+
+#
 ##### My imputation functions #####
+
+# function to add periodic terms
+add_periodic_cov <- function(df, period = 12){
+  df = df %>%
+    dplyr::mutate(year = year(date) - min(year(date)) + 1,
+                  month = month(date),
+                  cos1 = cos(2*1*pi*month/period),
+                  sin1 = sin(2*1*pi*month/period),
+                  cos2 = cos(2*2*pi*month/period),
+                  sin2 = sin(2*2*pi*month/period),
+                  cos3 = cos(2*3*pi*month/period),
+                  sin3 = sin(2*3*pi*month/period))
+  return(df)
+}
 
 # function to simulate data
 simulate_imputation <- function(df, col, p = 0.1, group = NULL){
@@ -67,15 +85,7 @@ simulate_imputation <- function(df, col, p = 0.1, group = NULL){
 # OG imputation method
 periodic_imputation <- function(df, col, group = 'facility', family = 'quasipoisson', period = 12){
   # prep the data with the harmonic functions
-  df = df %>%
-    dplyr::mutate(year = year(date) - min(year(date)) + 1,
-                  month = month(date),
-                  cos1 = cos(2*1*pi*month/period),
-                  sin1 = sin(2*1*pi*month/period),
-                  cos2 = cos(2*2*pi*month/period),
-                  sin2 = sin(2*2*pi*month/period),
-                  cos3 = cos(2*3*pi*month/period),
-                  sin3 = sin(2*3*pi*month/period))
+  df <- add_periodic_cov(df, period = period)
 
   # pulling unique groups
   uni_group = df %>% pull(get(group)) %>% unique()
@@ -108,18 +118,12 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'quasipois
 }
 
 # Bayes imputation method
-bayes_periodic_imputation <- function(df, col, group = 'facility', family = 'quasipoisson', period = 12, iterations = 500){
+bayes_periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
   # prep the data with the harmonic functions
-  df = df %>%
-    dplyr::mutate(year = year(date) - min(year(date)) + 1,
-                  month = month(date),
-                  cos1 = cos(2*1*pi*month/period),
-                  sin1 = sin(2*1*pi*month/period),
-                  cos2 = cos(2*2*pi*month/period),
-                  sin2 = sin(2*2*pi*month/period),
-                  cos3 = cos(2*3*pi*month/period),
-                  sin3 = sin(2*3*pi*month/period)) %>%
-    as.data.frame()
+  df <- add_periodic_cov(df, period = period) %>% as.data.frame()
+  
+  # make the target an integer for the Bayesian approach to work.
+  df[,col] = as.integer(df[,col])
 
   # pulling unique groups
   uni_group = df %>% pull(get(group)) %>% unique()
@@ -127,27 +131,84 @@ bayes_periodic_imputation <- function(df, col, group = 'facility', family = 'qua
   # setting up the formula
   formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
   
+  if(harmonic_priors){
+    warning('NOT doing any prior intercepts yet')
+    # get the max value
+    max_val = max(df[,col])
+    
+    # run the individual model for each group.
+    tmp <- lapply(uni_group, function(xx) {
+      tt <- df %>% filter(get(group) == xx)
+      
+      # run the model
+      mod_col <- MASS::glm.nb(formula_col, data = tt)
+      
+      # return the coefficients
+      res_df = data.frame(coef(mod_col))
+      colnames(res_df)[1] = xx
+      
+      return(data.frame(t(res_df)))
+      
+      # scale to get an idea of the intercept (ignoring)
+      # tt[,col] = (max_val/max(tt[,col]))*tt[,col]
+      
+    })
+    
+    # get a matrix of the betas, including the intercepts.
+    betas = do.call('rbind',tmp)
+  }
+  
   if(family == 'quasipoisson'){
     stop('havent coded Bayes quasipoisson')
 
     
   }else if(family %in% c('NB','negative binomial','neg_bin')){
-    tmp <- lapply(uni_group, function(xx) {
-      print(xx)
-      tt <- df %>% filter(get(group) == xx)
+   
 
       # train the model
-      mod_bayes <- stan_glm(formula_col, data = tt, family = neg_binomial_2, refresh = 0, iter = iterations)
-      
-      # need to fill in NAs, even if they aren't used
-      tmp = tt; tmp[is.na(tmp)] = 1e6
-      
-      # predict the median output from a posterior draw
-      tt[, paste0(col, '_pred_bayes_harmonic')] = apply(posterior_predict(mod_bayes, tmp, type = 'response'), 2, median)
-      
-      return(tt)
-    })
-    
+      if(harmonic_priors){
+        tmp <- lapply(uni_group, function(xx) {
+          # get the data frame
+          tt <- df %>% filter(get(group) == xx)
+          
+          # get the distribution of the other betas
+          betas2 = betas[-which(rownames(betas) == xx),]
+          beta_prior = normal(location = colMeans(betas2[,-1]), scale = apply(betas2[,-1], 2, sd))
+          
+          # run the model with priors
+          mod_bayes <- stan_glm(formula_col, data = tt, family = neg_binomial_2, refresh = 0, iter = iterations, prior = beta_prior)
+          
+          # need to fill in NAs, even if they aren't used
+          tmp = tt; tmp[is.na(tmp)] = 1e6
+          
+          # predict the median output from a posterior draw
+          tt[, paste0(col, '_pred_bayes_harmonic_P2')] = apply(posterior_predict(mod_bayes, tmp, type = 'response'), 2, median)
+          
+          return(tt)
+        })
+        
+        # prior_summary(mod_bayes)
+        # so the prior is adjusted based on scale of values. Ok ok.
+        
+      }else{
+        tmp <- lapply(uni_group, function(xx) {
+          # get the data frame
+          tt <- df %>% filter(get(group) == xx)
+          
+          # run the models
+          mod_bayes <- stan_glm(formula_col, data = tt, family = neg_binomial_2, refresh = 0, iter = iterations)
+          
+          # need to fill in NAs, even if they aren't used
+          tmp = tt; tmp[is.na(tmp)] = 1e6
+          
+          # predict the median output from a posterior draw
+          tt[, paste0(col, '_pred_bayes_harmonic')] = apply(posterior_predict(mod_bayes, tmp, type = 'response'), 2, median)
+          
+          return(tt)
+      })
+
+    }
+    #browser()
     df <- data.table::rbindlist(tmp)
   }
 }
@@ -172,7 +233,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff_cor = NULL, harmonic_family = 'NB', bayes_harmonic_family = 'NB', cutoff_method = 'number', group = 'facility', bayes_iterations = 500){
+impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff_cor = NULL, harmonic_family = 'NB', bayes_harmonic_family = 'NB', cutoff_method = 'number', group = 'facility', bayes_iterations = 500, bayes_beta_prior = T){
   
   if(col != 'indicator_denom'){
     warning('cutoff not coded to do imputation on other columns')
@@ -186,11 +247,11 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     # simulate the missing data
     p = p_vec[i]
     print(p)
-    df_miss <- simulate_imputation(df, col, p = p, group = 'facility')
+    df_miss <- simulate_imputation(df, col, p = p, group = group)
     
     # run two imputations
     df_imp <- tryCatch({
-      periodic_imputation(df_miss, col, family = harmonic_family)
+      periodic_imputation(df_miss, col, family = harmonic_family, group = group)
     }, error = function(e){
       print(sprintf('error for periodic with p = %s', p))
       browser()
@@ -198,16 +259,25 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     if(!is.na(bayes_harmonic_family)){
       df_imp <- tryCatch({
-        bayes_periodic_imputation(df_imp, col, family = harmonic_family, iterations = bayes_iterations)
+        bayes_periodic_imputation(df_imp, col, family = harmonic_family, iterations = bayes_iterations, group = group)
       }, error = function(e){
         print(sprintf('error for bayes periodic with p = %s', p))
         browser()
       })
     }
     
+    if(bayes_beta_prior){
+      df_imp <- tryCatch({
+        bayes_periodic_imputation(df_imp, col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
+      }, error = function(e){
+        print(sprintf('error for bayes periodic beta prior with p = %s', p))
+        browser()
+      })
+    }
+    
     if(!is.na(cutoff_method)){
       df_imp <- tryCatch({
-        cutoff_imputation(df_imp, cutoff = cutoff_cor, N = N, method = cutoff_method)
+        cutoff_imputation(df_imp, cutoff = cutoff_cor, N = N, method = cutoff_method, group = group)
       }, error = function(e){
         print(sprintf('error for cutoff with p = %s', p))
         tmp <- df_imp
@@ -274,14 +344,22 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
 }
 
 ##### Running imputation #####
-tmp_df = data %>% filter(facility == 'Facility F')
-tt = periodic_imputation(tmp_df, 'indicator_denom', family = 'NB')
-tt = bayes_periodic_imputation(tt, 'indicator_denom', family = 'NB')
 
-res = impute_wrapper(data, p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA, bayes_iterations = 2000)
+res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1), cutoff_method = NA, bayes_iterations = 200, group = 'county')
+
+res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
 res$full_results
 
-# save(res, file = 'results/countyA_bayes_imputation.RData')
+# save(res, file = 'results/allcounties_bayes_imputation.RData')
+
+tmp = data2 %>% filter(county == 'Bomi') %>% add_periodic_cov()
+tmp = simulate_imputation(tmp, 'observed_count', p = 0.2)
+tmp = bayes_periodic_imputation(tmp, 'observed_count', group = 'county', harmonic_priors = F)
+
+data3 = simulate_imputation(data2, 'observed_count', p = 0.8)
+data3 = bayes_periodic_imputation(data3, 'observed_count', group = 'county', harmonic_priors = T)
+
+
 
 ### Plotting - not prettied up at all, but ok for now.
 tt = res$group_results %>% filter(imputation_method == 'indicator_denom_pred_harmonic')
