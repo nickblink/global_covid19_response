@@ -118,7 +118,7 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'quasipois
 }
 
 # Bayes imputation method
-bayes_periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
+bayes_periodic_imputation <- function(df, df_OG = NULL, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period) %>% as.data.frame()
   
@@ -133,12 +133,23 @@ bayes_periodic_imputation <- function(df, col, group = 'facility', family = 'NB'
   
   if(harmonic_priors){
     warning('NOT doing any prior intercepts yet')
+    
+    if(!is.null(df_OG)){
+      # setting the prior to use the un-imputed matrix models
+      df_prior = add_periodic_cov(df_OG, period = period) %>% as.data.frame()
+      pred_col_name = paste0(col, '_pred_bayes_harmonic_ideal')
+    }else{
+      # setting the prior to use the imputed matrix models
+      df_prior = df
+      pred_col_name = paste0(col, '_pred_bayes_harmonic_miss')
+    }
+    
     # get the max value
-    max_val = max(df[,col])
+    max_val = max(df_prior[,col])
     
     # run the individual model for each group.
     tmp <- lapply(uni_group, function(xx) {
-      tt <- df %>% filter(get(group) == xx)
+      tt <- df_prior %>% filter(get(group) == xx)
       
       # run the model
       mod_col <- MASS::glm.nb(formula_col, data = tt)
@@ -173,16 +184,22 @@ bayes_periodic_imputation <- function(df, col, group = 'facility', family = 'NB'
           
           # get the distribution of the other betas
           betas2 = betas[-which(rownames(betas) == xx),]
-          beta_prior = normal(location = colMeans(betas2[,-1]), scale = apply(betas2[,-1], 2, sd))
+          beta_prior = normal(location = colMeans(betas2[,-1], na.rm = T), scale = apply(betas2[,-1], 2, function(xx) {sd(xx, na.rm = T)}))
+          intercept_prior = normal(location = mean(betas2[,1]), scale = sd(betas2[,1]))
           
           # run the model with priors
-          mod_bayes <- stan_glm(formula_col, data = tt, family = neg_binomial_2, refresh = 0, iter = iterations, prior = beta_prior)
+          tryCatch({
+            mod_bayes <- stan_glm(formula_col, data = tt, family = neg_binomial_2, refresh = 0, iter = iterations, prior = beta_prior, prior_intercept = intercept_prior)
+          }, error = function(e){
+            browser()
+          })
+          
           
           # need to fill in NAs, even if they aren't used
           tmp = tt; tmp[is.na(tmp)] = 1e6
           
           # predict the median output from a posterior draw
-          tt[, paste0(col, '_pred_bayes_harmonic_P2')] = apply(posterior_predict(mod_bayes, tmp, type = 'response'), 2, median)
+          tt[, pred_col_name] = apply(posterior_predict(mod_bayes, tmp, type = 'response'), 2, median)
           
           return(tt)
         })
@@ -251,7 +268,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     # run two imputations
     df_imp <- tryCatch({
-      periodic_imputation(df_miss, col, family = harmonic_family, group = group)
+      periodic_imputation(df_miss, col = col, family = harmonic_family, group = group)
     }, error = function(e){
       print(sprintf('error for periodic with p = %s', p))
       browser()
@@ -259,16 +276,26 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     if(!is.na(bayes_harmonic_family)){
       df_imp <- tryCatch({
-        bayes_periodic_imputation(df_imp, col, family = harmonic_family, iterations = bayes_iterations, group = group)
+        bayes_periodic_imputation(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group)
       }, error = function(e){
         print(sprintf('error for bayes periodic with p = %s', p))
         browser()
       })
     }
     
+    
     if(bayes_beta_prior){
       df_imp <- tryCatch({
-        bayes_periodic_imputation(df_imp, col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
+        bayes_periodic_imputation(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
+      }, error = function(e){
+        print(sprintf('error for bayes periodic beta prior with p = %s', p))
+        browser()
+      })
+    }
+    
+    if(bayes_beta_prior){
+      df_imp <- tryCatch({
+        bayes_periodic_imputation(df_imp, df_OG = df, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
       }, error = function(e){
         print(sprintf('error for bayes periodic beta prior with p = %s', p))
         browser()
@@ -343,67 +370,40 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
   return(res_lst)
 }
 
+plot_results <- function(res, subset = NULL){
+  tt = res$group_results %>%
+    mutate(p = as.factor(p),
+           imputation_method = gsub('observed_count_pred_', '', imputation_method)) %>%
+    mutate(imputation_method = factor(imputation_method, levels = c("harmonic", "bayes_harmonic", "bayes_harmonic_miss", "bayes_harmonic_ideal")))
+  
+  # subset data if that's what's asked for
+  if(!is.null(subset)){
+    tt = tt %>% filter(imputation_method %in% subset)
+  }
+  
+  # RMSE plot
+  p1 <- ggplot(tt, aes(x = p, y = RMSE, fill = imputation_method)) +
+    geom_boxplot() + 
+    ggtitle('RMSE of imputation predictions')
+  
+  # MAPE plot
+  p2 <- ggplot(tt, aes(x = p, y = MAPE, fill = imputation_method)) +
+    geom_boxplot() + 
+    ggtitle('Mean Absolute Prediction Error of imputation predictions')
+  
+  # final plot
+  plot_final = cowplot::plot_grid(p1, p2, ncol = 1)
+  return(plot_final)
+}
+
 ##### Running imputation #####
+res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
+plot_results(res)
 
-res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1), cutoff_method = NA, bayes_iterations = 200, group = 'county')
+save(res, file = 'results/allcounties_bayes_imputation.RData')
 
-res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
-res$full_results
-
-# save(res, file = 'results/allcounties_bayes_imputation.RData')
-
-tmp = data2 %>% filter(county == 'Bomi') %>% add_periodic_cov()
-tmp = simulate_imputation(tmp, 'observed_count', p = 0.2)
-tmp = bayes_periodic_imputation(tmp, 'observed_count', group = 'county', harmonic_priors = F)
-
-data3 = simulate_imputation(data2, 'observed_count', p = 0.8)
-data3 = bayes_periodic_imputation(data3, 'observed_count', group = 'county', harmonic_priors = T)
-
-
-
-### Plotting - not prettied up at all, but ok for now.
-tt = res$group_results %>% filter(imputation_method == 'indicator_denom_pred_harmonic')
-tt = tt %>% filter(p <= 0.5)
-tt$p = factor(tt$p, levels = sort(unique(tt$p)))
-
-ggplot(tt, aes(x = p, y = RMSE)) +
-  geom_boxplot()
-
-ggplot(tt, aes(x = p, y = MAE)) +
-  geom_boxplot()
-
-ggplot(tt, aes(x = p, y = MAPE)) +
-  geom_boxplot()
-
-
-
-# yay first pass is done
-
-impute_wrapper(data, p_vec = c(0.05, 0.1, 0.15), cutoff_method = 'correlation', cutoff_cor = 0.2)$full_results
-
-
-
-
-##### Testing cutoff and stuff ####
-
-data(hqmr.data)
-# so it looks like it is in the wide form with all columns being different groups and then one column for data. Not sure if that column is necessary though, is it? Nvm it should be
-
-# ok just needs "date" and everything else is imputed
-test = cutoff(hqmr.data)
-d2 = cbind(hqmr.data[,79,drop =F], hqmr.data[,1:78])
-test = cutoff(d2)
-
-length(unique(hqmr.data$date))
-head(hqmr.data$date, 13)
-# so it's by month. And this is how cutoff will search for previous years.
-
-# so I already have the date column. want to create a df
-tmp = data %>% dplyr::select(date, facility, indicator_denom)
-data_spread = tidyr::spread(tmp, facility, indicator_denom)
-
-test = cutoff(data_spread)
-# ok it works. Of course, not optimized right now.
-
-cutoff_imputation(data, N = 2)
-cutoff_imputation(data, cutoff = 0.5, method = 'correlation')
+# data_miss = simulate_imputation(data2, 'observed_count', p = 0.9, group = 'county')
+# 
+# tt = bayes_periodic_imputation(data_miss, df_OG = data2, col = 'observed_count', group = 'county', family = 'NB', period = 12, iterations = 500, harmonic_priors = T)
+# 
+# res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.8), cutoff_method = NA, bayes_iterations = 200, group = 'county')
