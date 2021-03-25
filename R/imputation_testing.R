@@ -11,7 +11,8 @@ data = data %>%
   filter(facility != 'Facility M',
          date <  as.Date("2020-01-01"))
 
-data2 <- readRDS('data/ari_total_county_revisions.rds')
+data2 <- readRDS('data/ari_total_county_revisions.rds') %>%
+  filter(date <  as.Date("2020-01-01"))
 mean(is.na(data)) # ok no missingness
 
 #
@@ -384,12 +385,15 @@ plot_results <- function(res, subset = NULL){
   # RMSE plot
   p1 <- ggplot(tt, aes(x = p, y = RMSE, fill = imputation_method)) +
     geom_boxplot() + 
-    ggtitle('RMSE of imputation predictions')
+    ggtitle('RMSE of imputation predictions') + 
+    ylim(c(0,1500))
   
   # MAPE plot
   p2 <- ggplot(tt, aes(x = p, y = MAPE, fill = imputation_method)) +
     geom_boxplot() + 
-    ggtitle('Mean Absolute Prediction Error of imputation predictions')
+    ggtitle('Mean Absolute Prediction Error of imputation predictions') + 
+    ylim(c(0,1))
+  
   
   # final plot
   plot_final = cowplot::plot_grid(p1, p2, ncol = 1)
@@ -400,7 +404,9 @@ plot_results <- function(res, subset = NULL){
 res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
 plot_results(res)
 
-save(res, file = 'results/allcounties_bayes_imputation.RData')
+HERE ON 3/22 at 12:25pm
+
+#save(res, file = 'results/allcounties_bayes_imputation.RData')
 
 # data_miss = simulate_imputation(data2, 'observed_count', p = 0.9, group = 'county')
 # 
