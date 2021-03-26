@@ -1,6 +1,7 @@
 library(dplyr)
 library(lubridate)
 library(ggplot2)
+library(gtools)
 
 setwd('C:/Users/nickl/Documents/global_covid19_response/')
 
@@ -172,6 +173,7 @@ for(d in sample(districts, 3)){
 
 ### Indicator denom
 res = NULL
+cor_list = c()
 
 # sorry, but I'm doing a for loop
 for(d in unique(D$district)){
@@ -189,6 +191,9 @@ for(d in unique(D$district)){
   tmp <- cor(is.na(df_spread[,-c(1,2)]))
   tmp[lower.tri(tmp, diag = T)] <- NA
   
+  # store the correlations
+  cor_list = c(cor_list, na.omit(as.vector(tmp)))
+  
   # if the average correlation is NaN (say if there is only one missing value)
   if(is.nan(mean(tmp, na.rm = T))){
     print(sprintf('skipping district %s because of NaN correlations', d))
@@ -201,9 +206,11 @@ for(d in unique(D$district)){
 }
 
 res_denom = res
+cor_list_denom = cor_list
 
 ### ARI
 res = NULL
+cor_list = c()
 
 # sorry, but I'm doing a for loop
 for(d in unique(D$district)){
@@ -221,6 +228,9 @@ for(d in unique(D$district)){
   tmp <- cor(is.na(df_spread[,-c(1,2)]))
   tmp[lower.tri(tmp, diag = T)] <- NA
   
+  # store the correlations
+  cor_list = c(cor_list, na.omit(as.vector(tmp)))
+  
   # if the average correlation is NaN (say if there is only one missing value)
   if(is.nan(mean(tmp, na.rm = T))){
     print(sprintf('skipping district %s because of NaN correlations', d))
@@ -233,14 +243,72 @@ for(d in unique(D$district)){
 }
 
 res_ARI = res
+cor_list_ARI = cor_list
 
+# plotting district means of correlations
 par(mfrow = c(1,2))
 hist(res_ARI$cor_miss, main = 'within-district ARI', xlab = 'mean correlation')
 
 hist(res_denom$cor_miss, main = 'within-district denom', xlab = 'mean correlation')
 
+# plotting facility correlations
+hist(cor_list_ARI, main = 'within-district ARI', xlab = 'correlation')
+abline(v = mean(cor_list_ARI), col = 'red')
+mean(cor_list_ARI) # 0.081
 
+hist(cor_list_denom, main = 'within-district denom', xlab = 'correlation')
+abline(v = mean(cor_list_denom), col = 'red')
+mean(cor_list_denom) # 0.093
 
+#
+##### Within county (not district) spatial correlation #####
+res = NULL
+cor_list_denom = c()
+cor_list_ARI = c()
+
+# sorry, but I'm shamefully doing for loops on for loops on for loops. It's slow because of that
+for(cc in unique(D$county)){
+  # spread the data for this district
+  df = D %>% filter(county == cc) %>%
+    select(date, county, district, facility, indicator_denom, indicator_count_ari_total)
+  #df_spread = tidyr::spread(df, facility, indicator_denom)
+  
+  # the long way - a for loop!
+  for(f in unique(df$facility)){
+    target = df %>% filter(facility == f)
+    
+    # skip if the facility has no missingness
+    if(sum(is.na(target)) == 0){
+      next
+    }
+    
+    d = target$district[1]
+    compare_facs = df %>%
+      filter(district != d) %>%
+      pull(facility) %>% 
+      unique()
+    for(f2 in compare_facs){
+      compare = df %>% filter(facility == f2)
+      cor_list_denom = c(cor_list_denom, cor(is.na(target$indicator_denom), is.na(compare$indicator_denom)))
+      cor_list_ARI = c(cor_list_ARI, cor(is.na(target$indicator_count_ari_total), is.na(compare$indicator_count_ari_total)))
+    }
+  }
+}
+
+cor_list_denom = na.omit(cor_list_denom)
+cor_list_ARI = na.omit(cor_list_ARI)
+
+# plotting facility correlations
+hist(cor_list_ARI, main = 'within-county ARI', xlab = 'correlation')
+abline(v = mean(cor_list_ARI), col = 'red')
+mean(cor_list_ARI) # 0.02
+
+hist(cor_list_denom, main = 'within-county denom', xlab = 'correlation')
+abline(v = mean(cor_list_denom), col = 'red')
+mean(cor_list_denom) 
+# 0.048
+
+#
 ##### temporal correlation of missingness #####
 
 ### denom
@@ -294,9 +362,41 @@ table(count)
 
 ##### (Not done) Facility Size and Missingness #####
 
+df = D %>% 
+  group_by(facility) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            fac_size = mean(indicator_denom, na.rm = T)) %>%
+  filter(!is.nan(fac_size))
 
+plot(density(df$fac_size))
+plot(density(log(df$fac_size)))
+quantile(df$fac_size)
 
+plot(log(df$fac_size), df$ari_miss)
 
+# maybe barplots by quartile?
+df$group = quantcut(df$fac_size, q = 10)
 
+# group by quantile
+tt = df %>%
+  group_by(group) %>%
+  summarise(denom_miss_avg = mean(denom_miss),
+            ari_miss_avg = mean(ari_miss))
 
+# plot it!
+p1 <- ggplot(tt, aes(x = group, y = ari_miss_avg)) + 
+  geom_bar(stat = 'identity') + 
+  theme(axis.text.x=element_text(angle=-30)) +
+  xlab('facility size quantile') + 
+  ylab('average proportion missing') +
+  ggtitle('ARI missingness')
 
+p2 <- ggplot(tt, aes(x = group, y = denom_miss_avg)) + 
+  geom_bar(stat = 'identity') + 
+  theme(axis.text.x=element_text(angle=-30)) +
+  xlab('facility size quantile') + 
+  ylab('average proportion missing') +
+  ggtitle('denominator missingness')
+
+cowplot::plot_grid(p1, p2)
