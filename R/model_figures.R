@@ -1,7 +1,4 @@
-
-
 library(tidyverse) 
-library(BuenColors)
 library(ggplot2)
 library(patchwork)
 library(scales)
@@ -9,37 +6,36 @@ library(lubridate)
 library(prettyGraphs)
 
 
-
-plot_site <- function(input,type){
+plot_site <- function(input,type,fontsize=14,title=""){
   
   xlab="Date"
-  text_size=14
-  site_name <- input %>% distinct(site) %>% pull()
-  if(site_name!=0){ input %>% filter(site==site_name) -> input }
-  
     
     if(type == "count"){
       ylab="Number of New Cases"
       ggplot(input) + 
-        geom_line(aes(date,est_raw_counts),color="red") + 
-        geom_ribbon(aes(x=date,ymin=ci_raw_counts_low,ymax=ci_raw_counts_up),fill="red",alpha=.2) + 
+        geom_line(aes(date,est_count),color="red") + 
+        geom_ribbon(aes(x=date,ymin=ci_count_low,ymax=ci_count_up),fill="red",alpha=.2) + 
         geom_line(aes(date,observed),color="black") + 
-        ggtitle(paste0(`site_name`))+
+        ggtitle(title)+
         geom_vline(data=input, mapping=aes(xintercept=as.Date(extrapolation_date)),linetype="dashed") + 
-        pretty_plot() + theme(text = element_text(size=text_size)) + 
-        ylab(ylab) + xlab(xlab)
+        theme_bw() + 
+        theme(text = element_text(size=fontsize)) + 
+        ylab(ylab) + 
+        xlab("Date")
     }
     
     else if(type == "proportion"){
       ylab="Proportion of New Cases"
       ggplot(input) +  
         geom_line(aes(date,est_prop),color="red") + 
-        geom_ribbon(aes(x=date,ymin=ci_low_prop,ymax=ci_up_prop),fill="red",alpha=.2) + 
+        geom_ribbon(aes(x=date,ymin=ci_prop_low,ymax=ci_prop_up),fill="red",alpha=.2) + 
         geom_line(aes(date,observed_prop),color="black") + 
-        ggtitle(paste0(`site_name`))+
+        ggtitle(title)+
         geom_vline(data=input, mapping=aes(xintercept=as.Date(extrapolation_date)),linetype="dashed") + 
-        pretty_plot() + theme(text = element_text(size=text_size)) + 
-        ylab(ylab) + xlab(xlab) }
+        theme_bw() + 
+        theme(text = element_text(size=fontsize)) + 
+        ylab(ylab) +
+        xlab("Date") }
     
     else{
       print("Please specify the plot type as either count or proportion")
@@ -47,44 +43,43 @@ plot_site <- function(input,type){
 
   
 }
-
-plot_facet <- function(input,type){
+ 
   
-  counts_var = "est_raw_counts"
-  ylab="Number of New Cases"
-  xlab="Date"
-  text_size=10
+  
+plot_facet <- function(input,type,fontsize=14,title=""){
+  
   input <- input %>% dplyr::rename(facet_var=`site`)
   
   if(type=="count"){
-    if (grepl("raw",counts_var)){
-      ggplot(input) + geom_line(aes(date,est_raw_counts),color="red") + 
-        geom_ribbon(aes(x=date,ymin=ci_raw_counts_low,ymax=ci_raw_counts_up),fill="red",alpha=.2) + 
+    
+    ylab="Number of New Cases"
+    
+      ggplot(input) + geom_line(aes(date,est_count),color="red") + 
+        geom_ribbon(aes(x=date,ymin=ci_count_low,ymax=ci_count_up),fill="red",alpha=.2) + 
         geom_line(aes(date,observed),color="black") + 
         facet_wrap(~as.factor(facet_var),scale="free_y") + 
         geom_vline(data=input, mapping=aes(xintercept=as.numeric(as.Date(extrapolation_date))),linetype="dashed") + 
-        pretty_plot() + theme(text = element_text(size=text_size)) + 
-        ylab(ylab) + xlab(xlab)
-    }
-    else {
-      ggplot(input) + geom_line(aes(date,est_adj_counts),color="red") + 
-        geom_ribbon(aes(x=date,ymin=ci_adj_counts_low,ymax=ci_adj_counts_up),fill="red",alpha=.2) + 
-        geom_line(aes(date,observed_prop),color="black") + 
-        facet_wrap(~as.factor(facet_var),scale="free_y") + 
-        geom_vline(data=input, mapping=aes(xintercept=as.numeric(as.Date(extrapolation_date))),linetype="dashed") + 
-        pretty_plot() + theme(text = element_text(size=text_size)) + 
-        ylab(ylab) + xlab(xlab)
-    }
-  }
-  
-  else if(type=="proportion"){
+        ggtitle(title)+
+        theme_bw() + 
+        theme(text = element_text(size=fontsize)) + 
+        ylab(ylab) +
+        xlab("Date")
+      
+    } else if(type=="proportion"){
+      
+      ylab="Proportion of New Cases"
+      
     ggplot(input) + geom_line(aes(date,est_prop),color="red") + 
-      geom_ribbon(aes(x=date,ymin=ci_low_prop,ymax=ci_up_prop),fill="red",alpha=.2) + 
+      geom_ribbon(aes(x=date,ymin=ci_prop_low,ymax=ci_prop_up),fill="red",alpha=.2) + 
       geom_line(aes(date,observed_prop),color="black") + 
       facet_wrap(~as.factor(facet_var),scale="free_y") + 
       geom_vline(data=input, mapping=aes(xintercept=as.numeric(as.Date(extrapolation_date))),linetype="dashed") + 
-      pretty_plot() + theme(text = element_text(size=text_size)) + 
-      ylab(ylab) + xlab(xlab)
+      ggtitle(title)+
+      theme_bw() + 
+      theme(text = element_text(size=fontsize)) + 
+      ylab(ylab) +
+      xlab("Date")
+      
   }
   
   else{
@@ -93,18 +88,20 @@ plot_facet <- function(input,type){
   
 }
 
-# CREATE HEATMAP (similar to NYT graphs)
 
-plot_heatmap <- function(input,type){
+
+# CREATE HEATMAP 
+
+plot_heatmap <- function(input,type,fontsize=14,title=""){
   
   if(type=="count"){
     input %>% 
       filter(date >= extrapolation_date)  %>% 
       mutate(date_new = paste0("0",month(date),"-2020")) %>% 
-      mutate(deviation_final = (observed - est_raw_counts)/est_raw_counts,
+      mutate(deviation_final = (observed - est_count)/est_count,
              sig = case_when(
-               observed >= ci_raw_counts_up ~ 1,
-               observed <= ci_raw_counts_low ~ 1,
+               observed >= ci_count_up ~ 1,
+               observed <= ci_count_low ~ 1,
                TRUE ~ 0)) %>% 
       ggplot(., aes(date_new,site)) + 
       geom_tile(aes(height = 0.3, width=.95, fill = deviation_final, color=as.factor(sig)),size=.3) +
@@ -117,12 +114,16 @@ plot_heatmap <- function(input,type){
             axis.title.x = element_blank(),
             axis.ticks.x = element_blank(),
             axis.ticks.y = element_blank(),
-            text = element_text(size=8)) + 
-      scale_fill_gradientn(colors = jdb_palette("ocean_brick"),
-                           labels = c("lower","as expected","higher"),
-                           breaks=c(-2.5,0,2.5),
-                           limits=c(-2.5,2.5)) + 
-      labs(fill="Deviation") 
+            text = element_text(size=fontsize)) + 
+    scale_fill_gradient2(low = muted("blue"),
+                         mid = "grey90",
+                         high = muted("red"),
+                         breaks = c(-2.5,0,2.5),
+                         limits = c(-2.5,2.5),
+                         labels = c("lower","as expected","higher")) + 
+    labs(fill="Deviation") +
+    ggtitle(title)
+      
   }
   
   else if(type == "proportion"){
@@ -131,8 +132,8 @@ plot_heatmap <- function(input,type){
       mutate(date_new = paste0("0",month(date),"-2020")) %>% 
       mutate(deviation_final = (observed_prop - est_prop)/est_prop,
              sig = case_when(
-               observed_prop >= ci_up_prop ~ 1,
-               observed_prop <= ci_low_prop ~ 1,
+               observed_prop >= ci_prop_up ~ 1,
+               observed_prop <= ci_prop_low ~ 1,
                TRUE ~ 0)) %>% 
       ggplot(., aes(date_new,site)) + 
       geom_tile(aes(height = 0.3, width=.95, fill = deviation_final, color=as.factor(sig)),size=.3) +
@@ -145,12 +146,13 @@ plot_heatmap <- function(input,type){
             axis.title.x = element_blank(),
             axis.ticks.x = element_blank(),
             axis.ticks.y = element_blank(),
-            text = element_text(size=8)) + 
-      scale_fill_gradientn(colors = jdb_palette("ocean_brick"),
-                           labels = c("lower","as expected","higher"),
-                           breaks=c(-2.5,0,2.5),
-                           limits=c(-2.5,2.5)) + 
-      labs(fill="Deviation") 
+            text = element_text(size=fontsize)) + 
+      scale_fill_gradient2(low = muted("blue"),
+                           mid = "white",
+                           high = muted("red"),
+                           labels = c("lower","as expected","higher")) + 
+      labs(fill="Deviation") +
+      ggtitle(title)
   }
   
   else{
@@ -158,3 +160,5 @@ plot_heatmap <- function(input,type){
   }
   
 }
+
+

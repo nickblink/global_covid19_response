@@ -5,8 +5,10 @@ setwd('C:/Users/nickl/Documents/global_covid19_response/')
 
 # load in functions and data
 source("R/model_functions.R")
+source('R/model_diagnostics.R')
 source("R/model_figures.R")
-data <- readRDS("data/data_example_singlecounty.rds")
+# data <- readRDS("data/data_example_singlecounty.rds")
+data <- readRDS("data/data_example.rds")
 
 # exploring data
 str(data)
@@ -89,28 +91,67 @@ example_1_results <- fit.site.specific.denom.pi(data=data,
                                                 date_var="date",
                                                 R=500)   # Number of Boostrap resamples
 
+# Run Facility-level Model
+fit.site.specific.denom.pi(data=data,
+                           site_var="facility",
+                           site_name="Facility K",
+                           extrapolation_date=extrapolation_date,
+                           indicator_var="ari_cases",
+                           denom_var="total_visits", 
+                           date_var="date",
+                           R=500) -> single.facility.results
 
 # plot 'em!
-plot_site(example_1_results, 'count')
-plot_site(example_1_results, 'proportion')
+plot_site(single.facility.results,type="count", title="Acute Respiratory Infections at Facility K")
+plot_site(single.facility.results,type="proportion", title="Acute Respiratory Infections at Facility K")
+
 
 # get all sites
 all_sites <- data %>% distinct(facility) %>% pull()
 
 # loop over all syndromic surveillance indicators and facilities
 # groups all facilities into one data frame. The list is over the surveillance indicators
-lapply(c("indicator_count_ari_total"), function(y){    # can have a list of more indicators than just ARI
-  do.call(rbind, lapply(all_sites, function(x)
-    fit.site.specific.denom.pi(data=data,
-                               site_name=x,
-                               extrapolation_date=extrapolation_date,
-                               indicator_var=y,
-                               denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
-                               site_var="facility",
-                               date_var="date",
-                               R=500)))
-}
-) -> facility.list
+# loop over all  facilities
+do.call(rbind, lapply(all_sites,function(x){
+  fit.site.specific.denom.pi(data=data,
+                             site_name=x,
+                             extrapolation_date=extrapolation_date,
+                             indicator_var="ari_cases",
+                             denom_var="total_visits",   # corresponding denominator indicator needed for proportions
+                             site_var="facility",
+                             date_var="date",
+                             R=500)
+})
+) -> facility.results
+
+head(facility.results)
+plot_facet(facility.results,type="count")
+plot_heatmap(facility.results,type="count")
+
+data %>% filter(is.na(ari_cases) | is.na(total_visits))
+
+## # A tibble: 3 x 5
+##   date       facility   county       ari_cases total_visits
+##   <date>     <chr>      <chr>            <dbl>        <dbl>
+## 1 2018-08-01 Facility K County Alpha       106           NA
+## 2 2019-07-01 Facility Q County Alpha        NA           NA
+## 3 2019-10-01 Facility K County Alpha       125           NA
+
+fit.aggregate.pi.boot(data,
+                      indicator_var = "ari_cases",
+                      denom_var = "total_visits",
+                      date_var = "date",
+                      site_var = "facility",
+                      R=500) -> aggregate.results
+
+head(aggregate.results)
+
+plot_site(aggregate.results, "count", title="Facility K and Q Aggregated Results")
+
+plot_residuals(aggregate.results,
+               type="count",
+               extrapolation_date="2020-01-01",
+               title="Residuals from Aggregated model")
 
 # lazy way - Nick's code
 tt = facility.list[[1]]
@@ -180,4 +221,7 @@ plot_site(county_results,"proportion")
 
 # alright that's it. Now I should just look into the functions to see what they do.
 
+
+
+##### New github examples #####
 

@@ -7,6 +7,20 @@ setwd('C:/Users/nickl/Documents/global_covid19_response/')
 
 D = readRDS('data/liberia_cleaned_NL.rds')
 
+add_periodic_cov <- function(df, period = 12){
+  df = df %>%
+    dplyr::mutate(year = year(date) - min(year(date)) + 1,
+                  month = month(date),
+                  cos1 = cos(2*1*pi*month/period),
+                  sin1 = sin(2*1*pi*month/period),
+                  cos2 = cos(2*2*pi*month/period),
+                  sin2 = sin(2*2*pi*month/period),
+                  cos3 = cos(2*3*pi*month/period),
+                  sin3 = sin(2*3*pi*month/period))
+  return(df)
+}
+
+#
 ##### Counts of basic things #####
 
 length(unique(D$county)) # 15
@@ -309,6 +323,207 @@ mean(cor_list_denom)
 # 0.048
 
 #
+##### Spatial correlation of deviance residuals #####
+
+D = add_periodic_cov(D)
+
+# D2 = D %>% filter(district == 'Dowein')
+# uni_fac = unique(D2$facility)
+
+uni_fac = unique(D$facility)
+D$ARI_resid = D2$denom_resid = NA
+
+# for each facility, run the harmonic model
+test = lapply(uni_fac, function(xx){
+  D3 = D %>% filter(facility == xx)
+  
+  if(sum(!is.na(D3$indicator_count_ari_total)) < 20 | sum(!is.na(D3$indicator_denom)) < 20){
+    print(sprintf('skipping %s because of %s missing', xx, sum(is.na(D3))))
+    return(NULL)
+  }
+  print(xx)
+  
+  # create the formulas
+  count_ARI_form = as.formula("indicator_count_ari_total ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
+  count_denom_form = as.formula("indicator_denom ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
+  
+  # run the models
+  D3$ARI_resid[!is.na(D3$indicator_count_ari_total)] = tryCatch({
+    mod_1 = MASS::glm.nb(count_ARI_form, data = D3)
+    summary(mod_1)$deviance.resid
+  }, error = function(e){
+    rep(NA, sum(!is.na(D3$indicator_count_ari_total)))
+  })
+  
+  D3$denom_resid[!is.na(D3$indicator_denom)] = tryCatch({
+    mod_2 = MASS::glm.nb(count_denom_form, data = D3)
+    summary(mod_2)$deviance.resid
+  }, error = function(e){
+    rep(NA, sum(!is.na(D3$indicator_denom)))
+  })
+  
+  # mod_1 = MASS::glm.nb(count_ARI_form, data = D3)
+  # mod_2 = MASS::glm.nb(count_denom_form, data = D3)
+  # 
+  # # get the deviance residuals
+  # D3$ARI_resid[!is.na(D3$indicator_count_ari_total)] = summary(mod_1)$deviance.resid
+  # D3$denom_resid[!is.na(D3$indicator_denom)] = summary(mod_2)$deviance.resid
+
+  # only keep relevant columns  
+  D3 = D3 %>%
+    dplyr::select(date, county, district, facility, denom_resid, ARI_resid)
+  
+  # return the results
+  D3
+})
+
+# convert to one data frame
+D2 = do.call('rbind',test)
+
+# analyze them like you did with all the other values
+
+### Indicator denom
+res = NULL
+cor_list = c()
+
+# sorry, but I'm doing a for loop
+for(d in unique(D2$district)){
+  # spread the data for this district
+  df = D2 %>% filter(district == d) %>%
+    dplyr::select(date, district, facility, denom_resid)
+  df_spread = tidyr::spread(df, facility, denom_resid)
+  
+  if(sum(is.na(df_spread)) == 0){
+    print(sprintf('skipping district %s because nothing is missing', d))
+    next
+  }
+  
+  # get the correlation matrix across facilities
+  tmp <- cor(is.na(df_spread[,-c(1,2)]))
+  tmp[lower.tri(tmp, diag = T)] <- NA
+  
+  # store the correlations
+  cor_list = c(cor_list, na.omit(as.vector(tmp)))
+  
+  # if the average correlation is NaN (say if there is only one missing value)
+  if(is.nan(mean(tmp, na.rm = T))){
+    print(sprintf('skipping district %s because of NaN correlations', d))
+    next
+  }
+  
+  # print(mean(tmp, na.rm=  T))
+  res_row = data.frame(district = d, p_miss = mean(is.na(df_spread[,-c(1,2)])), cor_denom = mean(tmp, na.rm=  T))
+  res = rbind(res, res_row)
+}
+
+res_denom = res
+cor_list_denom = cor_list
+
+### ARI
+res = NULL
+cor_list = c()
+
+# sorry, but I'm doing a for loop
+for(d in unique(D2$district)){
+  # spread the data for this district
+  df = D2 %>% filter(district == d) %>%
+    select(date, district, facility, ARI_resid)
+  df_spread = tidyr::spread(df, facility, ARI_resid)
+  
+  if(sum(is.na(df_spread)) == 0){
+    print(sprintf('skipping district %s because nothing is missing', d))
+    next
+  }
+  
+  # get the correlation matrix across facilities
+  tmp <- cor(is.na(df_spread[,-c(1,2)]))
+  tmp[lower.tri(tmp, diag = T)] <- NA
+  
+  # store the correlations
+  cor_list = c(cor_list, na.omit(as.vector(tmp)))
+  
+  # if the average correlation is NaN (say if there is only one missing value)
+  if(is.nan(mean(tmp, na.rm = T))){
+    print(sprintf('skipping district %s because of NaN correlations', d))
+    next
+  }
+  
+  # print(mean(tmp, na.rm=  T))
+  res_row = data.frame(district = d, p_miss = mean(is.na(df_spread[,-c(1,2)])), cor_ARI = mean(tmp, na.rm=  T))
+  res = rbind(res, res_row)
+}
+
+res_ARI = res
+cor_list_ARI = cor_list
+
+# plotting district means of correlations
+par(mfrow = c(1,2))
+hist(res_ARI$cor_ARI, main = 'within-district ARI', xlab = 'mean correlation')
+hist(res_denom$cor_denom, main = 'within-district denom', xlab = 'mean correlation')
+# pretty high. Interesting.
+
+# plotting facility correlations
+hist(cor_list_ARI, main = 'within-district ARI', xlab = 'correlation')
+abline(v = mean(cor_list_ARI), col = 'red')
+mean(cor_list_ARI) # 0.115
+
+hist(cor_list_denom, main = 'within-district denom', xlab = 'correlation')
+abline(v = mean(cor_list_denom), col = 'red')
+mean(cor_list_denom) # 0.145
+
+# interesting. So not as high as first glance. 
+# However, this does show that there is clear correlation of deviance. That is a good sign moving forward for spatial correlation.
+
+
+### Within-county, not district
+res = NULL
+cor_list_denom = c()
+cor_list_ARI = c()
+
+# sorry, but I'm shamefully doing for loops on for loops on for loops. It's slow because of that
+for(cc in unique(D2$county)){
+  # spread the data for this district
+  df = D2 %>% filter(county == cc) %>%
+    select(date, county, district, facility, denom_resid, ARI_resid)
+  #df_spread = tidyr::spread(df, facility, indicator_denom)
+  
+  # the long way - a for loop!
+  for(f in unique(df$facility)){
+    target = df %>% filter(facility == f)
+    
+    # skip if the facility has no missingness
+    if(sum(is.na(target)) == 0){
+      next
+    }
+    
+    d = target$district[1]
+    compare_facs = df %>%
+      filter(district != d) %>%
+      pull(facility) %>% 
+      unique()
+    for(f2 in compare_facs){
+      compare = df %>% filter(facility == f2)
+      cor_list_denom = c(cor_list_denom, cor(is.na(target$denom_resid), is.na(compare$denom_resid)))
+      cor_list_ARI = c(cor_list_ARI, cor(is.na(target$ARI_resid), is.na(compare$ARI_resid)))
+    }
+  }
+}
+
+cor_list_denom = na.omit(cor_list_denom)
+cor_list_ARI = na.omit(cor_list_ARI)
+
+# plotting facility correlations
+hist(cor_list_ARI, main = 'within-county ARI', xlab = 'correlation')
+abline(v = mean(cor_list_ARI), col = 'red')
+mean(cor_list_ARI) # 0.03
+
+hist(cor_list_denom, main = 'within-county denom', xlab = 'correlation')
+abline(v = mean(cor_list_denom), col = 'red')
+mean(cor_list_denom) 
+# 0.07
+
+
+# 
 ##### temporal correlation of missingness #####
 
 ### denom

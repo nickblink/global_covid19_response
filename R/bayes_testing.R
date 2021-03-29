@@ -13,6 +13,14 @@ posteriors <- insight::get_parameters(model)
 
 head(posteriors)
 
+test <- posterior_predict(model, newdata = iris)
+predictions_I_think <- colMeans(test)
+plot(iris$Sepal.Length, predictions_I_think)
+# ok good. This function works as expected. 
+
+4.392924 + 1.4*0.3947724 -> aa
+any(abs(test[,1] - aa) < 1e-5) # hmm. Ah it's predicted ya dingus. This should include variance!
+
 ### With the data I am now using
 setwd('C:/Users/nickl/Documents/global_covid19_response/')
 source("R/model_functions.R")

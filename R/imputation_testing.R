@@ -6,14 +6,19 @@ setwd('C:/Users/nickl/Documents/global_covid19_response/')
 source("R/model_functions.R")
 source("R/model_figures.R")
 data <- readRDS("data/data_example_singlecounty.rds")
-# removing M! (for now). It's missing tooo much
+# data from county "A"
 data = data %>%
   filter(facility != 'Facility M',
          date <  as.Date("2020-01-01"))
+# (removed M because it's missing too much)
 
+# county-level data
 data2 <- readRDS('data/ari_total_county_revisions.rds') %>%
   filter(date <  as.Date("2020-01-01"))
 mean(is.na(data)) # ok no missingness
+
+# data for all facilities
+D = readRDS('data/liberia_cleaned_NL.rds')
 
 #
 ##### My imputation functions #####
@@ -133,7 +138,6 @@ bayes_periodic_imputation <- function(df, df_OG = NULL, col, group = 'facility',
   formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
   
   if(harmonic_priors){
-    warning('NOT doing any prior intercepts yet')
     
     if(!is.null(df_OG)){
       # setting the prior to use the un-imputed matrix models
@@ -400,7 +404,19 @@ plot_results <- function(res, subset = NULL){
   return(plot_final)
 }
 
+##### Comparing my OG imputation to github code #####
+tmp <- data %>% filter(facility == 'Facility D')
+tt <- periodic_imputation(tmp, 'indicator_count_ari_total') %>%
+  dplyr::select(date, indicator_count_ari_total, indicator_count_ari_total_pred_harmonic)
+ss <- fit.site.specific.denom.pi(tmp, 'Facility D',extrapolation_date = as.Date("2020-01-01"), 'indicator_count_ari_total', site_var = 'facility', date_var = 'date', counts_only = T) %>%
+  dplyr::select(date, est_raw_counts)
+
+test = merge(tt, ss, by = 'date')
+
+# ok good it works. This doesn't account for denominator, but it works.
+
 ##### Running imputation #####
+
 res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
 plot_results(res)
 
@@ -413,3 +429,134 @@ HERE ON 3/22 at 12:25pm
 # tt = bayes_periodic_imputation(data_miss, df_OG = data2, col = 'observed_count', group = 'county', family = 'NB', period = 12, iterations = 500, harmonic_priors = T)
 # 
 # res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.8), cutoff_method = NA, bayes_iterations = 200, group = 'county')
+##### Modeling the paper #####
+# Declare this for all functions
+extrapolation_date <- "2020-01-01"
+
+# filter to only look at one county
+# Bomi has 0.255 ARI missingness. Not the highest but reasonably high
+D2 = D %>% filter(county == 'Bomi')
+
+# check the distribution of facility missingness
+#   any over 0.2? 
+facility_miss = D2 %>% 
+  group_by(facility) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)))
+# 13/27 have > 20% missing ARI. And 4 (?) have > 20% missing denom (not sure if the code does anything about that, though)
+
+# only keep facilities with < 80% missing
+facility_list = facility_miss %>% filter(ari_miss < 0.8) %>% distinct(facility) %>% pull()
+
+D2 = D2 %>%
+  filter(facility %in% facility_list)
+
+# full model fit (remember this is excluding > 0.2 missing)
+county.fit = fit.aggregate.pi.boot(D2, 
+                      indicator_var = "indicator_count_ari_total",
+                      denom_var = "indicator_denom",
+                      site_var = "facility",
+                      date_var = "date",
+                      counts_only=FALSE,
+                      R=250)
+
+# district fits
+uni_districts = unique(D2$district)
+district.fits <- lapply(uni_districts, function(xx){
+                        fit.cluster.pi(data = D2 %>% filter(district == xx), 
+                                       indicator_var = "indicator_count_ari_total",
+                                       denom_var = "indicator_denom",
+                                       site_var = "facility",
+                                       date_var = "date",
+                                       counts_only=FALSE,
+                                       R=250) %>%
+    mutate(site = xx)
+  })
+
+# clinic fits
+facility.results <- do.call(rbind, lapply(facility_list,function(x){
+  fit.site.specific.denom.pi(data=D2,
+                             site_name=x,
+                             extrapolation_date=extrapolation_date,
+                             indicator_var="indicator_count_ari_total",
+                             denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                             site_var="facility",
+                             date_var="date",
+                             R=500)
+})
+) 
+
+# individual facility results
+plot_facet(facility.results,type="count")
+
+# full county results
+plot_site(county.fit, "count", title="Bomi Aggregated Results")
+
+###  
+# (1) Impute all the values. Now Bayesian imputation! <- version 1
+D2 <- bayes_periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', iterations = 500, group = 'facility')
+
+# updating the missing values
+D2$ari_bayes_imp = D2$indicator_count_ari_total
+D2$ari_bayes_imp[is.na(D2$ari_bayes_imp)] = D2$indicator_count_ari_total_pred_bayes_harmonic[is.na(D2$ari_bayes_imp)]
+
+# (1) Impute all the values. Now Bayesian imputation! <- version 2
+D2 <- bayes_periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', iterations = 500, group = 'facility', harmonic_priors = T)
+
+# updating the missing values
+D2$ari_bayes_imp2 = D2$indicator_count_ari_total
+D2$ari_bayes_imp2[is.na(D2$ari_bayes_imp2)] = D2$indicator_count_ari_total_pred_bayes_harmonic_miss[is.na(D2$ari_bayes_imp2)]
+
+# (2) Run the same models as before 
+facility.results.bayes <- do.call(rbind, lapply(facility_list,function(x){
+  fit.site.specific.denom.pi(data=D2,
+                             site_name=x,
+                             extrapolation_date=extrapolation_date,
+                             indicator_var="ari_bayes_imp",
+                             denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                             site_var="facility",
+                             date_var="date",
+                             R=500,
+                             counts_only = T)
+})
+) 
+plot_facet(facility.results.bayes, type="count")
+
+
+facility.results.bayes2 <- do.call(rbind, lapply(facility_list,function(x){
+  fit.site.specific.denom.pi(data=D2,
+                             site_name=x,
+                             extrapolation_date=extrapolation_date,
+                             indicator_var="ari_bayes_imp2",
+                             denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                             site_var="facility",
+                             date_var="date",
+                             R=500)
+})
+) 
+
+plot_facet(facility.results.bayes2, type="count")
+
+# ok some issues here - to return later
+tmp = D2 %>% filter(facility == 'Gonjeh Clinic')
+
+# my own plot
+plot_list = list()
+iter = 0
+for(f in facility_list){
+  iter = iter + 1
+  tmp = D2 %>% filter(facility == f)
+  tmp$indicator_count_ari_total_pred_bayes_harmonic_miss[!is.na(tmp$indicator_count_ari_total)] = NA
+  p1 <- ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
+    geom_line() + 
+    geom_line(aes(x = date, y = indicator_count_ari_total_pred_bayes_harmonic_miss), col = 'blue')
+  plot_list[[iter]] = p1
+}
+
+cowplot::plot_grid(plotlist = plot_list)
+
+# work on filling in the gaps of this visualization. For later.
+
+# note the original bayesian method will probably give really similar betas but with smaller confidence intervals, which is sort of a lie.
+
+
