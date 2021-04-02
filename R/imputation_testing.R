@@ -1,5 +1,7 @@
 library(cutoffR)
 library(rstanarm)
+library(CARBayesST)
+library(cowplot)
 
 # load in functions and data
 setwd('C:/Users/nickl/Documents/global_covid19_response/')
@@ -89,7 +91,7 @@ simulate_imputation <- function(df, col, p = 0.1, group = NULL){
 }
 
 # OG imputation method
-periodic_imputation <- function(df, col, group = 'facility', family = 'quasipoisson', period = 12){
+periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12){
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period)
 
@@ -255,6 +257,32 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
+CARBayes_imputation <- function(df, col){
+  df = add_periodic_cov(df)
+  
+  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  
+  W = full_join(D2,D2, by = 'district') %>%
+    filter(facility.x != facility.y) %>%
+    dplyr::select(-district) %>%
+    igraph::graph_from_data_frame() %>%
+    igraph::as_adjacency_matrix() %>%
+    as.matrix()
+  
+  # model formula
+  # setting up the formula
+  formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
+  
+  #browser()
+  chain1 <- ST.CARar(formula = formula_col, family = "poisson",
+                     data = df, W = W, burnin = 20000, n.sample = 40000,
+                     thin = 10, AR=1)
+  
+  
+  df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
+  return(df)
+}
+
 impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff_cor = NULL, harmonic_family = 'NB', bayes_harmonic_family = 'NB', cutoff_method = 'number', group = 'facility', bayes_iterations = 500, bayes_beta_prior = T){
   
   if(col != 'indicator_denom'){
@@ -417,16 +445,16 @@ test = merge(tt, ss, by = 'date')
 
 ##### Running imputation #####
 
-res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
-plot_results(res)
-
-HERE ON 3/22 at 12:25pm
+# res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
+# plot_results(res)
+# 
 
 #save(res, file = 'results/allcounties_bayes_imputation.RData')
 
-# data_miss = simulate_imputation(data2, 'observed_count', p = 0.9, group = 'county')
-# 
-# tt = bayes_periodic_imputation(data_miss, df_OG = data2, col = 'observed_count', group = 'county', family = 'NB', period = 12, iterations = 500, harmonic_priors = T)
+data_miss = simulate_imputation(data2, 'observed_count', p = 0.9, group = 'county')
+
+tt = bayes_periodic_imputation(data_miss, df_OG = data2, col = 'observed_count', group = 'county', family = 'NB', period = 12, iterations = 500, harmonic_priors = T)
+
 # 
 # res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.8), cutoff_method = NA, bayes_iterations = 200, group = 'county')
 ##### Modeling the paper #####
@@ -446,53 +474,62 @@ facility_miss = D2 %>%
 # 13/27 have > 20% missing ARI. And 4 (?) have > 20% missing denom (not sure if the code does anything about that, though)
 
 # only keep facilities with < 80% missing
-facility_list = facility_miss %>% filter(ari_miss < 0.8) %>% distinct(facility) %>% pull()
+facility_list = facility_miss %>% filter(ari_miss < 0.8) %>% arrange(ari_miss) %>% distinct(facility) %>% pull()
 
 D2 = D2 %>%
   filter(facility %in% facility_list)
 
-# full model fit (remember this is excluding > 0.2 missing)
-county.fit = fit.aggregate.pi.boot(D2, 
-                      indicator_var = "indicator_count_ari_total",
-                      denom_var = "indicator_denom",
-                      site_var = "facility",
-                      date_var = "date",
-                      counts_only=FALSE,
-                      R=250)
+# run models from the paper
+if(FALSE){
 
-# district fits
-uni_districts = unique(D2$district)
-district.fits <- lapply(uni_districts, function(xx){
-                        fit.cluster.pi(data = D2 %>% filter(district == xx), 
-                                       indicator_var = "indicator_count_ari_total",
-                                       denom_var = "indicator_denom",
-                                       site_var = "facility",
-                                       date_var = "date",
-                                       counts_only=FALSE,
-                                       R=250) %>%
-    mutate(site = xx)
+  
+  # full model fit (remember this is excluding > 0.2 missing)
+  county.fit = fit.aggregate.pi.boot(D2, 
+                                     indicator_var = "indicator_count_ari_total",
+                                     denom_var = "indicator_denom",
+                                     site_var = "facility",
+                                     date_var = "date",
+                                     counts_only=FALSE,
+                                     R=250)
+  
+  # district fits
+  uni_districts = unique(D2$district)
+  district.fits <- lapply(uni_districts, function(xx){
+    fit.cluster.pi(data = D2 %>% filter(district == xx), 
+                   indicator_var = "indicator_count_ari_total",
+                   denom_var = "indicator_denom",
+                   site_var = "facility",
+                   date_var = "date",
+                   counts_only=FALSE,
+                   R=250) %>%
+      mutate(site = xx)
   })
+  
+  # clinic fits
+  facility.results <- do.call(rbind, lapply(facility_list,function(x){
+    fit.site.specific.denom.pi(data=D2,
+                               site_name=x,
+                               extrapolation_date=extrapolation_date,
+                               indicator_var="indicator_count_ari_total",
+                               denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                               site_var="facility",
+                               date_var="date",
+                               R=500)
+  })
+  ) 
+  
+  # individual facility results
+  plot_facet(facility.results,type="count")
+  
+  # full county results
+  plot_site(county.fit, "count", title="Bomi Aggregated Results")
+}
 
-# clinic fits
-facility.results <- do.call(rbind, lapply(facility_list,function(x){
-  fit.site.specific.denom.pi(data=D2,
-                             site_name=x,
-                             extrapolation_date=extrapolation_date,
-                             indicator_var="indicator_count_ari_total",
-                             denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
-                             site_var="facility",
-                             date_var="date",
-                             R=500)
-})
-) 
 
-# individual facility results
-plot_facet(facility.results,type="count")
+### My imputations
+# (0) Trying CARBayes!
+D2 <- CARBayes_imputation(D2, col = "indicator_count_ari_total")
 
-# full county results
-plot_site(county.fit, "count", title="Bomi Aggregated Results")
-
-###  
 # (1) Impute all the values. Now Bayesian imputation! <- version 1
 D2 <- bayes_periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', iterations = 500, group = 'facility')
 
@@ -500,45 +537,132 @@ D2 <- bayes_periodic_imputation(D2, col = "indicator_count_ari_total", family = 
 D2$ari_bayes_imp = D2$indicator_count_ari_total
 D2$ari_bayes_imp[is.na(D2$ari_bayes_imp)] = D2$indicator_count_ari_total_pred_bayes_harmonic[is.na(D2$ari_bayes_imp)]
 
-# (1) Impute all the values. Now Bayesian imputation! <- version 2
+# (2) Impute all the values. Now Bayesian imputation! <- version 2
 D2 <- bayes_periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', iterations = 500, group = 'facility', harmonic_priors = T)
 
-# updating the missing values
-D2$ari_bayes_imp2 = D2$indicator_count_ari_total
-D2$ari_bayes_imp2[is.na(D2$ari_bayes_imp2)] = D2$indicator_count_ari_total_pred_bayes_harmonic_miss[is.na(D2$ari_bayes_imp2)]
+# (3) Impute all values with periodic imputation
+D2 <- periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', group = 'facility')
 
-# (2) Run the same models as before 
-facility.results.bayes <- do.call(rbind, lapply(facility_list,function(x){
-  fit.site.specific.denom.pi(data=D2,
-                             site_name=x,
-                             extrapolation_date=extrapolation_date,
-                             indicator_var="ari_bayes_imp",
-                             denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
-                             site_var="facility",
-                             date_var="date",
-                             R=500,
-                             counts_only = T)
-})
-) 
-plot_facet(facility.results.bayes, type="count")
+# plotting county level results
+if(FALSE){
+  # updating the missing values
+  D2$ari_bayes_imp2 = D2$indicator_count_ari_total
+  D2$ari_bayes_imp2[is.na(D2$ari_bayes_imp2)] = D2$indicator_count_ari_total_pred_bayes_harmonic_miss[is.na(D2$ari_bayes_imp2)]
+  
+  # (2) Run the same models as before 
+  facility.results.bayes <- do.call(rbind, lapply(facility_list,function(x){
+    fit.site.specific.denom.pi(data=D2,
+                               site_name=x,
+                               extrapolation_date=extrapolation_date,
+                               indicator_var="ari_bayes_imp",
+                               denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                               site_var="facility",
+                               date_var="date",
+                               R=500,
+                               counts_only = T)
+  })
+  ) 
+  plot_facet(facility.results.bayes, type="count")
+  
+  
+  facility.results.bayes2 <- do.call(rbind, lapply(facility_list,function(x){
+    fit.site.specific.denom.pi(data=D2,
+                               site_name=x,
+                               extrapolation_date=extrapolation_date,
+                               indicator_var="ari_bayes_imp2",
+                               denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                               site_var="facility",
+                               date_var="date",
+                               R=500)
+  })
+  ) 
+  
+  plot_facet(facility.results.bayes2, type="count")
+  
+  # ok some issues here - to return later
+  tmp = D2 %>% filter(facility == 'Gonjeh Clinic')
+}
+
+D2 = as.data.frame(D2)
+
+plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
+  if(is.null(fac_list)){
+    fac_list = unique(df$facility)
+  }
+  
+  plot_list = list()
+  iter = 0
+  
+  for(f in fac_list){
+    iter = iter + 1
+    tmp = df %>% filter(facility == f)
+    
+    # baseline plot for this
+    p1 <- suppressWarnings(ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
+      geom_line() +
+      ggtitle(sprintf('%s (%0.1f %% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))))
+    for(j in 1:length(imp_vec)){
+      col = imp_vec[j]
+      tmp[!is.na(tmp$indicator_count_ari_total),col] = NA
+      
+      # filling in surrounding points to imputations to connect lines
+      # I have to do multiple if statements because of R's handling of calling a value not in an array
+      ind_list = c()
+      for(i in 1:nrow(tmp)){
+        if(i > 1){
+          if(is.na(tmp[i,col]) & !is.na(tmp[i-1,col])){
+            ind_list = c(ind_list, i)
+          }
+        }
+        if(i < nrow(tmp)){
+          if(is.na(tmp[i,col]) & !is.na(tmp[i+1,col])){
+            ind_list = c(ind_list, i)
+          }
+        }
+      }
+      # replace surrounding values for plotting
+      tmp[ind_list, col] = tmp$indicator_count_ari_total[ind_list]
+      
+      
+      #scale_colour_manual(name="Error Bars",values=cols)
+      #p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j]), color = color_vec[j]))
+      p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j], color = color_vec[j])))
+    }
+
+    # store the legend for later
+    legend = get_legend(p1 + theme(legend.position = 'bottom'))
+    
+    #+ scale_fill_discrete(name = "Dose", labels = c("A", "B", "C"))
+    browser()
+    p1 = p1 + theme(legend.position = 'none') 
+  
+      #legend(x = 1, y = 1, )
+    #browser()
+    
+    plot_list[[iter]] = p1
+  }
+  
+  #browser()
+  plot_grid(plot_grid(plotlist = plot_list),  legend, ncol = 1, rel_heights = c(10,1))
+  
+}
+
+# imp_vec = c('indicator_count_ari_total_pred_bayes_harmonic','indicator_count_ari_total_pred_bayes_harmonic_miss', 'indicator_count_ari_total_pred_harmonic')
+# color_vec= c("red",'blue','green')
+
+imp_vec = c('indicator_count_ari_total_CARBayes_ST','indicator_count_ari_total_pred_bayes_harmonic_miss', 'indicator_count_ari_total_pred_harmonic')
+#color_vec= c('A' = "red",'B' = 'blue','C' = 'green')
+color_vec= c('"red"','"blue"','"green"')
 
 
-facility.results.bayes2 <- do.call(rbind, lapply(facility_list,function(x){
-  fit.site.specific.denom.pi(data=D2,
-                             site_name=x,
-                             extrapolation_date=extrapolation_date,
-                             indicator_var="ari_bayes_imp2",
-                             denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
-                             site_var="facility",
-                             date_var="date",
-                             R=500)
-})
-) 
+# imp_vec = c('indicator_count_ari_total_pred_bayes_harmonic')
+# color_vec= c('red')
+# fac_list = facility_list
 
-plot_facet(facility.results.bayes2, type="count")
+plot_imputations(D2, imp_vec, color_vec, facility_list)
 
-# ok some issues here - to return later
-tmp = D2 %>% filter(facility == 'Gonjeh Clinic')
+
+# good enough
 
 # my own plot
 plot_list = list()
@@ -546,7 +670,7 @@ iter = 0
 for(f in facility_list){
   iter = iter + 1
   tmp = D2 %>% filter(facility == f)
-  tmp$indicator_count_ari_total_pred_bayes_harmonic_miss[!is.na(tmp$indicator_count_ari_total)] = NA
+  #tmp$indicator_count_ari_total_pred_bayes_harmonic_miss[!is.na(tmp$indicator_count_ari_total)] = NA
   p1 <- ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
     geom_line() + 
     geom_line(aes(x = date, y = indicator_count_ari_total_pred_bayes_harmonic_miss), col = 'blue')
