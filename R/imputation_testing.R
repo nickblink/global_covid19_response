@@ -432,31 +432,6 @@ plot_results <- function(res, subset = NULL){
   return(plot_final)
 }
 
-##### Comparing my OG imputation to github code #####
-tmp <- data %>% filter(facility == 'Facility D')
-tt <- periodic_imputation(tmp, 'indicator_count_ari_total') %>%
-  dplyr::select(date, indicator_count_ari_total, indicator_count_ari_total_pred_harmonic)
-ss <- fit.site.specific.denom.pi(tmp, 'Facility D',extrapolation_date = as.Date("2020-01-01"), 'indicator_count_ari_total', site_var = 'facility', date_var = 'date', counts_only = T) %>%
-  dplyr::select(date, est_raw_counts)
-
-test = merge(tt, ss, by = 'date')
-
-# ok good it works. This doesn't account for denominator, but it works.
-
-##### Running imputation #####
-
-# res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
-# plot_results(res)
-# 
-
-#save(res, file = 'results/allcounties_bayes_imputation.RData')
-
-data_miss = simulate_imputation(data2, 'observed_count', p = 0.9, group = 'county')
-
-tt = bayes_periodic_imputation(data_miss, df_OG = data2, col = 'observed_count', group = 'county', family = 'NB', period = 12, iterations = 500, harmonic_priors = T)
-
-# 
-# res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.8), cutoff_method = NA, bayes_iterations = 200, group = 'county')
 ##### Modeling the paper #####
 # Declare this for all functions
 extrapolation_date <- "2020-01-01"
@@ -481,7 +456,7 @@ D2 = D2 %>%
 
 # run models from the paper
 if(FALSE){
-
+  
   
   # full model fit (remember this is excluding > 0.2 missing)
   county.fit = fit.aggregate.pi.boot(D2, 
@@ -586,21 +561,34 @@ if(FALSE){
 D2 = as.data.frame(D2)
 
 plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
+  # get facility list if not supplied
   if(is.null(fac_list)){
     fac_list = unique(df$facility)
   }
   
+  # rename columns of df to make it easier
+  for(col in imp_vec){
+    ind = grep(col, colnames(df))
+    if(length(ind) != 1){browser()}
+    colnames(df)[ind] = col
+  }
+  
+  # initialize plotting
   plot_list = list()
   iter = 0
   
+  # go through each facility
   for(f in fac_list){
     iter = iter + 1
     tmp = df %>% filter(facility == f)
     
-    # baseline plot for this
-    p1 <- suppressWarnings(ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
-      geom_line() +
-      ggtitle(sprintf('%s (%0.1f %% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))))
+    # store the true outcome for plotting
+    df_f = tmp %>% dplyr::select(date, y = indicator_count_ari_total) %>% mutate(method = 'ari_true')
+    
+   #  # baseline plot for this
+   # # p1 <- suppressWarnings(ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
+   #                           geom_line() +
+   #                           ggtitle(sprintf('%s (%0.1f %% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))))
     for(j in 1:length(imp_vec)){
       col = imp_vec[j]
       tmp[!is.na(tmp$indicator_count_ari_total),col] = NA
@@ -623,22 +611,28 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
       # replace surrounding values for plotting
       tmp[ind_list, col] = tmp$indicator_count_ari_total[ind_list]
       
+      tmp2 = tmp %>% dplyr::select(date, y = imp_vec[j]) %>% mutate(method = col)
+      df_f = rbind(df_f, tmp2)
       
       #scale_colour_manual(name="Error Bars",values=cols)
       #p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j]), color = color_vec[j]))
-      p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j], color = color_vec[j])))
+     # p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j], color = color_vec[j])))
     }
-
-    # store the legend for later
-    legend = get_legend(p1 + theme(legend.position = 'bottom'))
     
-    #+ scale_fill_discrete(name = "Dose", labels = c("A", "B", "C"))
-    browser()
-    p1 = p1 + theme(legend.position = 'none') 
-  
-      #legend(x = 1, y = 1, )
     #browser()
     
+    p1 <- suppressWarnings(ggplot(data = df_f, aes(x = date, y = y, group = method, color = method)) + 
+      geom_line() +
+      ggtitle(sprintf('%s (%0.1f%% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))) + 
+        scale_color_manual(values = c('black', color_vec)))
+    
+    # store the legend for later
+    legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20))))
+    
+    # remove the legend position on this plot
+    p1 = p1 + theme(legend.position = 'none') 
+    
+    # store the plot for this facility in the list
     plot_list[[iter]] = p1
   }
   
@@ -647,40 +641,45 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
   
 }
 
-# imp_vec = c('indicator_count_ari_total_pred_bayes_harmonic','indicator_count_ari_total_pred_bayes_harmonic_miss', 'indicator_count_ari_total_pred_harmonic')
-# color_vec= c("red",'blue','green')
+bomi_plot <- plot_imputations(D2, 
+                 imp_vec = c('CARBayes_ST','pred_bayes_harmonic_miss', 'pred_harmonic'), 
+                 color_vec= c('blue','red','orange'), 
+                 facility_list)
+bomi_plot
 
-imp_vec = c('indicator_count_ari_total_CARBayes_ST','indicator_count_ari_total_pred_bayes_harmonic_miss', 'indicator_count_ari_total_pred_harmonic')
-#color_vec= c('A' = "red",'B' = 'blue','C' = 'green')
-color_vec= c('"red"','"blue"','"green"')
-
-
-# imp_vec = c('indicator_count_ari_total_pred_bayes_harmonic')
-# color_vec= c('red')
-# fac_list = facility_list
-
-plot_imputations(D2, imp_vec, color_vec, facility_list)
+ggsave('figures/Bomi_imputation_04072021.png',scale = 3)
+#cowplot::save_plot(filename = 'figures/Bomi_imputation_04072021_v2.png',plot = bomi_plot)
 
 
-# good enough
-
-# my own plot
-plot_list = list()
-iter = 0
-for(f in facility_list){
-  iter = iter + 1
-  tmp = D2 %>% filter(facility == f)
-  #tmp$indicator_count_ari_total_pred_bayes_harmonic_miss[!is.na(tmp$indicator_count_ari_total)] = NA
-  p1 <- ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
-    geom_line() + 
-    geom_line(aes(x = date, y = indicator_count_ari_total_pred_bayes_harmonic_miss), col = 'blue')
-  plot_list[[iter]] = p1
-}
-
-cowplot::plot_grid(plotlist = plot_list)
-
-# work on filling in the gaps of this visualization. For later.
+MAKE THE LEGEND BIGGER!!
 
 # note the original bayesian method will probably give really similar betas but with smaller confidence intervals, which is sort of a lie.
 
 
+
+
+##### Comparing my OG imputation to github code #####
+tmp <- data %>% filter(facility == 'Facility D')
+tt <- periodic_imputation(tmp, 'indicator_count_ari_total') %>%
+  dplyr::select(date, indicator_count_ari_total, indicator_count_ari_total_pred_harmonic)
+ss <- fit.site.specific.denom.pi(tmp, 'Facility D',extrapolation_date = as.Date("2020-01-01"), 'indicator_count_ari_total', site_var = 'facility', date_var = 'date', counts_only = T) %>%
+  dplyr::select(date, est_raw_counts)
+
+test = merge(tt, ss, by = 'date')
+
+# ok good it works. This doesn't account for denominator, but it works.
+
+##### Running imputation (older) #####
+
+# res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8), cutoff_method = NA, bayes_iterations = 2000, group = 'county')
+# plot_results(res)
+# 
+
+#save(res, file = 'results/allcounties_bayes_imputation.RData')
+
+data_miss = simulate_imputation(data2, 'observed_count', p = 0.9, group = 'county')
+
+tt = bayes_periodic_imputation(data_miss, df_OG = data2, col = 'observed_count', group = 'county', family = 'NB', period = 12, iterations = 500, harmonic_priors = T)
+
+# 
+# res = impute_wrapper(data2, col = 'observed_count', p_vec = c(0.8), cutoff_method = NA, bayes_iterations = 200, group = 'county')
