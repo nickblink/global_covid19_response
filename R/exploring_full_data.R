@@ -48,7 +48,8 @@ district_miss = D %>%
 county_miss = D %>% 
   group_by(county) %>%
   summarize(denom_miss = mean(is.na(indicator_denom)),
-            ari_miss = mean(is.na(indicator_count_ari_total)))
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            n = n())
 
 par(mfrow=c(2,3))
 

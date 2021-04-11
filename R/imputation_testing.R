@@ -627,7 +627,7 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
         scale_color_manual(values = c('black', color_vec)))
     
     # store the legend for later
-    legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20))))
+    legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
     
     # remove the legend position on this plot
     p1 = p1 + theme(legend.position = 'none') 
@@ -647,11 +647,51 @@ bomi_plot <- plot_imputations(D2,
                  facility_list)
 bomi_plot
 
-ggsave('figures/Bomi_imputation_04072021.png',scale = 3)
+#ggsave('figures/Bomi_imputation_04072021.png',scale = 3)
 #cowplot::save_plot(filename = 'figures/Bomi_imputation_04072021_v2.png',plot = bomi_plot)
 
+plot_county_imputations <- function(df, imp_vec, color_vec){
+  
+  # rename columns of df to make it easier
+  for(col in imp_vec){
+    ind = grep(col, colnames(df))
+    if(length(ind) != 1){browser()}
+    colnames(df)[ind] = col
+  }
+  
+  # initialize the data frame to store final results
+  df_f = NULL
+  
+  for(j in 1:length(imp_vec)){
+    col = imp_vec[j]
+    
+    # create the imputed outcome
+    df$imputed_outcome = df$indicator_count_ari_total
+    df$imputed_outcome[is.na(df$imputed_outcome)] = df[is.na(df$imputed_outcome), col]
+  
+    # aggregate by date  
+    tmp = df %>% 
+      group_by(date) %>%
+      summarize(y = sum(imputed_outcome)) %>% mutate(method = col)
+  
+    # store results for this method
+    df_f = rbind(df_f, tmp)
+  }
+  
+  # plot them all!
+  p1 <- ggplot(data = df_f, aes(x = date, y = y, group = method, color = method)) + 
+    geom_line() +
+    ggtitle('Aggregated Bomi County Predictions') + 
+    scale_color_manual(values = c(color_vec)) + theme(legend.position = 'bottom', legend.text=element_text(size=20))
+  
+  return(p1)
+}
 
-MAKE THE LEGEND BIGGER!!
+plot_county_imputations(D2, 
+                        imp_vec = c('CARBayes_ST','pred_bayes_harmonic_miss', 'pred_harmonic'), 
+                        color_vec= c('blue','red','orange'))
+
+ggsave('figures/Bomi_County_plot_04112021.png',scale = 3)
 
 # note the original bayesian method will probably give really similar betas but with smaller confidence intervals, which is sort of a lie.
 
