@@ -186,6 +186,8 @@ for(d in sample(districts, 3)){
 
 # look at correlation of missing values within each district? And within county?
 
+warning('I am storing the values incorrectly. Look at the spatial correlations in the next section')
+
 ### Indicator denom
 res = NULL
 cor_list = c()
@@ -276,7 +278,7 @@ abline(v = mean(cor_list_denom), col = 'red')
 mean(cor_list_denom) # 0.093
 
 #
-##### Within county (not district) spatial correlation #####
+##### Within county (not district) spatial correlation of missingness #####
 res = NULL
 cor_list_denom = c()
 cor_list_ARI = c()
@@ -324,6 +326,150 @@ mean(cor_list_denom)
 # 0.048
 
 #
+##### (STILL EDITING) Spatial correlation of raw values #####
+
+D = add_periodic_cov(D)
+uni_fac = unique(D$facility)
+
+### Indicator denom
+res = NULL
+cor_list = c()
+
+# sorry, but I'm doing a for loop
+for(d in unique(D$district)){
+  # get the county 
+  county = D %>% filter(district == d) %>% distinct(county) %>% pull()
+  
+  # spread the data for this district
+  df = D %>% filter(district == d) %>%
+    dplyr::select(date, district, facility, indicator_denom)
+  df_spread = tidyr::spread(df, facility, indicator_denom)
+
+  # get the correlation matrix across facilities
+  tmp <- cor(df_spread[,-c(1,2)], use = 'pairwise.complete.obs')
+  tmp[lower.tri(tmp, diag = T)] <- NA
+  
+  # store the correlations
+  cor_district = na.omit(as.vector(tmp))
+  cor_list = c(cor_list, cor_district)
+  
+  # store the results with county and district
+  res_district = data.frame(county = rep(county, length(cor_district)), district = rep(d, length(cor_district)), cor = cor_district)
+  res = rbind(res, res_district)
+}
+
+res_denom = res
+cor_list_denom = cor_list
+
+### ARI
+res = NULL
+cor_list = c()
+
+# sorry, but I'm doing a for loop
+for(d in unique(D$district)){
+  # get the county
+  county = D %>% filter(district == d) %>% distinct(county) %>% pull()
+  
+  # spread the data for this district
+  df = D %>% filter(district == d) %>%
+    select(date, district, facility, indicator_count_ari_total)
+  df_spread = tidyr::spread(df, facility, indicator_count_ari_total)
+  
+  # get the correlation matrix across facilities
+  tmp <- cor(df_spread[,-c(1,2)], use = 'pairwise.complete.obs')
+  tmp[lower.tri(tmp, diag = T)] <- NA
+  
+  # store the correlations
+  cor_district = na.omit(as.vector(tmp))
+  cor_list = c(cor_list, cor_district)
+  
+  # store the results with county and district
+  res_district = data.frame(county = rep(county, length(cor_district)), district = rep(d, length(cor_district)), cor = cor_district)
+  res = rbind(res, res_district)
+}
+
+res_ARI = res
+cor_list_ARI = cor_list
+
+within_district_cors = res %>% group_by(county) %>%
+  summarize(cor_within = mean(cor))
+
+# plotting district means of correlations
+par(mfrow = c(1,2))
+hist(res_ARI$cor_ARI, main = 'within-district ARI', xlab = 'mean correlation')
+hist(res_denom$cor_denom, main = 'within-district denom', xlab = 'mean correlation')
+# pretty high. Interesting.
+
+# plotting facility correlations
+hist(cor_list_ARI, main = 'within-district ARI values', xlab = 'correlation', breaks = 20)
+abline(v = mean(cor_list_ARI), col = 'red')
+mean(cor_list_ARI) # 0.102
+
+hist(cor_list_denom, main = 'within-district denom', xlab = 'correlation')
+abline(v = mean(cor_list_denom), col = 'red')
+mean(cor_list_denom) # 0.151
+
+# interesting. So not as high as first glance. 
+# However, this does show that there is clear correlation of deviance. That is a good sign moving forward for spatial correlation.
+
+
+### Within-county, not district
+res2 = NULL
+cor_list_denom = c()
+cor_list_ARI = c()
+
+# sorry, but I'm shamefully doing for loops on for loops on for loops. It's slow because of that
+for(cc in unique(D$county)){
+  # spread the data for this district
+  df = D %>% filter(county == cc) %>%
+    select(date, county, district, facility, indicator_denom, indicator_count_ari_total)
+
+  # the long way - a for loop!
+  for(f in unique(df$facility)){
+    target = df %>% filter(facility == f)
+    
+    
+    d = target$district[1]
+    compare_facs = df %>%
+      filter(district != d) %>%
+      pull(facility) %>% 
+      unique()
+    for(f2 in compare_facs){
+      compare = df %>% filter(facility == f2)
+      cor_d = cor(target$indicator_denom, compare$indicator_denom, use = 'pairwise.complete.obs')
+      cor_ARI = cor(target$indicator_count_ari_total, compare$indicator_count_ari_total, use = 'pairwise.complete.obs')
+      
+      res2 = rbind(res2, data.frame(county = cc, district = d, cor_ARI = cor_ARI, cor_denom = cor_d))
+      cor_list_denom = c(cor_list_denom, cor_d)
+      cor_list_ARI = c(cor_list_ARI, cor_ARI)
+    }
+  }
+}
+
+without_district_cors = res2 %>% group_by(county) %>%
+  summarize(cor_without = mean(cor_ARI, na.rm = T))
+
+cor_list_denom = na.omit(cor_list_denom)
+cor_list_ARI = na.omit(cor_list_ARI)
+
+# plotting facility correlations
+hist(cor_list_ARI, main = 'within-county ARI values', xlab = 'correlation')
+abline(v = mean(cor_list_ARI), col = 'red')
+mean(cor_list_ARI) # 0.103
+
+hist(cor_list_denom, main = 'within-county denom', xlab = 'correlation')
+abline(v = mean(cor_list_denom), col = 'red')
+mean(cor_list_denom) 
+# 0.13
+
+# merging two for comparison
+comparison = merge(within_district_cors, without_district_cors) %>%
+  arrange(cor_within)
+
+# write.csv(comparison, row.names = F, file = 'results/ari_value_correlation_04192021.csv')
+
+# save(comparison, res, res2, file = 'results/ari_value_correlation_04192021.RData')
+
 ##### Spatial correlation of deviance residuals #####
 
 D = add_periodic_cov(D)
@@ -342,7 +488,7 @@ test = lapply(uni_fac, function(xx){
     print(sprintf('skipping %s because of %s missing', xx, sum(is.na(D3))))
     return(NULL)
   }
-  print(xx)
+  #print(xx)
   
   # create the formulas
   count_ARI_form = as.formula("indicator_count_ari_total ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
@@ -389,32 +535,25 @@ cor_list = c()
 
 # sorry, but I'm doing a for loop
 for(d in unique(D2$district)){
+  # get the county
+  county = D %>% filter(district == d) %>% distinct(county) %>% pull()
+  
   # spread the data for this district
   df = D2 %>% filter(district == d) %>%
     dplyr::select(date, district, facility, denom_resid)
   df_spread = tidyr::spread(df, facility, denom_resid)
   
-  if(sum(is.na(df_spread)) == 0){
-    print(sprintf('skipping district %s because nothing is missing', d))
-    next
-  }
-  
   # get the correlation matrix across facilities
-  tmp <- cor(is.na(df_spread[,-c(1,2)]))
+  tmp <- cor(df_spread[,-c(1,2)], use = 'pairwise.complete.obs')
   tmp[lower.tri(tmp, diag = T)] <- NA
   
   # store the correlations
-  cor_list = c(cor_list, na.omit(as.vector(tmp)))
+  cor_district = na.omit(as.vector(tmp))
+  cor_list = c(cor_list, cor_district)
   
-  # if the average correlation is NaN (say if there is only one missing value)
-  if(is.nan(mean(tmp, na.rm = T))){
-    print(sprintf('skipping district %s because of NaN correlations', d))
-    next
-  }
-  
-  # print(mean(tmp, na.rm=  T))
-  res_row = data.frame(district = d, p_miss = mean(is.na(df_spread[,-c(1,2)])), cor_denom = mean(tmp, na.rm=  T))
-  res = rbind(res, res_row)
+  # store the results with county and district
+  res_district = data.frame(county = rep(county, length(cor_district)), district = rep(d, length(cor_district)), cor = cor_district)
+  res = rbind(res, res_district)
 }
 
 res_denom = res
@@ -426,58 +565,57 @@ cor_list = c()
 
 # sorry, but I'm doing a for loop
 for(d in unique(D2$district)){
+  # get the county
+  county = D %>% filter(district == d) %>% distinct(county) %>% pull()
+  
   # spread the data for this district
   df = D2 %>% filter(district == d) %>%
     select(date, district, facility, ARI_resid)
   df_spread = tidyr::spread(df, facility, ARI_resid)
   
-  if(sum(is.na(df_spread)) == 0){
-    print(sprintf('skipping district %s because nothing is missing', d))
-    next
-  }
-  
   # get the correlation matrix across facilities
-  tmp <- cor(is.na(df_spread[,-c(1,2)]))
+  tmp <- cor(df_spread[,-c(1,2)], use = 'pairwise.complete.obs')
   tmp[lower.tri(tmp, diag = T)] <- NA
   
   # store the correlations
   cor_list = c(cor_list, na.omit(as.vector(tmp)))
   
-  # if the average correlation is NaN (say if there is only one missing value)
-  if(is.nan(mean(tmp, na.rm = T))){
-    print(sprintf('skipping district %s because of NaN correlations', d))
-    next
-  }
+  # store the correlations
+  cor_district = na.omit(as.vector(tmp))
+  cor_list = c(cor_list, cor_district)
   
-  # print(mean(tmp, na.rm=  T))
-  res_row = data.frame(district = d, p_miss = mean(is.na(df_spread[,-c(1,2)])), cor_ARI = mean(tmp, na.rm=  T))
-  res = rbind(res, res_row)
+  # store the results with county and district
+  res_district = data.frame(county = rep(county, length(cor_district)), district = rep(d, length(cor_district)), cor = cor_district)
+  res = rbind(res, res_district)
 }
+
+within_district_cors = res %>% group_by(county) %>%
+  summarize(cor_within = mean(cor))
 
 res_ARI = res
 cor_list_ARI = cor_list
 
 # plotting district means of correlations
 par(mfrow = c(1,2))
-hist(res_ARI$cor_ARI, main = 'within-district ARI', xlab = 'mean correlation')
+hist(res_ARI$cor_ARI, main = 'within-district ARI residuals', xlab = 'mean correlation')
 hist(res_denom$cor_denom, main = 'within-district denom', xlab = 'mean correlation')
 # pretty high. Interesting.
 
 # plotting facility correlations
-hist(cor_list_ARI, main = 'within-district ARI', xlab = 'correlation')
+hist(cor_list_ARI, main = 'within-district ARI residuals', xlab = 'correlation')
 abline(v = mean(cor_list_ARI), col = 'red')
-mean(cor_list_ARI) # 0.115
+mean(cor_list_ARI) # 0.074
 
 hist(cor_list_denom, main = 'within-district denom', xlab = 'correlation')
 abline(v = mean(cor_list_denom), col = 'red')
-mean(cor_list_denom) # 0.145
+mean(cor_list_denom) # 0.133
 
 # interesting. So not as high as first glance. 
 # However, this does show that there is clear correlation of deviance. That is a good sign moving forward for spatial correlation.
 
 
 ### Within-county, not district
-res = NULL
+res2 = NULL
 cor_list_denom = c()
 cor_list_ARI = c()
 
@@ -492,10 +630,10 @@ for(cc in unique(D2$county)){
   for(f in unique(df$facility)){
     target = df %>% filter(facility == f)
     
-    # skip if the facility has no missingness
-    if(sum(is.na(target)) == 0){
-      next
-    }
+    # # skip if the facility has no missingness
+    # if(sum(is.na(target)) == 0){
+    #   next
+    # }
     
     d = target$district[1]
     compare_facs = df %>%
@@ -504,25 +642,93 @@ for(cc in unique(D2$county)){
       unique()
     for(f2 in compare_facs){
       compare = df %>% filter(facility == f2)
-      cor_list_denom = c(cor_list_denom, cor(is.na(target$denom_resid), is.na(compare$denom_resid)))
-      cor_list_ARI = c(cor_list_ARI, cor(is.na(target$ARI_resid), is.na(compare$ARI_resid)))
+      # cor_list_denom = c(cor_list_denom, cor(target$denom_resid, compare$denom_resid, use = 'pairwise.complete.obs'))
+      # cor_list_ARI = c(cor_list_ARI, cor(target$ARI_resid, compare$ARI_resid, use = 'pairwise.complete.obs'))
+      
+      compare = df %>% filter(facility == f2)
+      cor_d = cor(target$denom_resid, compare$denom_resid, use = 'pairwise.complete.obs')
+      cor_ARI = cor(target$ARI_resid, compare$ARI_resid, use = 'pairwise.complete.obs')
+      
+      res2 = rbind(res2, data.frame(county = cc, district = d, cor_ARI = cor_ARI, cor_denom = cor_d))
+      cor_list_denom = c(cor_list_denom, cor_d)
+      cor_list_ARI = c(cor_list_ARI, cor_ARI)
+      
     }
   }
 }
+
+without_district_cors = res2 %>% group_by(county) %>%
+  summarize(cor_without = mean(cor_ARI, na.rm = T))
+
+# merging two for comparison
+comparison = merge(within_district_cors, without_district_cors) %>%
+  arrange(cor_within)
+
+# write.csv(comparison, row.names = F, file = 'results/ari_residual_correlation_04192021.csv')
+
+# save(comparison, res, res2, file = 'results/ari_residual_correlation_04192021.RData')
 
 cor_list_denom = na.omit(cor_list_denom)
 cor_list_ARI = na.omit(cor_list_ARI)
 
 # plotting facility correlations
-hist(cor_list_ARI, main = 'within-county ARI', xlab = 'correlation')
+hist(cor_list_ARI, main = 'within-county ARI residuals', xlab = 'correlation')
 abline(v = mean(cor_list_ARI), col = 'red')
-mean(cor_list_ARI) # 0.03
+mean(cor_list_ARI) # 0.065
 
 hist(cor_list_denom, main = 'within-county denom', xlab = 'correlation')
 abline(v = mean(cor_list_denom), col = 'red')
 mean(cor_list_denom) 
-# 0.07
+# 0.13
 
+##### ARI correlation not within county #####
+
+N = 5000
+facility_data = D %>% select(county, district, facility) %>% distinct()
+
+set.seed(1)
+cor_ARI = c()
+for(i in 1:N){
+  f_sample = sample_n(facility_data, 2)
+  # if within the same county, skip it
+  if(f_sample$county[1] == f_sample$county[2]){
+    next
+  }else{
+    # get the residual correlations
+    target = D %>% filter(facility == f_sample$facility[1])
+    compare = D %>% filter(facility == f_sample$facility[2])
+    #cor_d_resid = cor(target_resid$denom_resid, compare_resid$denom_resid, use = 'pairwise.complete.obs')
+    cor_ARI = c(cor_ARI, cor(target$indicator_count_ari_total, compare$indicator_count_ari_total, use = 'pairwise.complete.obs'))
+  }
+}
+
+hist(cor_ARI, main = 'without-county ARI values', xlab = 'correlation', breaks = 20)
+abline(v = mean(cor_ARI, na.rm = T), col = 'red')
+mean(cor_ARI, na.rm = T) # 0.14
+
+#### Residual ARI correlation not within county
+# for sampling
+N = 2000
+facility_data = D2 %>% select(county, district, facility) %>% distinct()
+
+cor_ARI_resid = c()
+for(i in 1:N){
+  f_sample = sample_n(facility_data, 2)
+  # if within the same county, skip it
+  if(f_sample$county[1] == f_sample$county[2]){
+    next
+  }else{
+    # get the residual correlations
+    target_resid = D2 %>% filter(facility == f_sample$facility[1])
+    compare_resid = D2 %>% filter(facility == f_sample$facility[2])
+    #cor_d_resid = cor(target_resid$denom_resid, compare_resid$denom_resid, use = 'pairwise.complete.obs')
+    cor_ARI_resid = c(cor_ARI_resid, cor(target_resid$ARI_resid, compare_resid$ARI_resid, use = 'pairwise.complete.obs'))
+  }
+}
+
+hist(cor_ARI_resid, main = 'without-county ARI values', xlab = 'correlation', breaks = 20)
+abline(v = mean(cor_ARI_resid, na.rm = T), col = 'red')
+mean(cor_ARI_resid, na.rm = T) # 0.14
 
 # 
 ##### temporal correlation of missingness #####
