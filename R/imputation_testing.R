@@ -2,6 +2,7 @@ library(cutoffR)
 library(rstanarm)
 library(CARBayesST)
 library(cowplot)
+library(dplyr)
 
 # load in functions and data
 setwd('C:/Users/nickl/Documents/global_covid19_response/')
@@ -257,12 +258,24 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_imputation <- function(df, col){
+CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', facility_intercept = T){
   df = add_periodic_cov(df)
   
-  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  tt = df %>% filter(date == unique(date)[1]) %>% pull(district) %>% table
+
+  if(any(tt == 1)){
+    warning('Randomly choosing a district for a facility without that district (this should be fixed later)')
+    # replace the single districts with the biggest ones
+    for(nn in names(which(tt == 1))){
+      df$district = gsub(nn, names(which.max(tt)), df$district)
+    }
+  }
+
+  districts = df %>% group_by(district) %>% summarize(n = length(unique(facility)))
   
-  W = full_join(D2,D2, by = 'district') %>%
+  # create the adjacency matrix
+  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  W = full_join(D2, D2, by = 'district') %>%
     filter(facility.x != facility.y) %>%
     dplyr::select(-district) %>%
     igraph::graph_from_data_frame() %>%
@@ -270,17 +283,36 @@ CARBayes_imputation <- function(df, col){
     as.matrix()
   
   # model formula
-  # setting up the formula
-  formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
+  if(facility_intercept){
+    formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3 + facility", col))
+  }else{
+    formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
+  }
   
-  #browser()
+  
+  # run car Bayes
   chain1 <- ST.CARar(formula = formula_col, family = "poisson",
                      data = df, W = W, burnin = 20000, n.sample = 40000,
-                     thin = 10, AR=1)
-  
+                     thin = 10, AR = AR)
   
   df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
-  return(df)
+  
+  # get the quantiles of fitted values 
+  quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
+  fitted_quants = t(apply(chain1$samples$fitted, 2, function(xx){
+    quantile(xx, probs = quant_probs)
+  }))
+  
+  df[,paste0(paste0(col, '_CARBayes_ST_'), quant_probs)] <- fitted_quants
+  
+  if(return_type == 'data.frame'){
+    return(df)
+  }else if(return_type == 'model'){
+    return(chain1)
+  }else if(return_type == 'all'){
+    lst = list(df, chain1)
+    return(lst)
+  }
 }
 
 impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff_cor = NULL, harmonic_family = 'NB', bayes_harmonic_family = 'NB', cutoff_method = 'number', group = 'facility', bayes_iterations = 500, bayes_beta_prior = T){
@@ -432,9 +464,378 @@ plot_results <- function(res, subset = NULL){
   return(plot_final)
 }
 
-##### Modeling the paper #####
+plot_county_imputations <- function(df, imp_vec, color_vec){
+  
+  # rename columns of df to make it easier
+  for(col in imp_vec){
+    ind = grep(col, colnames(df))
+    if(length(ind) != 1){browser()}
+    colnames(df)[ind] = col
+  }
+  
+  # initialize the data frame to store final results
+  df_f = NULL
+  
+  for(j in 1:length(imp_vec)){
+    col = imp_vec[j]
+    
+    # create the imputed outcome
+    df$imputed_outcome = df$indicator_count_ari_total
+    df$imputed_outcome[is.na(df$imputed_outcome)] = df[is.na(df$imputed_outcome), col]
+    
+    # aggregate by date  
+    tmp = df %>% 
+      group_by(date) %>%
+      summarize(y = sum(imputed_outcome)) %>% mutate(method = col)
+    
+    # store results for this method
+    df_f = rbind(df_f, tmp)
+  }
+  
+  # plot them all!
+  p1 <- ggplot(data = df_f, aes(x = date, y = y, group = method, color = method)) + 
+    geom_line() +
+    ggtitle('Aggregated Bomi County Predictions') + 
+    scale_color_manual(values = c(color_vec)) + theme(legend.position = 'bottom', legend.text=element_text(size=20))
+  
+  return(p1)
+}
+
+plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
+  # get facility list if not supplied
+  if(is.null(fac_list)){
+    fac_list = unique(df$facility)
+  }
+  
+  # rename columns of df to make it easier
+  for(col in imp_vec){
+    ind = grep(col, colnames(df))
+    if(length(ind) != 1){browser()}
+    colnames(df)[ind] = col
+  }
+  
+  # initialize plotting
+  plot_list = list()
+  iter = 0
+  
+  # go through each facility
+  for(f in fac_list){
+    iter = iter + 1
+    tmp = df %>% filter(facility == f)
+    
+    # store the true outcome for plotting
+    df_f = tmp %>% dplyr::select(date, y = indicator_count_ari_total) %>% mutate(method = 'ari_true')
+    
+    #  # baseline plot for this
+    # # p1 <- suppressWarnings(ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
+    #                           geom_line() +
+    #                           ggtitle(sprintf('%s (%0.1f %% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))))
+    for(j in 1:length(imp_vec)){
+      col = imp_vec[j]
+      tmp[!is.na(tmp$indicator_count_ari_total),col] = NA
+      
+      # filling in surrounding points to imputations to connect lines
+      # I have to do multiple if statements because of R's handling of calling a value not in an array
+      ind_list = c()
+      for(i in 1:nrow(tmp)){
+        if(i > 1){
+          if(is.na(tmp[i,col]) & !is.na(tmp[i-1,col])){
+            ind_list = c(ind_list, i)
+          }
+        }
+        if(i < nrow(tmp)){
+          if(is.na(tmp[i,col]) & !is.na(tmp[i+1,col])){
+            ind_list = c(ind_list, i)
+          }
+        }
+      }
+      # replace surrounding values for plotting
+      tmp[ind_list, col] = tmp$indicator_count_ari_total[ind_list]
+      
+      tmp2 = tmp %>% dplyr::select(date, y = imp_vec[j]) %>% mutate(method = col)
+      df_f = rbind(df_f, tmp2)
+      
+      #scale_colour_manual(name="Error Bars",values=cols)
+      #p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j]), color = color_vec[j]))
+      # p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j], color = color_vec[j])))
+    }
+    
+    #browser()
+    
+    p1 <- suppressWarnings(ggplot(data = df_f, aes(x = date, y = y, group = method, color = method)) + 
+                             geom_line() +
+                             ggtitle(sprintf('%s (%0.1f%% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))) + 
+                             scale_color_manual(values = c('black', color_vec)))
+    
+    # store the legend for later
+    legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
+    
+    # remove the legend position on this plot
+    p1 = p1 + theme(legend.position = 'none') 
+    
+    # store the plot for this facility in the list
+    plot_list[[iter]] = p1
+  }
+  
+  #browser()
+  plot_grid(plot_grid(plotlist = plot_list),  legend, ncol = 1, rel_heights = c(10,1))
+  
+}
+
+##### Modeling all counties #####
 # Declare this for all functions
 extrapolation_date <- "2020-01-01"
+D = D %>% filter(date < extrapolation_date)
+
+# check the distribution of district size
+district_size = D %>% group_by(district) %>% summarize(n = length(unique(facility))) %>% arrange(n)
+table(district_size$n)
+
+# checking facility missingness
+facility_miss = D %>% 
+  group_by(facility) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)))
+
+
+# only keep facilities with < 80% missing
+facility_list = facility_miss %>% filter(ari_miss < 0.8) %>% arrange(ari_miss) %>% distinct(facility) %>% pull()
+
+D = D %>%
+  filter(facility %in% facility_list)
+
+# run models from the paper
+if(FALSE){
+  # full model fit (remember this is excluding > 0.2 missing)
+  county.fit = fit.aggregate.pi.boot(D2, 
+                                     indicator_var = "indicator_count_ari_total",
+                                     denom_var = "indicator_denom",
+                                     site_var = "facility",
+                                     date_var = "date",
+                                     counts_only=FALSE,
+                                     R=250)
+  
+  # district fits
+  uni_districts = unique(D2$district)
+  district.fits <- lapply(uni_districts, function(xx){
+    fit.cluster.pi(data = D2 %>% filter(district == xx), 
+                   indicator_var = "indicator_count_ari_total",
+                   denom_var = "indicator_denom",
+                   site_var = "facility",
+                   date_var = "date",
+                   counts_only=FALSE,
+                   R=250) %>%
+      mutate(site = xx)
+  })
+  
+  # clinic fits
+  facility.results <- do.call(rbind, lapply(facility_list,function(x){
+    fit.site.specific.denom.pi(data=D2,
+                               site_name=x,
+                               extrapolation_date=extrapolation_date,
+                               indicator_var="indicator_count_ari_total",
+                               denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                               site_var="facility",
+                               date_var="date",
+                               R=500)
+  })
+  ) 
+  
+  # individual facility results
+  plot_facet(facility.results,type="count")
+  
+  # full county results
+  plot_site(county.fit, "count", title="Bomi Aggregated Results")
+}
+
+### My imputations
+# (0) Trying CARBayes on errything
+system.time({
+  tmp <- CARBayes_imputation(D, col = "indicator_count_ari_total", return_type = 'all', AR = 1)
+})
+# 15 minutes
+D = tmp[[1]]
+
+tt = tmp[[2]]$samples$beta
+
+# save(D, file = 'results/allcounties_samebeta_full_CAR_imputation_04212021.RData')
+
+# don't save it all! So big!
+# save(tmp, file = 'results/allcounties_full_CAR_imputation_04212021.RData')
+
+# trying it by each county. How it probably should be done anyway.
+system.time({
+  tmp2 <- lapply(unique(D$county), function(xx){
+    print(xx)
+    D2 = D %>% filter(county == xx)
+    print(dim(D2))
+    tmp_lst <- CARBayes_imputation(D2, col = "indicator_count_ari_total", return_type = 'all', AR = 1)
+    return(tmp_lst)
+  })
+}) # 6.7 hours, almost all by Monteserado
+#save(tmp2, file = 'C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/allcounties_CAR_imputation_04222021.RData')
+
+
+# for later
+# tmp3 <- CARBayes_imputation(D, col = "indicator_count_ari_total", return_type = 'all', AR = 2)
+
+# (1) Impute all the values. Now Bayesian imputation! <- version 1
+D2 <- bayes_periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', iterations = 500, group = 'facility')
+
+# updating the missing values
+D2$ari_bayes_imp = D2$indicator_count_ari_total
+D2$ari_bayes_imp[is.na(D2$ari_bayes_imp)] = D2$indicator_count_ari_total_pred_bayes_harmonic[is.na(D2$ari_bayes_imp)]
+
+# (2) Impute all the values. Now Bayesian imputation! <- version 2
+D2 <- bayes_periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', iterations = 500, group = 'facility', harmonic_priors = T)
+
+# (3) Impute all values with periodic imputation
+D2 <- periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', group = 'facility')
+
+# plotting county level results
+if(FALSE){
+  # updating the missing values
+  D2$ari_bayes_imp2 = D2$indicator_count_ari_total
+  D2$ari_bayes_imp2[is.na(D2$ari_bayes_imp2)] = D2$indicator_count_ari_total_pred_bayes_harmonic_miss[is.na(D2$ari_bayes_imp2)]
+  
+  # (2) Run the same models as before 
+  facility.results.bayes <- do.call(rbind, lapply(facility_list,function(x){
+    fit.site.specific.denom.pi(data=D2,
+                               site_name=x,
+                               extrapolation_date=extrapolation_date,
+                               indicator_var="ari_bayes_imp",
+                               denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                               site_var="facility",
+                               date_var="date",
+                               R=500,
+                               counts_only = T)
+  })
+  ) 
+  plot_facet(facility.results.bayes, type="count")
+  
+  
+  facility.results.bayes2 <- do.call(rbind, lapply(facility_list,function(x){
+    fit.site.specific.denom.pi(data=D2,
+                               site_name=x,
+                               extrapolation_date=extrapolation_date,
+                               indicator_var="ari_bayes_imp2",
+                               denom_var="indicator_denom",   # corresponding denominator indicator needed for proportions
+                               site_var="facility",
+                               date_var="date",
+                               R=500)
+  })
+  ) 
+  
+  plot_facet(facility.results.bayes2, type="count")
+  
+  # ok some issues here - to return later
+  tmp = D2 %>% filter(facility == 'Gonjeh Clinic')
+}
+
+D2 = as.data.frame(D2)
+
+plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
+  # get facility list if not supplied
+  if(is.null(fac_list)){
+    fac_list = unique(df$facility)
+  }
+  
+  # rename columns of df to make it easier
+  for(col in imp_vec){
+    ind = grep(col, colnames(df))
+    if(length(ind) != 1){browser()}
+    colnames(df)[ind] = col
+  }
+  
+  # initialize plotting
+  plot_list = list()
+  iter = 0
+  
+  # go through each facility
+  for(f in fac_list){
+    iter = iter + 1
+    tmp = df %>% filter(facility == f)
+    
+    # store the true outcome for plotting
+    df_f = tmp %>% dplyr::select(date, y = indicator_count_ari_total) %>% mutate(method = 'ari_true')
+    
+    #  # baseline plot for this
+    # # p1 <- suppressWarnings(ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
+    #                           geom_line() +
+    #                           ggtitle(sprintf('%s (%0.1f %% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))))
+    for(j in 1:length(imp_vec)){
+      col = imp_vec[j]
+      tmp[!is.na(tmp$indicator_count_ari_total),col] = NA
+      
+      # filling in surrounding points to imputations to connect lines
+      # I have to do multiple if statements because of R's handling of calling a value not in an array
+      ind_list = c()
+      for(i in 1:nrow(tmp)){
+        if(i > 1){
+          if(is.na(tmp[i,col]) & !is.na(tmp[i-1,col])){
+            ind_list = c(ind_list, i)
+          }
+        }
+        if(i < nrow(tmp)){
+          if(is.na(tmp[i,col]) & !is.na(tmp[i+1,col])){
+            ind_list = c(ind_list, i)
+          }
+        }
+      }
+      # replace surrounding values for plotting
+      tmp[ind_list, col] = tmp$indicator_count_ari_total[ind_list]
+      
+      tmp2 = tmp %>% dplyr::select(date, y = imp_vec[j]) %>% mutate(method = col)
+      df_f = rbind(df_f, tmp2)
+      
+      #scale_colour_manual(name="Error Bars",values=cols)
+      #p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j]), color = color_vec[j]))
+      # p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j], color = color_vec[j])))
+    }
+    
+    #browser()
+    
+    p1 <- suppressWarnings(ggplot(data = df_f, aes(x = date, y = y, group = method, color = method)) + 
+                             geom_line() +
+                             ggtitle(sprintf('%s (%0.1f%% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))) + 
+                             scale_color_manual(values = c('black', color_vec)))
+    
+    # store the legend for later
+    legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
+    
+    # remove the legend position on this plot
+    p1 = p1 + theme(legend.position = 'none') 
+    
+    # store the plot for this facility in the list
+    plot_list[[iter]] = p1
+  }
+  
+  #browser()
+  plot_grid(plot_grid(plotlist = plot_list),  legend, ncol = 1, rel_heights = c(10,1))
+  
+}
+
+bomi_plot <- plot_imputations(D2, 
+                              imp_vec = c('CARBayes_ST','pred_bayes_harmonic_miss', 'pred_harmonic'), 
+                              color_vec= c('blue','red','orange'), 
+                              facility_list)
+bomi_plot
+
+#ggsave('figures/Bomi_imputation_04072021.png',scale = 3)
+#cowplot::save_plot(filename = 'figures/Bomi_imputation_04072021_v2.png',plot = bomi_plot)
+
+
+
+plot_county_imputations(D2, 
+                        imp_vec = c('CARBayes_ST','pred_bayes_harmonic_miss', 'pred_harmonic'), 
+                        color_vec= c('blue','red','orange'))
+
+ggsave('figures/Bomi_County_plot_04112021.png',scale = 3)
+
+##### Modeling Bomi #####
+# Declare this for all functions
+extrapolation_date <- "2020-01-01"
+D = D %>% filter(date < extrapolation_date)
 
 # filter to only look at one county
 # Bomi has 0.255 ARI missingness. Not the highest but reasonably high
@@ -503,7 +904,8 @@ if(FALSE){
 
 ### My imputations
 # (0) Trying CARBayes!
-D2 <- CARBayes_imputation(D2, col = "indicator_count_ari_total")
+tmp <- CARBayes_imputation(D2, col = "indicator_count_ari_total", return_type = 'all')
+D2 <- tmp[[1]]
 
 # (1) Impute all the values. Now Bayesian imputation! <- version 1
 D2 <- bayes_periodic_imputation(D2, col = "indicator_count_ari_total", family = 'NB', iterations = 500, group = 'facility')

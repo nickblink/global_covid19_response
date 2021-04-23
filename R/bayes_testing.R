@@ -203,6 +203,16 @@ D = add_periodic_cov(D, period = 12) %>% as.data.frame()
 D = D %>% filter(county == "Bomi" )
 # create adj by district
 
+# checking facility missingness
+facility_miss = D %>% 
+  group_by(facility) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)))
+
+# only keep facilities with < 80% missing
+facility_list = facility_miss %>% filter(ari_miss < 0.8) %>% arrange(ari_miss) %>% distinct(facility) %>% pull()
+D = D %>% filter(facility %in% facility_list)
+
 # create adjacency matrix!
 D2 = D %>% dplyr::select(district, facility) %>% distinct()
 
@@ -216,16 +226,38 @@ W = full_join(D2,D2, by = 'district') %>%
 # model formula
 formula_1 = as.formula("indicator_count_ari_total ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
 
+### Basic model
 chain1 <- ST.CARar(formula = formula_1, family = "poisson",
                    data = D, W = W, burnin = 20000, n.sample = 40000,
                    thin = 10, AR=1)
 
+### different fixed facility intercepts
+formula_2 = as.formula("indicator_count_ari_total ~ facility + year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
+chain2 <- ST.CARar(formula = formula_2, family = "poisson",
+                   data = D, W = W, burnin = 20000, n.sample = 40000,
+                   thin = 10, AR=1)
+
+### Adaptive procedure
+chain3 <- ST.CARadaptive(formula = formula_1, family = "poisson", data = D2, W = W, burnin = 20000, n.sample = 40000,
+                         thin = 10)
+# as expected, error. I assume due to missingness though it doesn't explicitly say that. This is something to explore later.
+
+### Using two autoregressive terms
+chain4 <- ST.CARar(formula = formula_1, family = "poisson",
+                   data = D, W = W, burnin = 20000, n.sample = 40000,
+                   thin = 10, AR=2)
+# maybe, maybe not better than chain1
+
+### Analyzing the chain
 # so it ran! Got that. Now what to do with it!
 test = chain1$fitted.values
 plot(D$indicator_count_ari_total, chain1$fitted.values)
 # almost exact, huh? Overfitting much?
 
-
+tt = chain1$samples$fitted
+testing = apply(tt, 2, mean)
+cor(testing, chain1$fitted.values)
+# great. So they do return fitted values. I don't really get how the mcmc object is any different from a typical matrix object, but whatever. It works.
 
 ### To look into
 # Different ST.CAR functions
