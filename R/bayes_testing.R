@@ -148,7 +148,7 @@ model_2_fit <- glmmTMB(formula_mat, data = D2, family = nbinom2)
 # I want to be able to use conditional autoregression priors for the structured spatial random effects
 
 
-### CARBayesST
+##### CARBayesST #####
 library(CARBayesST)
 
 # Make a W binary based off of district

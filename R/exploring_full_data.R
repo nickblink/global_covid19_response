@@ -132,10 +132,12 @@ cowplot::plot_grid(plotlist = plot_list, ncol = 3)
 
 districts = district_miss %>%
   filter(denom_miss > 0.3) %>%
+  # filter(ari_miss > 0.2) %>%
   # filter(denom_miss < 0.2, denom_miss > .05) %>%
   dplyr::select(district) %>% pull
 
 par(mfrow = c(3,3))
+set.seed(1)
 for(d in sample(districts, 3)){
   df = D %>% filter(district == d) %>%
     dplyr::select(date, district, facility, indicator_denom)
@@ -155,6 +157,23 @@ for(d in sample(districts, 3)){
   # tt = apply(tt, 2, as.integer)
   # heatmap(tt)
 }
+
+df = D %>% filter(district == "Somalia Drive District") %>%
+  dplyr::select(date, district, facility, indicator_count_ari_total)
+
+df_spread = tidyr::spread(df, facility, indicator_count_ari_total)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = as.matrix(tmp2)
+
+rownames(tmp2) = as.character(df_spread$date)
+heatmap(tmp2, keep.dendro = F, Rowv = NA, ylab = 'date', xlab = 'facilities', scale = 'none', labCol = '')
+
+heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', labCol = '', key = F)
+
 
 ### ARI
 districts = district_miss %>%
@@ -731,6 +750,12 @@ abline(v = mean(cor_ARI_resid, na.rm = T), col = 'red')
 mean(cor_ARI_resid, na.rm = T) # 0.14
 
 # 
+##### ICC #####
+
+tmp = D %>% filter(!is.na(indicator_count_ari_total))
+clus.rho(D$indicator_count_ari_total, D$district)
+
+#
 ##### temporal correlation of missingness #####
 
 ### denom
