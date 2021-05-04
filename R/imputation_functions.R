@@ -66,7 +66,7 @@ simulate_imputation <- function(df, col, p = 0.1, group = NULL){
 }
 
 # OG imputation method
-periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12){
+periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500){
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period)
   
@@ -78,6 +78,7 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
   
 
   if(family == 'quasipoisson'){
+    warning('havent coded PIs in quasipoisson or NB yet')
     
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(get(group) == xx)
@@ -89,6 +90,8 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
     df <- data.table::rbindlist(tmp)
     
   }else if(family %in% c('NB','negative binomial','neg_bin')){
+    warning('havent coded PIs in quasipoisson or NB yet')
+    
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(get(group) == xx)
       #mod_col <- MASS::glm.nb(formula_col, data = tt, control = glm.control(maxit=200,trace = 3))
@@ -105,8 +108,49 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
     })
     
     df <- data.table::rbindlist(tmp)
+  }else if(family == 'poisson'){
+    tmp <- lapply(uni_group, function(xx) {
+      tt <- df %>% filter(get(group) == xx)
+      mod_col <- glm(formula_col, data = tt, family=poisson)
+      tt[,paste0(col, '_pred_harmonic')] = predict(mod_col, tt, type = 'response')
+      
+      if(R_PI > 0){
+        # extract information from model fit
+        beta_hat <- mod_col$coefficients
+        beta_vcov <- vcov(mod_col)
+        
+        # bootstrap 
+        sapply(1:R_PI, function(r){
+          beta_boot <- MASS::mvrnorm(1,beta_hat,beta_vcov)
+          pred_boot <- (tt %>% 
+                          mutate(intercept=1) %>%
+                          dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                          as.matrix())%*%as.matrix(beta_boot)
+          pred_boot_exp <- exp(pred_boot) 
+          pred_boot_exp[which(is.na(pred_boot_exp))] <- 1
+          x = rpois(n = nrow(tt), pred_boot_exp)
+          
+          return(x)
+          
+        }) -> sim.boot
+        
+        # get the quantiles and store them
+        quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
+        fitted_quants = t(apply(sim.boot, 1, function(xx){
+          quantile(xx, probs = quant_probs)
+        }))
+        fitted_quants = as.data.frame(fitted_quants)
+        colnames(fitted_quants) = paste0(paste0(col, '_pred_harmonic_'), quant_probs)
+        
+        tt = cbind(tt, fitted_quants)
+        
+      }
+      
+      return(tt)
+    })
+    
+    df <- data.table::rbindlist(tmp)
   }
-
 }
 
 # Bayes imputation method
@@ -280,7 +324,7 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', fac
   }
   
   
-  # run car Bayes
+  # run CAR Bayes
   chain1 <- ST.CARar(formula = formula_col, family = "poisson",
                      data = df, W = W, burnin = 20000, n.sample = 40000,
                      thin = 10, AR = AR)
@@ -292,15 +336,45 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', fac
   fitted_quants = t(apply(chain1$samples$fitted, 2, function(xx){
     quantile(xx, probs = quant_probs)
   }))
+  fitted_quants = as.data.frame(fitted_quants)
+  colnames(fitted_quants) = paste0(paste0(col, '_CARBayes_ST_'), quant_probs)
   
-  df[,paste0(paste0(col, '_CARBayes_ST_'), quant_probs)] <- fitted_quants
+  df = as.data.frame(cbind(df, fitted_quants))
+
+  # mapping matrix from each data point to a date
+  dates = sort(unique(df$date))
+  mat = as.matrix(sparseMatrix(i = 1:nrow(df), j = match(df$date, dates), x = 1))
+  
+  # condense the fitted value samples to each date
+  date_fits = chain1$samples$fitted %*% mat
+  
+  # get the quantiles at the county level
+  fitted_quants_C = t(apply(date_fits, 2, function(xx){
+    quantile(xx, probs = quant_probs)
+  }))
+  fitted_quants_C = as.data.frame(fitted_quants_C)
+  colnames(fitted_quants_C) = paste0(paste0(col, '_CARBayes_ST_'), quant_probs)
+  
+  # aggregate the county results
+  df_county = df %>% 
+    dplyr::select(date, y_true, y_CARBayes_ST) %>% 
+    group_by(date) %>%
+    summarize(y_true = sum(y_true),
+    y_CARBayes_ST = sum(y_CARBayes_ST)) %>% 
+    arrange(date)
+  
+  if(!identical(df_county$date, dates)){
+    browser()
+  }
+
+  df_county = cbind(df_county, fitted_quants_C)
   
   if(return_type == 'data.frame'){
     return(df)
   }else if(return_type == 'model'){
     return(chain1)
   }else if(return_type == 'all'){
-    lst = list(df, chain1)
+    lst = list(facility_df = df, county_df = df_county, model_chain = chain1)
     return(lst)
   }
 }
@@ -617,4 +691,92 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
   #browser()
   plot_grid(plot_grid(plotlist = plot_list),  legend, ncol = 1, rel_heights = c(10,1))
   
+}
+
+# HERE! FOR COMMENTING PURPOSES. HAVENT COMMENTED THE FUNCTIONS ABOVE
+
+# plot the fits of the models for a group of facilities. Also plots the prediction intervals.
+plot_facility_fits <- function(df, imp_vec, color_vec, PIs = T, fac_list = NULL){
+  df = as.data.frame(df)
+  
+  # get facility list if not supplied
+  if(is.null(fac_list)){
+    fac_list = unique(df$facility)
+  }
+  
+  # initialize plotting
+  plot_list = list()
+  iter = 0
+  
+  # go through each facility
+  for(f in fac_list){
+    iter = iter + 1
+    tmp = df %>% filter(facility == f)
+    
+    # initialize data frame for this facility
+    df_f = NULL
+    
+    for(j in 1:length(imp_vec)){
+      col = imp_vec[j]
+      
+      # get the lower and upper bounds
+      tmp2 = tmp[,c('date',col,paste0(col, '_0.025'),paste0(col, '_0.975'))] 
+      colnames(tmp2) = c('date', 'y', 'y_lower', 'y_upper')
+      tmp2$method = col
+
+      df_f = rbind(df_f, tmp2)
+    }
+    
+    # ordering the method to be consistent and for the labeling
+    df_f$method = factor(df_f$method, levels = imp_vec)
+    
+    # make the plot!
+    p1 <- ggplot() +
+      geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
+      geom_line(data = df_f, aes(x = date, y = y, group = method, color = method)) +
+      geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.3) +
+      scale_color_manual(values = c(color_vec)) + 
+      scale_fill_manual(values = c(color_vec)) + 
+      ggtitle(sprintf('%s', f))
+    
+    # store the legend for later
+    legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
+    
+    # remove the legend position on this plot
+    p1 = p1 + theme(legend.position = 'none') 
+    
+    # store the plot for this facility in the list
+    plot_list[[iter]] = p1
+  }
+  
+  #browser()
+  plot_grid(plot_grid(plotlist = plot_list),legend, ncol = 1, rel_heights = c(10,1))
+}
+
+# calculate the desired metrics for a set of imputation methods
+calculate_metrics <- function(df, imp_vec, imputed_only = T){
+  df = as.data.frame(df)
+  
+  # if imputed only, compute metrics only on the missing values
+  if(imputed_only){
+    df = df %>% filter(is.na(y))
+  }
+  
+  # for each method, compute metrics
+  tmp_lst <- lapply(imp_vec, function(xx){
+    tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE'),
+                     value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
+                               mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
+                               mean(df[,xx] - df$y_true),
+                               mean(abs(df[,xx] - df$y_true)),
+                               sqrt(mean((df[,xx] - df$y_true)^2))))
+    colnames(tmp)[2] = xx
+    
+    return(tmp)
+  })
+  
+  # combine them all
+  res = do.call(merge, tmp_lst)
+  
+  return(res)
 }

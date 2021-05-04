@@ -1,0 +1,168 @@
+---
+title: "Untitled"
+author: "Nicholas Link"
+date: "5/4/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd('C:/Users/nickl/Documents/global_covid19_response/')
+source('R/imputation_functions.R')
+```
+
+## Simulating the basic data structure
+
+First, for the county, let's say there are 21 facilities in districts of size 7, 5, 4, 3, 2. Now we also have dates ranging from 2016-01-01 to 2020-12-31
+
+```{r}
+
+initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = '2019-12-01'){
+  facilities = unlist(lapply(1:length(district_sizes), function(xx) {paste0(toupper(letters[xx]), 1:district_sizes[xx])}))
+  
+  dates = seq(as.Date(start_date), as.Date(end_date), by = 'month')
+  
+  df = expand.grid(facilities, dates, stringsAsFactors = F)
+  colnames(df) = c('facility','date')
+  
+  df$district = substr(df$facility, 1, 1) 
+  
+  df = df %>%
+    dplyr::select(date, facility, district)
+  return(df)
+}
+
+df = initialize_df(district_sizes = c(2,3,4,5,7))
+
+df = add_periodic_cov(df)
+
+```
+
+
+So for this I want to simulate a baseline Poisson model. I will start by sampling betas from something that roughly resembles a county in Liberia. Currently I am ignoring the correlation of the betas. Let's see what we get.
+
+
+```{r}
+
+set.seed(10)
+sample_betas = function(facilities){
+  betas = matrix(0, nrow = length(facilities), ncol = 8)
+  
+  betas[,1] = rnorm(5, 1, n = nrow(betas))
+  betas[,2] = rnorm(-0.5, 0.3, n = nrow(betas))
+  
+  for(j in 3:8){
+    betas[,j] = rnorm(0, 0.2, n = nrow(betas))
+  }
+  
+  rownames(betas) = facilities
+  colnames(betas) = c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3')
+    #paste0('B',0:7)
+  #betas = cbind(facilities, as.data.frame(betas))
+  return(betas)
+}
+
+facilities = unique(df$facility)
+
+betas = sample_betas(facilities)
+```
+
+
+Now that the betas and the data frames are simulated, it's time to simulate new points
+
+```{r}
+# this might not be the most efficient way, but I'll do a for loop
+set.seed(10)
+
+# simulate values
+tmp_lst = lapply(facilities, function(xx){
+    tmp = df %>% filter(facility == xx)
+  
+  # keep the 1 for intercepts
+  X = tmp %>% 
+    mutate(intercept = 1) %>%
+    dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+  
+  # error checking
+  if(!identical(colnames(betas), colnames(X))){
+    browser()
+  }
+  
+  # make the 8x1 beta vector for this facility
+  beta_f = t(betas[xx,,drop = F])
+  
+  # get mean prediction from linear model
+  mu = as.matrix(X)%*%beta_f
+  
+  # simluate random values
+  tmp$y = rpois(length(mu), exp(mu))
+  
+  return(tmp)
+})
+
+df = do.call('rbind', tmp_lst)
+
+par(mfrow = c(5,5))
+for(f in facilities){
+  tmp = df %>% filter(facility == f)
+  
+  plot(tmp$date, tmp$y, type = 'l', main = f)
+}
+
+```
+
+
+Ok so if you can get it to plot, it looks reasonable. Obviously, it's still missing things like the beta covariance structure, temporal correlation, spatial correlation, etc... But it's good for now.
+
+## Simulating missingness
+
+## MCAR
+
+```{r}
+MCAR_sim <- function(df, p, by_facility = F){
+  df$y_true = df$y
+  if(by_facility){
+    num_impute = round(p*nrow(df)/length(unique(df$facility)))
+    test = do.call('rbind', lapply(unique(df$facility), function(xx){
+      tmp = df %>% filter(facility == f)
+      tmp$y[sample(nrow(tmp), num_impute)] <- NA
+      return(tmp)
+    }))
+  }else{
+    num_impute = round(p*nrow(df))
+    df$y[sample(nrow(df), num_impute)] <- NA
+  }
+  
+  return(df)
+}
+
+# simulation function!
+
+df_miss = MCAR_sim(df, p = 0.1)
+df_miss = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility')
+county_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all')
+df_miss = tmp_list[[]]
+county_miss2 = tmp_list[[]]
+
+HERE on 05042021
+
+imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
+color_vec = c('red','blue')
+
+p1 <- plot_facility_fits(df_miss, imp_vec = imp_vec, color_vec = color_vec)
+
+res <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
+
+df = df_miss
+
+
+
+# coverage <- of 75% and 95% PIs
+# bias (over all?)
+
+```
+
+
+
+
+

@@ -43,13 +43,14 @@ facility_miss = D %>%
 district_miss = D %>% 
   group_by(district) %>%
   summarize(denom_miss = mean(is.na(indicator_denom)),
-            ari_miss = mean(is.na(indicator_count_ari_total)))
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            n = length(unique(facility)))
 
 county_miss = D %>% 
   group_by(county) %>%
   summarize(denom_miss = mean(is.na(indicator_denom)),
             ari_miss = mean(is.na(indicator_count_ari_total)),
-            n = n())
+            n = length(unique(facility)))
 
 par(mfrow=c(2,3))
 
