@@ -69,21 +69,22 @@ periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', grou
 df_miss = periodic_list$df
 
 # run the CARBayes imputation
-CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000)
-df_miss = CAR_list$facility_df
+CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
 
+# get the facility and county level imputation results
+df_miss = CAR_list$facility_df
 county_miss = merge(periodic_list$county_fit, CAR_list$county_df, by = 'date')
 
-#HERE on 05042021 - figure out the PIs for COUNTY-LEVEL Bayes! What to do, what to do
-
+# make the plots for the results
 imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
 color_vec = c('red','blue')
-
 p1 <- plot_facility_fits(df_miss, imp_vec = imp_vec, color_vec = color_vec)
+p2 <- plot_county_fits(county_miss, imp_vec, color_vec)
 
-p2 <- plot_county_fits(df_miss, imp_vec, color_vec)
-
+# get the metrics to evaluate each method
 res <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
+res2 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
+res3 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate = T)
 
 ```
 

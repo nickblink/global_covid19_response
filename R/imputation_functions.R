@@ -18,6 +18,13 @@ add_periodic_cov <- function(df, period = 12){
 
 # OG imputation method
 periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
+  
+  # check if this method has already been run
+  if(any(grepl('y_pred_harmonic', colnames(df)))){
+    print('previous harmonic predictions found. Removing them')
+    df[,grep('y_pred_harmonic', colnames(df))] <- NULL
+  }
+  
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period)
   
@@ -38,7 +45,8 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
       return(tt)
     })
     
-    df <- data.table::rbindlist(tmp)
+    #df <- data.table::rbindlist(tmp)
+    df <- do.call('rbind',tmp)
     
   }else if(family %in% c('NB','negative binomial','neg_bin')){
     warning('havent coded PIs in quasipoisson or NB yet')
@@ -100,7 +108,8 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
     })
     
     # combine the individual facility results into a larger data frame
-    df <- data.table::rbindlist(lapply(tmp,'[[',1))
+    #df <- data.table::rbindlist(lapply(tmp,'[[',1))
+    df <- do.call('rbind',lapply(tmp,'[[',1))
     
     # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
     sim.full = Reduce('+', lapply(tmp, '[[', 2))
@@ -258,9 +267,13 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', facility_intercept = T, burnin = 20000, n.sample = 40000){
-
-  df = add_periodic_cov(df)
+CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', facility_intercept = T, burnin = 20000, n.sample = 40000, prediction_sample = T){
+  
+  # check if this method has already been run
+  if(any(grepl('y_CARBayes_ST', colnames(df)))){
+    print('previous CAR Bayes predictions found. Removing them')
+    df[,grep('y_CARBayes_ST', colnames(df))] <- NULL
+  }
   
   tt = df %>% filter(date == unique(date)[1]) %>% pull(district) %>% table
   
@@ -298,13 +311,33 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', fac
   
   df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
   
-  # get the quantiles of fitted values 
-  quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
-  fitted_quants = t(apply(chain1$samples$fitted, 2, function(xx){
-    quantile(xx, probs = quant_probs)
-  }))
-  fitted_quants = as.data.frame(fitted_quants)
-  colnames(fitted_quants) = paste0(paste0(col, '_CARBayes_ST_'), quant_probs)
+  # poisson sample the not-missing ones. The reason for this is that the CAR method already samples for the missing points as part of the missing process but gives back the fitted mean values for everything else.
+  if(prediction_sample){
+    # indices of not-missing values
+    not_miss = which(!is.na(df[,col]))
+    
+    # pull the fitted values and randomly select prediction values for non-missing entries
+    tt = chain1$samples$fitted
+    tt[,not_miss] = apply(tt[,not_miss], 2, function(xx) rpois(n = length(xx), lambda = xx))
+    
+    # get the quantiles of fitted values 
+    quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
+    fitted_quants = t(apply(tt, 2, function(xx){
+      quantile(xx, probs = quant_probs)
+    }))
+    fitted_quants = as.data.frame(fitted_quants)
+    colnames(fitted_quants) = paste0(paste0(col, '_CARBayes_ST_'), quant_probs)
+    
+  # ignore the sampling of the poisson and take mean fitted value quantiles
+  }else{
+    # get the quantiles of fitted values 
+    quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
+    fitted_quants = t(apply(chain1$samples$fitted, 2, function(xx){
+      quantile(xx, probs = quant_probs)
+    }))
+    fitted_quants = as.data.frame(fitted_quants)
+    colnames(fitted_quants) = paste0(paste0(col, '_CARBayes_ST_'), quant_probs)
+  }
   
   df = as.data.frame(cbind(df, fitted_quants))
 
@@ -541,21 +574,19 @@ plot_county_imputations <- function(df, imp_vec, color_vec, title = 'Aggregated 
   return(p1)
 }
 
-plot_county_fits <- function(df, imp_vec, color_vec, title = 'Aggregated County Fits', labels = NULL){
-  
-  HERE! MAKE THE PIS ALLOWABLE.
+plot_county_fits_from_fac <- function(df, imp_vec, color_vec, title = 'Aggregated County Fits', labels = NULL){
   
   # set the labels for the plot
   if(is.null(labels)){
     labels = imp_vec
   }
   
-  # rename columns of df to make it easier
-  for(col in imp_vec){
-    ind = grep(col, colnames(df))
-    if(length(ind) != 1){browser()}
-    colnames(df)[ind] = col
-  }
+  # # rename columns of df to make it easier
+  # for(col in imp_vec){
+  #   ind = grep(col, colnames(df))
+  #   if(length(ind) != 1){browser()}
+  #   colnames(df)[ind] = col
+  # }
   
   # initialize the data frame to store final results
   df_f = NULL
@@ -667,6 +698,44 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
 
 # HERE! FOR COMMENTING PURPOSES. HAVENT COMMENTED THE FUNCTIONS ABOVE
 
+plot_county_fits <- function(df, imp_vec, color_vec, PIs = T, title = 'County-Level Predictions'){
+  df = as.data.frame(df)
+  
+  # initialize data frame for this county
+  df_c = NULL
+  
+  # pull estimates for each method
+  for(j in 1:length(imp_vec)){
+    col = imp_vec[j]
+    
+    # get the lower and upper bounds
+    tmp = df[,c('date',paste0(col,'_0.5'),paste0(col, '_0.025'),paste0(col, '_0.975'))] 
+    colnames(tmp) = c('date', 'y', 'y_lower', 'y_upper')
+    tmp$method = col
+    
+    df_c = rbind(df_c, tmp)
+  }
+  
+  # ordering the method to be consistent and for the labeling
+  df_c$method = factor(df_c$method, levels = imp_vec)
+  
+  # make the plot!
+  p1 <- ggplot() +
+    geom_line(data = df, aes(x = date, y = y_true), size = 1) +
+    geom_line(data = df_c, aes(x = date, y = y, group = method, color = method)) +
+    geom_ribbon(data = df_c, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.3) +
+    scale_color_manual(values = c(color_vec)) + 
+    scale_fill_manual(values = c(color_vec)) + 
+    ggtitle(title)
+  
+  # store the legend for later
+  legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
+  
+  # remove the legend position on this plot
+  #p1 = p1 + theme(legend.position = 'none') 
+  return(p1)
+}
+
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
 plot_facility_fits <- function(df, imp_vec, color_vec, PIs = T, fac_list = NULL){
   df = as.data.frame(df)
@@ -726,7 +795,7 @@ plot_facility_fits <- function(df, imp_vec, color_vec, PIs = T, fac_list = NULL)
 }
 
 # calculate the desired metrics for a set of imputation methods
-calculate_metrics <- function(df, imp_vec, imputed_only = T){
+calculate_metrics <- function(df, imp_vec, imputed_only = T, median_estimate = F){
   df = as.data.frame(df)
   
   # if imputed only, compute metrics only on the missing values
@@ -734,18 +803,35 @@ calculate_metrics <- function(df, imp_vec, imputed_only = T){
     df = df %>% filter(is.na(y))
   }
   
-  # for each method, compute metrics
-  tmp_lst <- lapply(imp_vec, function(xx){
-    tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE'),
-                     value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
-                               mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
-                               mean(df[,xx] - df$y_true),
-                               mean(abs(df[,xx] - df$y_true)),
-                               sqrt(mean((df[,xx] - df$y_true)^2))))
-    colnames(tmp)[2] = xx
-    
-    return(tmp)
-  })
+  
+  # if using median as the point estimate for each method
+  if(median_estimate){
+    # for each method, compute metrics
+    tmp_lst <- lapply(imp_vec, function(xx){
+      tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE'),
+                       value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
+                                 mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
+                                 mean(df[,paste0(xx, '_0.5')] - df$y_true),
+                                 mean(abs(df[,paste0(xx, '_0.5')] - df$y_true)),
+                                 sqrt(mean((df[,paste0(xx, '_0.5')] - df$y_true)^2))))
+      colnames(tmp)[2] = xx
+      return(tmp)
+    })
+      
+  }else{
+    # for each method, compute metrics
+    tmp_lst <- lapply(imp_vec, function(xx){
+      tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE'),
+                       value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
+                                 mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
+                                 mean(df[,xx] - df$y_true),
+                                 mean(abs(df[,xx] - df$y_true)),
+                                 sqrt(mean((df[,xx] - df$y_true)^2))))
+      colnames(tmp)[2] = xx
+      
+      return(tmp)
+    })
+  }
   
   # combine them all
   res = do.call(merge, tmp_lst)
