@@ -14,59 +14,10 @@ add_periodic_cov <- function(df, period = 12){
   return(df)
 }
 
-# function to simulate data
-simulate_imputation <- function(df, col, p = 0.1, group = NULL){
-  set.seed(1)
-  # if not worrying about the grouping of randomization
-  
-  # set the true value to null for the df
-  df[,paste0(col, '_true')] = as.integer(NA)
-  
-  if(is.null(group)){
-    # get the number of data points to impute
-    num_impute = round(p*nrow(df)) - sum(is.na(df[,col]))
-    
-    if(num_impute <= 0){
-      warning('skipping imputation. Already too many missing')
-      return(df)
-    }
-    
-    # sample the indices to impute
-    ind_sample = sample(setdiff(1:nrow(df), which(is.na(df[,col]))), num_impute)
-    
-    # store the true value of the values to replace
-    df[ind_sample, paste0(col, '_true')] <- df[ind_sample, col]
-    
-    # replace the values with NAs
-    df[ind_sample, col] = NA
-    
-  }else{
-    # doing grouping
-    uni_group = df %>% pull(UQ(group)) %>% unique()
-    
-    # apply to each group
-    tmp <- lapply(uni_group, function(xx) {
-      tt <- df %>% filter(get(group) == xx)
-      num_impute = round(p*nrow(tt)) - sum(is.na(tt[,col]))
-      if(num_impute <= 0){
-        print(sprintf('skipping imputation for %s', xx))
-        return(tt)
-      }
-      ind_sample = sample(setdiff(1:nrow(tt), which(is.na(tt[,col]))), num_impute) 
-      tt[ind_sample, paste0(col, '_true')] <- tt[ind_sample, col]
-      tt[ind_sample, col] = NA
-      return(tt)
-    })
-    
-    # collapse results
-    df <- data.table::rbindlist(tmp)
-  }
-  
-  return(df)
-}
+##### Impuation Functions #####
 
 # OG imputation method
-periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500){
+periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period)
   
@@ -135,7 +86,6 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
         }) -> sim.boot
         
         # get the quantiles and store them
-        quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
         fitted_quants = t(apply(sim.boot, 1, function(xx){
           quantile(xx, probs = quant_probs)
         }))
@@ -145,12 +95,28 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
         tt = cbind(tt, fitted_quants)
         
       }
-      
-      return(tt)
+      tmp_lst = list(tt, sim.boot)
+      return(tmp_lst)
     })
     
-    df <- data.table::rbindlist(tmp)
+    # combine the individual facility results into a larger data frame
+    df <- data.table::rbindlist(lapply(tmp,'[[',1))
+    
+    # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
+    sim.full = Reduce('+', lapply(tmp, '[[', 2))
+    
+    # get the quantiles at the county level
+    county_quants = t(apply(sim.full, 1, function(xx){
+      quantile(xx, probs = quant_probs)
+    }))
+    county_quants = as.data.frame(county_quants)
+    colnames(county_quants) = paste0(paste0(col, '_pred_harmonic_'), quant_probs)
+    county_quants$date = tmp[[1]][[1]]$date
+
   }
+  
+  res_lst = list(df = df, county_fit = county_quants)
+  return(res_lst)
 }
 
 # Bayes imputation method
@@ -292,7 +258,8 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', facility_intercept = T){
+CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', facility_intercept = T, burnin = 20000, n.sample = 40000){
+
   df = add_periodic_cov(df)
   
   tt = df %>% filter(date == unique(date)[1]) %>% pull(district) %>% table
@@ -326,7 +293,7 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', fac
   
   # run CAR Bayes
   chain1 <- ST.CARar(formula = formula_col, family = "poisson",
-                     data = df, W = W, burnin = 20000, n.sample = 40000,
+                     data = df, W = W, burnin = burnin, n.sample = n.sample,
                      thin = 10, AR = AR)
   
   df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
@@ -499,6 +466,8 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
   return(res_lst)
 }
 
+##### Plotting + Metric Functions #####
+
 plot_results <- function(res, subset = NULL){
   tt = res$group_results %>%
     mutate(p = as.factor(p),
@@ -573,6 +542,9 @@ plot_county_imputations <- function(df, imp_vec, color_vec, title = 'Aggregated 
 }
 
 plot_county_fits <- function(df, imp_vec, color_vec, title = 'Aggregated County Fits', labels = NULL){
+  
+  HERE! MAKE THE PIS ALLOWABLE.
+  
   # set the labels for the plot
   if(is.null(labels)){
     labels = imp_vec
@@ -780,3 +752,134 @@ calculate_metrics <- function(df, imp_vec, imputed_only = T){
   
   return(res)
 }
+
+
+##### Simulation functions #####
+# function to simulate data
+simulate_imputation <- function(df, col, p = 0.1, group = NULL){
+  set.seed(1)
+  # if not worrying about the grouping of randomization
+  
+  # set the true value to null for the df
+  df[,paste0(col, '_true')] = as.integer(NA)
+  
+  if(is.null(group)){
+    # get the number of data points to impute
+    num_impute = round(p*nrow(df)) - sum(is.na(df[,col]))
+    
+    if(num_impute <= 0){
+      warning('skipping imputation. Already too many missing')
+      return(df)
+    }
+    
+    # sample the indices to impute
+    ind_sample = sample(setdiff(1:nrow(df), which(is.na(df[,col]))), num_impute)
+    
+    # store the true value of the values to replace
+    df[ind_sample, paste0(col, '_true')] <- df[ind_sample, col]
+    
+    # replace the values with NAs
+    df[ind_sample, col] = NA
+    
+  }else{
+    # doing grouping
+    uni_group = df %>% pull(UQ(group)) %>% unique()
+    
+    # apply to each group
+    tmp <- lapply(uni_group, function(xx) {
+      tt <- df %>% filter(get(group) == xx)
+      num_impute = round(p*nrow(tt)) - sum(is.na(tt[,col]))
+      if(num_impute <= 0){
+        print(sprintf('skipping imputation for %s', xx))
+        return(tt)
+      }
+      ind_sample = sample(setdiff(1:nrow(tt), which(is.na(tt[,col]))), num_impute) 
+      tt[ind_sample, paste0(col, '_true')] <- tt[ind_sample, col]
+      tt[ind_sample, col] = NA
+      return(tt)
+    })
+    
+    # collapse results
+    df <- data.table::rbindlist(tmp)
+  }
+  
+  return(df)
+}
+
+initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = '2019-12-01'){
+  facilities = unlist(lapply(1:length(district_sizes), function(xx) {paste0(toupper(letters[xx]), 1:district_sizes[xx])}))
+  
+  dates = seq(as.Date(start_date), as.Date(end_date), by = 'month')
+  
+  df = expand.grid(facilities, dates, stringsAsFactors = F)
+  colnames(df) = c('facility','date')
+  
+  df$district = substr(df$facility, 1, 1) 
+  
+  df = df %>%
+    dplyr::select(date, facility, district)
+  return(df)
+}
+
+sample_betas = function(facilities){
+  betas = matrix(0, nrow = length(facilities), ncol = 8)
+  
+  betas[,1] = rnorm(5, 1, n = nrow(betas))
+  betas[,2] = rnorm(-0.5, 0.3, n = nrow(betas))
+  
+  for(j in 3:8){
+    betas[,j] = rnorm(0, 0.2, n = nrow(betas))
+  }
+  
+  rownames(betas) = facilities
+  colnames(betas) = c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3')
+  #paste0('B',0:7)
+  #betas = cbind(facilities, as.data.frame(betas))
+  return(betas)
+}
+
+simulate_data <- function(district_sizes){
+  # set up data frame
+  df = initialize_df(district_sizes)
+  
+  # make periodic covariates
+  df = add_periodic_cov(df)
+  
+  # get all facility names
+  facilities = unique(df$facility)
+  
+  # set random seed and sample betas
+  set.seed(10)
+  betas = sample_betas(facilities)
+  
+  # simulate values given the betas
+  tmp_lst = lapply(facilities, function(xx){
+    tmp = df %>% filter(facility == xx)
+    
+    # keep the 1 for intercepts
+    X = tmp %>% 
+      mutate(intercept = 1) %>%
+      dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+    
+    # error checking
+    if(!identical(colnames(betas), colnames(X))){
+      browser()
+    }
+    
+    # make the 8x1 beta vector for this facility
+    beta_f = t(betas[xx,,drop = F])
+    
+    # get mean prediction from linear model
+    mu = as.matrix(X)%*%beta_f
+    
+    # simluate random values
+    tmp$y = rpois(length(mu), exp(mu))
+    
+    return(tmp)
+  })
+  
+  # combine values into one data frame
+  df = do.call('rbind', tmp_lst)
+  
+}
+
