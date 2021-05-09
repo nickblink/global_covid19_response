@@ -12,6 +12,9 @@ source('R/imputation_functions.R')
 library(CARBayesST)
 library(Matrix)
 library(dplyr)
+library(lubridate)
+library(ggplot2)
+library(cowplot)
 ```
 
 ## Simulating the basic data structure
@@ -22,6 +25,9 @@ So for this I want to simulate a baseline Poisson model. I will start by samplin
 
 
 ```{r}
+
+#setwd('C:/Users/nickl/Documents/global_covid19_response/')
+print(getwd())
 df <- simulate_data(district_sizes = c(2,3,4,5,7))
 
 par(mfrow = c(5,5))
@@ -42,22 +48,7 @@ Ok so if you can get it to plot, it looks reasonable. Obviously, it's still miss
 ## MCAR
 
 ```{r}
-MCAR_sim <- function(df, p, by_facility = F){
-  df$y_true = df$y
-  if(by_facility){
-    num_impute = round(p*nrow(df)/length(unique(df$facility)))
-    test = do.call('rbind', lapply(unique(df$facility), function(xx){
-      tmp = df %>% filter(facility == f)
-      tmp$y[sample(nrow(tmp), num_impute)] <- NA
-      return(tmp)
-    }))
-  }else{
-    num_impute = round(p*nrow(df))
-    df$y[sample(nrow(df), num_impute)] <- NA
-  }
-  
-  return(df)
-}
+
 
 df <- simulate_data(district_sizes = c(2,3,4,5,7))
 
@@ -79,7 +70,7 @@ county_miss = merge(periodic_list$county_fit, CAR_list$county_df, by = 'date')
 imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
 color_vec = c('red','blue')
 p1 <- plot_facility_fits(df_miss, imp_vec = imp_vec, color_vec = color_vec)
-p2 <- plot_county_fits(county_miss, imp_vec, color_vec)
+p2 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.1')
 
 # get the metrics to evaluate each method
 res <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
@@ -89,6 +80,41 @@ res3 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate
 ```
 
 
+```{r}
+
+df <- simulate_data(district_sizes = c(2,3,4,5,7))
+
+# simulation function!
+df_miss = MCAR_sim(df, p = 0.5)
+
+# run the periodic imputation
+periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+df_miss = periodic_list$df
+
+# run the CARBayes imputation
+CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
+
+# get the facility and county level imputation results
+df_miss = CAR_list$facility_df
+county_miss = merge(periodic_list$county_fit, CAR_list$county_df, by = 'date')
+
+# make the plots for the results
+imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
+color_vec = c('red','blue')
+p3 <- plot_facility_fits(df_miss, imp_vec = imp_vec, color_vec = color_vec)
+p4 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.5')
+
+# get the metrics to evaluate each method
+res4 <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
+res5 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
+res6 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate = T)
+```
 
 
+```{r}
+
+
+
+
+```
 

@@ -969,3 +969,19 @@ simulate_data <- function(district_sizes){
   
 }
 
+MCAR_sim <- function(df, p, by_facility = F){
+  df$y_true = df$y
+  if(by_facility){
+    num_impute = round(p*nrow(df)/length(unique(df$facility)))
+    test = do.call('rbind', lapply(unique(df$facility), function(xx){
+      tmp = df %>% filter(facility == f)
+      tmp$y[sample(nrow(tmp), num_impute)] <- NA
+      return(tmp)
+    }))
+  }else{
+    num_impute = round(p*nrow(df))
+    df$y[sample(nrow(df), num_impute)] <- NA
+  }
+  
+  return(df)
+}
