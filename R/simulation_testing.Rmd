@@ -48,12 +48,10 @@ Ok so if you can get it to plot, it looks reasonable. Obviously, it's still miss
 ## MCAR
 
 ```{r}
-
-
 df <- simulate_data(district_sizes = c(2,3,4,5,7))
 
 # simulation function!
-df_miss = MCAR_sim(df, p = 0.1)
+df_miss = MCAR_sim(df, p = 0.1, by_facility = T)
 
 # run the periodic imputation
 periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
@@ -85,7 +83,7 @@ res3 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate
 df <- simulate_data(district_sizes = c(2,3,4,5,7))
 
 # simulation function!
-df_miss = MCAR_sim(df, p = 0.5)
+df_miss = MCAR_sim(df, p = 0.5, by_facility = T)
 
 # run the periodic imputation
 periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
@@ -110,11 +108,79 @@ res5 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
 res6 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate = T)
 ```
 
-
+MNAR! 
 ```{r}
 
 
+# df_miss = MNAR_sim(df, p = 0.2)
 
+# par(mfrow = c(5,5))
+# for(f in unique(df$facility)){
+#   tmp = df_miss %>% filter(facility == f)
+#   
+#   plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, max(tmp$y_true) + 10))
+#   lines(tmp$date, tmp$y_true, type = 'l', lty = 3)
+# }
+
+
+### Now doing imputation with it
+
+# simulation function!
+df_miss = MNAR_sim(df, p = 0.5, by_facility = T)
+
+# run the periodic imputation
+periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+df_miss = periodic_list$df
+
+# run the CARBayes imputation
+CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
+
+# get the facility and county level imputation results
+df_miss = CAR_list$facility_df
+county_miss = merge(periodic_list$county_fit, CAR_list$county_df, by = 'date')
+
+# make the plots for the results
+imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
+color_vec = c('red','blue')
+p5 <- plot_facility_fits(df_miss, imp_vec = imp_vec, color_vec = color_vec)
+p6 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.1')
+
+res7 <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
+res8 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
+res9 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate = T)
 
 ```
 
+
+Simulating the spatial and temporal random effects - TO RETURN LATER
+
+```{r}
+autocorr.mat <- function(n, rho) {
+    mat <- diag(n)
+    return(rho^abs(row(mat)-col(mat)))
+}
+
+rho = 0.5
+alpha = 0.5
+# V = matrix(c(1, p, p^2, p, 1, p, p^2, p ,1), nrow = 3)
+# 
+# mat = MASS::mvrnorm(10000, rep(0,3), V)
+# cor(mat)
+
+df = df %>% arrange(facility, date)
+
+# so let's just try temporal
+autocor_mat = autocorr.mat(length(unique(df$date)), rho = rho)
+spatial_mat = autocor_mat*alpha
+
+test = MASS::mvrnorm(10000, rep(0,48), autocor_mat)
+
+for(d in unique(df$district)){
+  tmp = df %>% filter(district == d)
+  n = length(unique(tmp$facility))
+  V = blockmatrix::blockmatrix(names = c('AR','SP','SP','AR'), list(autocor_mat, spatial_mat, spatial_mat, autocor_mat))
+}
+
+# also try bdiag?
+
+```

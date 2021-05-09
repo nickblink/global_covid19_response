@@ -973,14 +973,35 @@ MCAR_sim <- function(df, p, by_facility = F){
   df$y_true = df$y
   if(by_facility){
     num_impute = round(p*nrow(df)/length(unique(df$facility)))
-    test = do.call('rbind', lapply(unique(df$facility), function(xx){
-      tmp = df %>% filter(facility == f)
+    df = do.call('rbind', lapply(unique(df$facility), function(xx){
+      tmp = df %>% filter(facility == xx)
       tmp$y[sample(nrow(tmp), num_impute)] <- NA
       return(tmp)
     }))
   }else{
     num_impute = round(p*nrow(df))
     df$y[sample(nrow(df), num_impute)] <- NA
+  }
+  
+  return(df)
+}
+
+MNAR_sim <- function(df, p, alpha = 1.5, by_facility = T){
+  df$y_true = df$y
+  if(by_facility){
+    num_impute = round(p*nrow(df)/length(unique(df$facility)))
+    df = do.call('rbind', lapply(unique(df$facility), function(xx){
+      tmp = df %>% filter(facility == xx)
+      m = median(tmp$y)
+      q = (abs(tmp$y - m))^alpha
+      tmp$y[sample(nrow(tmp), num_impute, prob = q)] <- NA
+      return(tmp)
+    }))
+  }else{
+    print('havent coded this part - is it necessary?')
+    browser()
+    #num_impute = round(p*nrow(df))
+    #df$y[sample(nrow(df), num_impute)] <- NA
   }
   
   return(df)
