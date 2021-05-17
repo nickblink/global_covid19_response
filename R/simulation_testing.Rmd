@@ -34,7 +34,7 @@ par(mfrow = c(5,5))
 for(f in unique(df$facility)){
   tmp = df %>% filter(facility == f)
   
-  plot(tmp$date, tmp$y, type = 'l', main = f)
+  plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, 1.2*max(tmp$y)))
 }
 
 
@@ -66,9 +66,13 @@ county_miss = merge(periodic_list$county_fit, CAR_list$county_df, by = 'date')
 
 # make the plots for the results
 imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
+imp_names = c('parametric','CAR')
 color_vec = c('red','blue')
-p1 <- plot_facility_fits(df_miss, imp_vec = imp_vec, color_vec = color_vec)
-p2 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.1')
+p1 <- plot_facility_fits(df_miss, imp_vec = imp_vec, imp_names = imp_names, color_vec = color_vec)
+p2 <- plot_county_fits(county_miss, imp_vec, imp_names = imp_names, color_vec, title = 'p = 0.1')
+
+# ggsave(plot = p1, filename = 'C:/Users/nickl/Documents/global_covid19_response/figures/MCAR_p01_simulation_fits_05172021.png', width = 15, height = 10)
+# ggsave(plot = p2, filename = 'C:/Users/nickl/Documents/global_covid19_response/figures/MCAR_p01_simulation_countyFit_05172021.png', width = 10, height = 7)
 
 # get the metrics to evaluate each method
 res <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
@@ -126,7 +130,7 @@ MNAR!
 ### Now doing imputation with it
 
 # simulation function!
-df_miss = MNAR_sim(df, p = 0.5, by_facility = T)
+df_miss = MNAR_sim(df, p = 0.2, direction = 'upper', alpha = 1, by_facility = T)
 
 # run the periodic imputation
 periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
@@ -143,7 +147,11 @@ county_miss = merge(periodic_list$county_fit, CAR_list$county_df, by = 'date')
 imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
 color_vec = c('red','blue')
 p5 <- plot_facility_fits(df_miss, imp_vec = imp_vec, color_vec = color_vec)
-p6 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.1')
+p6 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.2')
+
+# ggsave(plot = p5, filename = 'C:/Users/nickl/Documents/global_covid19_response/figures/MNAR_p02_simulation_fits_05172021.png', width = 15, height = 10)
+# ggsave(plot = p6, filename = 'C:/Users/nickl/Documents/global_covid19_response/figures/MNAR_p02_simulation_countyFit_05172021.png', width = 10, height = 7)
+
 
 res7 <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
 res8 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)

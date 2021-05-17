@@ -14,7 +14,7 @@ add_periodic_cov <- function(df, period = 12){
   return(df)
 }
 
-##### Impuation Functions #####
+##### Imputation Functions #####
 
 # OG imputation method
 periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
@@ -698,8 +698,13 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
 
 # HERE! FOR COMMENTING PURPOSES. HAVENT COMMENTED THE FUNCTIONS ABOVE
 
-plot_county_fits <- function(df, imp_vec, color_vec, PIs = T, title = 'County-Level Predictions'){
+plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, title = 'County-Level Predictions'){
   df = as.data.frame(df)
+  
+  # if no imputation names given, use the ones in the imputation vector
+  if(is.null(imp_names)){
+    imp_names = imp_vec
+  }
   
   # initialize data frame for this county
   df_c = NULL
@@ -711,13 +716,13 @@ plot_county_fits <- function(df, imp_vec, color_vec, PIs = T, title = 'County-Le
     # get the lower and upper bounds
     tmp = df[,c('date',paste0(col,'_0.5'),paste0(col, '_0.025'),paste0(col, '_0.975'))] 
     colnames(tmp) = c('date', 'y', 'y_lower', 'y_upper')
-    tmp$method = col
+    tmp$method = imp_names[j]
     
     df_c = rbind(df_c, tmp)
   }
   
   # ordering the method to be consistent and for the labeling
-  df_c$method = factor(df_c$method, levels = imp_vec)
+  df_c$method = factor(df_c$method, levels = imp_names)
   
   # make the plot!
   p1 <- ggplot() +
@@ -726,7 +731,10 @@ plot_county_fits <- function(df, imp_vec, color_vec, PIs = T, title = 'County-Le
     geom_ribbon(data = df_c, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.3) +
     scale_color_manual(values = c(color_vec)) + 
     scale_fill_manual(values = c(color_vec)) + 
-    ggtitle(title)
+    ggtitle(title) + 
+    ylab('y') +
+    theme_bw() + 
+    theme(text = element_text(size = 15))
   
   # store the legend for later
   legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
@@ -737,12 +745,17 @@ plot_county_fits <- function(df, imp_vec, color_vec, PIs = T, title = 'County-Le
 }
 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
-plot_facility_fits <- function(df, imp_vec, color_vec, PIs = T, fac_list = NULL){
+plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL){
   df = as.data.frame(df)
   
   # get facility list if not supplied
   if(is.null(fac_list)){
     fac_list = unique(df$facility)
+  }
+  
+  # if no imputation names given, use the ones in the imputation vector
+  if(is.null(imp_names)){
+    imp_names = imp_vec
   }
   
   # initialize plotting
@@ -763,22 +776,25 @@ plot_facility_fits <- function(df, imp_vec, color_vec, PIs = T, fac_list = NULL)
       # get the lower and upper bounds
       tmp2 = tmp[,c('date',col,paste0(col, '_0.025'),paste0(col, '_0.975'))] 
       colnames(tmp2) = c('date', 'y', 'y_lower', 'y_upper')
-      tmp2$method = col
-
+      tmp2$method = imp_names[j]
+      
       df_f = rbind(df_f, tmp2)
     }
     
     # ordering the method to be consistent and for the labeling
-    df_f$method = factor(df_f$method, levels = imp_vec)
+    df_f$method = factor(df_f$method, levels = imp_names)
     
     # make the plot!
     p1 <- ggplot() +
       geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
       geom_line(data = df_f, aes(x = date, y = y, group = method, color = method)) +
-      geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.3) +
+      geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.2) +
       scale_color_manual(values = c(color_vec)) + 
       scale_fill_manual(values = c(color_vec)) + 
-      ggtitle(sprintf('%s', f))
+      ggtitle(sprintf('facility %s', f)) + 
+      ylab('y') +
+      theme_bw() +
+      theme(text = element_text(size = 10))
     
     # store the legend for later
     legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
@@ -790,7 +806,6 @@ plot_facility_fits <- function(df, imp_vec, color_vec, PIs = T, fac_list = NULL)
     plot_list[[iter]] = p1
   }
   
-  #browser()
   plot_grid(plot_grid(plotlist = plot_list),legend, ncol = 1, rel_heights = c(10,1))
 }
 
@@ -910,8 +925,8 @@ initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = 
 sample_betas = function(facilities){
   betas = matrix(0, nrow = length(facilities), ncol = 8)
   
-  betas[,1] = rnorm(5, 1, n = nrow(betas))
-  betas[,2] = rnorm(-0.5, 0.3, n = nrow(betas))
+  betas[,1] = rnorm(7, 1, n = nrow(betas))
+  betas[,2] = rnorm(-0.2, 0.2, n = nrow(betas))
   
   for(j in 3:8){
     betas[,j] = rnorm(0, 0.2, n = nrow(betas))
@@ -986,17 +1001,41 @@ MCAR_sim <- function(df, p, by_facility = F){
   return(df)
 }
 
-MNAR_sim <- function(df, p, alpha = 1.5, by_facility = T){
+MNAR_sim <- function(df, p, direction = NULL, alpha = 1.5, by_facility = T){
   df$y_true = df$y
   if(by_facility){
+    # get the number of points to impute
     num_impute = round(p*nrow(df)/length(unique(df$facility)))
-    df = do.call('rbind', lapply(unique(df$facility), function(xx){
-      tmp = df %>% filter(facility == xx)
-      m = median(tmp$y)
-      q = (abs(tmp$y - m))^alpha
-      tmp$y[sample(nrow(tmp), num_impute, prob = q)] <- NA
-      return(tmp)
-    }))
+    
+    # if removing low and high points
+    if(is.null(direction)){
+      df = do.call('rbind', lapply(unique(df$facility), function(xx){
+        tmp = df %>% filter(facility == xx)
+        m = median(tmp$y)
+        q = (abs(tmp$y - m))^alpha
+        tmp$y[sample(nrow(tmp), num_impute, prob = q)] <- NA
+        return(tmp)
+      }))
+    # if removing high points
+    }else if(direction == 'upper'){
+      df = do.call('rbind', lapply(unique(df$facility), function(xx){
+        tmp = df %>% filter(facility == xx)
+        m = min(tmp$y)
+        q = (abs(tmp$y - m))^alpha
+        tmp$y[sample(nrow(tmp), num_impute, prob = q)] <- NA
+        return(tmp)
+      }))
+    # if removing low points
+    }else if(direction == 'lower'){
+      df = do.call('rbind', lapply(unique(df$facility), function(xx){
+        tmp = df %>% filter(facility == xx)
+        m = max(tmp$y)
+        q = (abs(tmp$y - m))^alpha
+        tmp$y[sample(nrow(tmp), num_impute, prob = q)] <- NA
+        return(tmp)
+      }))
+    }
+    
   }else{
     print('havent coded this part - is it necessary?')
     browser()
