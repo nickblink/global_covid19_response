@@ -311,14 +311,11 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', fac
   
   df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
   
-  # poisson sample the not-missing ones. The reason for this is that the CAR method already samples for the missing points as part of the missing process but gives back the fitted mean values for everything else.
+  # Poisson sample the fitted values for the posterior predictive distribution
   if(prediction_sample){
-    # indices of not-missing values
-    not_miss = which(!is.na(df[,col]))
-    
-    # pull the fitted values and randomly select prediction values for non-missing entries
+    # pull the fitted values and randomly select prediction values based on the Poisson distribution
     tt = chain1$samples$fitted
-    tt[,not_miss] = apply(tt[,not_miss], 2, function(xx) rpois(n = length(xx), lambda = xx))
+    tt = apply(tt, 2, function(xx) rpois(n = length(xx), lambda = xx))
     
     # get the quantiles of fitted values 
     quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
@@ -328,7 +325,7 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', fac
     fitted_quants = as.data.frame(fitted_quants)
     colnames(fitted_quants) = paste0(paste0(col, '_CARBayes_ST_'), quant_probs)
     
-  # ignore the sampling of the poisson and take mean fitted value quantiles
+  # ignore the sampling of the Poisson and take mean fitted value quantiles
   }else{
     # get the quantiles of fitted values 
     quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
