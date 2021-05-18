@@ -163,32 +163,13 @@ res9 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate
 Simulating the spatial and temporal random effects - TO RETURN LATER
 
 ```{r}
-autocorr.mat <- function(n, rho) {
-    mat <- diag(n)
-    return(rho^abs(row(mat)-col(mat)))
-}
 
-rho = 0.5
-alpha = 0.5
-# V = matrix(c(1, p, p^2, p, 1, p, p^2, p ,1), nrow = 3)
-# 
-# mat = MASS::mvrnorm(10000, rep(0,3), V)
-# cor(mat)
+df <- simulate_data(district_sizes = c(2,1)) %>%
+  filter(date < '2016-04-01')
 
-df = df %>% arrange(facility, date)
+V = make_covar_mat(df, 0.5, 0.5, 1)
 
-# so let's just try temporal
-autocor_mat = autocorr.mat(length(unique(df$date)), rho = rho)
-spatial_mat = autocor_mat*alpha
 
-test = MASS::mvrnorm(10000, rep(0,48), autocor_mat)
-
-for(d in unique(df$district)){
-  tmp = df %>% filter(district == d)
-  n = length(unique(tmp$facility))
-  V = blockmatrix::blockmatrix(names = c('AR','SP','SP','AR'), list(autocor_mat, spatial_mat, spatial_mat, autocor_mat))
-}
-
-# also try bdiag?
+WARNING - THIS DOESNT NORMALIZE BY THE NUMBER OF FACILITIES IN A DISTRICT - SO FOR BIG DISTRICTS THE SPATIAL CORRELATION WILL DOMINATE
 
 ```

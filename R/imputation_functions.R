@@ -981,6 +981,75 @@ simulate_data <- function(district_sizes){
   
 }
 
+autocorr.mat <- function(n, alpha) {
+  mat <- diag(n)
+  return(rho^abs(row(mat)-col(mat)))
+}
+
+make_covar_mat <- function(df, rho, alpha, tau){
+  # make the initial block sub-matrices
+  n = length(unique(df$date))
+  autocor_mat = autocorr.mat(n, alpha = alpha)
+  spatial_mat = rho*diag(n)
+  zero_mat = matrix(0, nrow = n, ncol = n)
+  
+  
+  # create the list of matching facilities
+  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  W = full_join(D2, D2, by = 'district') %>%
+    filter(facility.x != facility.y) %>%
+    dplyr::select(-district)
+  
+  facilities = unique(df$facility) %>% sort()
+  
+  # initialize covariance matrix
+  covar_mat = NULL
+  
+  # create each block-row for each facility
+  for(i in 1:length(facilities)){
+    f = facilities[i]
+    row_mat = NULL
+    
+    # go through each block-column
+    for(j in 1:length(facilities)){
+      f1 = facilities[i]
+      f2 = facilities[j]
+      df_pair = data.frame(facility.x = f1, facility.y = f2)
+      # print(sprintf('%s, %s', f1, f2))
+      
+      # same facility - autocorrelated
+      if(i == j){
+        #print('autocor mat')
+        row_mat = cbind(row_mat, autocor_mat)
+        
+        # spatial neighbors
+      }else if(nrow(merge(df_pair, W)) > 0){
+        #print('spatial mat')
+        row_mat = cbind(row_mat, spatial_mat)
+        
+        # no correlation
+      }else{
+        #print('zero mat')
+        row_mat = cbind(row_mat, zero_mat)
+      }
+    }
+    
+    covar_mat = rbind(covar_mat, row_mat)
+  }
+  
+  # scale by the variance
+  covar_mat = tau^2*covar_mat
+  
+  rownames(covar_mat) = expand.grid(facilities, unique(df$date)) %>% arrange(Var1, Var2) %>%
+    apply(.,1, function(xx) paste0(xx, collapse = ': '))
+  
+  # Check that the order of the facilities and dates matches
+  test = paste0(df$facility, ': ', df$date)
+  if(!identical(test, rownames(covar_mat))){stop('make sure facilities and dates match')}
+  
+  return(covar_mat)
+}
+
 MCAR_sim <- function(df, p, by_facility = F){
   df$y_true = df$y
   if(by_facility){
@@ -1042,3 +1111,4 @@ MNAR_sim <- function(df, p, direction = NULL, alpha = 1.5, by_facility = T){
   
   return(df)
 }
+
