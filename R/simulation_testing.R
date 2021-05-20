@@ -30,12 +30,15 @@ for(f in sample(unique(df$facility), 4)){
   lines(tmp2$date, tmp2$y, col = 'red')
 }
 
-#### MCAR p = 0.2 spatio-temporal
-lst <- simulate_data_spatiotemporal(district_sizes = c(4), n = 3, rho = 0.3, alpha = 0.5, tau = 0.5)
+#### MCAR p = 0.2 spatio-temporal ####
+
+R = 5
+lst <- simulate_data_spatiotemporal(district_sizes = c(4), n = R, rho = 0.3, alpha = 0.5, tau = 0.5)
 
 imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
 
-for(i in 1:3){
+res_full = res_imputed = NULL
+for(i in 1:R){
   df = lst$df_list[[i]]
   
   # simulation function!
@@ -48,7 +51,36 @@ for(i in 1:3){
   # run the CARBayes imputation
   CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
   df_miss = CAR_list$facility_df
+  
+  tmp <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
+  tmp$r = i
+  res_full <- rbind(res_full, tmp)
+  tmp <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
+  tmp$r = i
+  res_imputed <- rbind(res_imputed, tmp)
 }
+
+
+tmp = tidyr::gather(res_full, method, value, y_pred_harmonic:y_CARBayes_ST)
+
+plot_list = list()
+
+for(i in 1:length(unique(tmp$metric))){
+  
+  m = unique(tmp$metric)[i]
+  
+  tmp2 = tmp %>% filter(metric == m)
+  
+  p1 <- ggplot(tmp2, aes(x = metric, y = value, fill = method)) + 
+    geom_violin(position="dodge", alpha=0.5, outlier.colour="transparent") + theme_bw() 
+  
+  plot_list[[i]] = p1
+}
+
+plot_grid(plotlist = plot_list)
+
+
+HERE AS OF 414pm on 5/20. CLEAN DIS ISH UP YAO
 
 #### MCAR p = 0.1 ####
 
