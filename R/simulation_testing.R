@@ -1,53 +1,57 @@
----
-title: "Untitled"
-author: "Nicholas Link"
-date: "5/4/2021"
-output: pdf_document
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+### Now doing this as an R script rather than Rmd because it's easier to work with.
 setwd('C:/Users/nickl/Documents/global_covid19_response/')
 source('R/imputation_functions.R')
+library(MASS)
 library(CARBayesST)
 library(Matrix)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(cowplot)
-```
-
-## Simulating the basic data structure
-
-First, for the county, let's say there are 21 facilities in districts of size 7, 5, 4, 3, 2. Now we also have dates ranging from 2016-01-01 to 2020-12-31.
-
-So for this I want to simulate a baseline Poisson model. I will start by sampling betas from something that roughly resembles a county in Liberia. Currently I am ignoring the correlation of the betas. Let's see what we get.
 
 
-```{r}
+#### Assessing the simulated data ####
 
-#setwd('C:/Users/nickl/Documents/global_covid19_response/')
-print(getwd())
-df <- simulate_data(district_sizes = c(2,3,4,5,7))
+lst <- simulate_data(district_sizes = c(2,3,4,5,7), n = 2)
+df = lst$df
 
-par(mfrow = c(5,5))
-for(f in unique(df$facility)){
+lst <- simulate_data_spatiotemporal(district_sizes = c(4), n = 2, rho = 0.3, alpha = 0.5, tau = 0.5)
+df = lst$df_list[[1]]
+
+lst2 <- simulate_data(district_sizes = c(4), n = 2)
+df2 = lst2$df_list[[1]]
+
+par(mfrow = c(2,2))
+for(f in sample(unique(df$facility), 4)){
   tmp = df %>% filter(facility == f)
+  tmp2 = df2 %>% filter(facility == f)
   
   plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, 1.2*max(tmp$y)))
+  lines(tmp2$date, tmp2$y, col = 'red')
 }
 
+#### MCAR p = 0.2 spatio-temporal
+lst <- simulate_data_spatiotemporal(district_sizes = c(4), n = 3, rho = 0.3, alpha = 0.5, tau = 0.5)
 
-```
+imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
 
+for(i in 1:3){
+  df = lst$df_list[[i]]
+  
+  # simulation function!
+  df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
+  
+  # run the periodic imputation
+  periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+  df_miss = periodic_list$df
+  
+  # run the CARBayes imputation
+  CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
+  df_miss = CAR_list$facility_df
+}
 
-Ok so if you can get it to plot, it looks reasonable. Obviously, it's still missing things like the beta covariance structure, temporal correlation, spatial correlation, etc... But it's good for now.
+#### MCAR p = 0.1 ####
 
-## Simulating missingness
-
-## MCAR
-
-```{r}
 df <- simulate_data(district_sizes = c(2,3,4,5,7))
 
 # simulation function!
@@ -59,9 +63,9 @@ df_miss = periodic_list$df
 
 # run the CARBayes imputation
 CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
-
-# get the facility and county level imputation results
 df_miss = CAR_list$facility_df
+
+# get the county level imputation results
 county_miss = merge(periodic_list$county_fit, CAR_list$county_df, by = 'date')
 
 # make the plots for the results
@@ -79,10 +83,8 @@ res <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
 res2 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
 res3 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate = T)
 
-```
 
-
-```{r}
+#### MCAR p = 0.5 ####
 
 df <- simulate_data(district_sizes = c(2,3,4,5,7))
 
@@ -110,24 +112,8 @@ p4 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.5')
 res4 <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
 res5 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
 res6 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate = T)
-```
 
-MNAR! 
-```{r}
-
-
-# df_miss = MNAR_sim(df, p = 0.2)
-
-# par(mfrow = c(5,5))
-# for(f in unique(df$facility)){
-#   tmp = df_miss %>% filter(facility == f)
-#   
-#   plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, max(tmp$y_true) + 10))
-#   lines(tmp$date, tmp$y_true, type = 'l', lty = 3)
-# }
-
-
-### Now doing imputation with it
+#### MNAR ####
 
 # simulation function!
 df_miss = MNAR_sim(df, p = 0.2, direction = 'upper', alpha = 1, by_facility = T)
@@ -156,50 +142,3 @@ p6 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.2')
 res7 <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
 res8 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
 res9 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate = T)
-
-```
-
-
-Simulating the spatial and temporal random effects - TO RETURN LATER
-
-```{r}
-
-df <- simulate_data(district_sizes = c(9)) #%>%
-#  filter(date < '2016-04-01')
-
-V = make_covar_mat(df, rho = 0.3, alpha = 0.7, 1)
-
-phi = MASS::mvrnorm(n = 1, rep(0, nrow(V)), V)
-
-df$phi = phi
-
-n = length(unique(df$date))
-par(mfrow = c(3,3))
-
-res = matrix(0, nrow = n, ncol = 9)
-
-for(i in 1:9){
-  ind = ((i-1)*n + 1):(n*i)
-  
-  tmp = phi[ind]
-  res[,i] = tmp
-  plot(tmp, type = 'l')
-  abline(a = 0, b = 0, col = 'red')
-  
-  #tmp = df %>% filter(facility == f)
-  
-  #plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, 1.2*max(tmp$y)))
-}
-
-for(f in unique(df$facility)){
-  tmp = df %>% filter(facility == f)
-  
-  plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, 1.2*max(tmp$y)))
-}
-
-
-HOW CAN I SANITY CHECK THIS? PLOT EM YAO
-
-WARNING - THIS DOESNT NORMALIZE BY THE NUMBER OF FACILITIES IN A DISTRICT - SO FOR BIG DISTRICTS THE SPATIAL CORRELATION WILL DOMINATE
-
-```

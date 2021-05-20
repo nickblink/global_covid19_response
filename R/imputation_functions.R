@@ -820,12 +820,13 @@ calculate_metrics <- function(df, imp_vec, imputed_only = T, median_estimate = F
   if(median_estimate){
     # for each method, compute metrics
     tmp_lst <- lapply(imp_vec, function(xx){
-      tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE'),
+      tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE', 'MAPE'),
                        value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
                                  mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
                                  mean(df[,paste0(xx, '_0.5')] - df$y_true),
                                  mean(abs(df[,paste0(xx, '_0.5')] - df$y_true)),
-                                 sqrt(mean((df[,paste0(xx, '_0.5')] - df$y_true)^2))))
+                                 sqrt(mean((df[,paste0(xx, '_0.5')] - df$y_true)^2)),
+                                 mean(abs(df[,paste0(xx, '_0.5')] - df$y_true)/df$y_true, na.rm = T)))
       colnames(tmp)[2] = xx
       return(tmp)
     })
@@ -833,12 +834,13 @@ calculate_metrics <- function(df, imp_vec, imputed_only = T, median_estimate = F
   }else{
     # for each method, compute metrics
     tmp_lst <- lapply(imp_vec, function(xx){
-      tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE'),
+      tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE', 'MAPE'),
                        value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
                                  mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
                                  mean(df[,xx] - df$y_true),
                                  mean(abs(df[,xx] - df$y_true)),
-                                 sqrt(mean((df[,xx] - df$y_true)^2))))
+                                 sqrt(mean((df[,xx] - df$y_true)^2)),
+                                 mean(abs(df[,paste0(xx, '_0.5')] - df$y_true)/df$y_true, na.rm = T)))
       colnames(tmp)[2] = xx
       
       return(tmp)
@@ -915,7 +917,8 @@ initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = 
   df$district = substr(df$facility, 1, 1) 
   
   df = df %>%
-    dplyr::select(date, facility, district)
+    dplyr::select(date, facility, district) %>%
+    arrange(facility, date)
   return(df)
 }
 
@@ -936,7 +939,7 @@ sample_betas = function(facilities){
   return(betas)
 }
 
-simulate_data <- function(district_sizes){
+simulate_data <- function(district_sizes, n = 1){
   # set up data frame
   df = initialize_df(district_sizes)
   
@@ -950,43 +953,115 @@ simulate_data <- function(district_sizes){
   set.seed(10)
   betas = sample_betas(facilities)
   
-  # simulate values given the betas
-  tmp_lst = lapply(facilities, function(xx){
-    tmp = df %>% filter(facility == xx)
-    
-    # keep the 1 for intercepts
-    X = tmp %>% 
-      mutate(intercept = 1) %>%
-      dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
-    
-    # error checking
-    if(!identical(colnames(betas), colnames(X))){
-      browser()
-    }
-    
-    # make the 8x1 beta vector for this facility
-    beta_f = t(betas[xx,,drop = F])
-    
-    # get mean prediction from linear model
-    mu = as.matrix(X)%*%beta_f
-    
-    # simluate random values
-    tmp$y = rpois(length(mu), exp(mu))
-    
-    return(tmp)
-  })
+  # initialize list of data frames
+  df_lst = list()
   
-  # combine values into one data frame
-  df = do.call('rbind', tmp_lst)
+  # make n sampled sets of data
+  for(i in 1:n){
+    
+    # simulate values given the betas
+    tmp_lst = lapply(facilities, function(xx){
+      tmp = df %>% filter(facility == xx)
+      
+      # keep the 1 for intercepts
+      X = tmp %>% 
+        mutate(intercept = 1) %>%
+        dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+      
+      # error checking
+      if(!identical(colnames(betas), colnames(X))){
+        browser()
+      }
+      
+      # make the 8x1 beta vector for this facility
+      beta_f = t(betas[xx,,drop = F])
+      
+      # get mean prediction from linear model
+      mu = as.matrix(X)%*%beta_f
+      
+      # simluate random values
+      tmp$y = rpois(length(mu), exp(mu))
+      
+      return(tmp)
+    })
+    
+    # combine values into one data frame
+    df_lst[[i]] = do.call('rbind', tmp_lst)
+    
+  }
   
+  # make list of values to return
+  res_lst = list(df_list = df_lst, betas = betas)
+  return(res_lst)
+}
+
+simulate_data_spatiotemporal <- function(district_sizes, n = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T){
+  # set up data frame
+  df = initialize_df(district_sizes)
+  
+  # make periodic covariates
+  df = add_periodic_cov(df)
+  
+  # get all facility names
+  facilities = unique(df$facility)
+  
+  # set random seed and sample betas
+  set.seed(10)
+  betas = sample_betas(facilities)
+  
+  # make the spatio-temporal covariance matrix
+  V = make_covar_mat(df, rho, alpha, tau, scale_by_num_neighbors)
+  
+  # initialize list of data frames
+  df_lst = list()
+  
+  # make n sampled sets of data
+  for(i in 1:n){
+    # get the spatio-temporal random effects
+    df$phi = MASS::mvrnorm(n = 1, rep(0, nrow(V)), V)
+    
+    # simulate values given the betas
+    tmp_lst = lapply(facilities, function(xx){
+      tmp = df %>% filter(facility == xx)
+      
+      # keep the 1 for intercepts
+      X = tmp %>% 
+        mutate(intercept = 1) %>%
+        dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+      
+      # error checking
+      if(!identical(colnames(betas), colnames(X))){
+        browser()
+      }
+      
+      # make the 8x1 beta vector for this facility
+      beta_f = t(betas[xx,,drop = F])
+      
+      # get mean prediction from linear model
+      mu = as.matrix(X)%*%beta_f
+      
+      # simluate random values
+      tmp$y = rpois(length(mu), exp(mu + tmp$phi))
+      
+      return(tmp)
+    })
+    
+    # combine values into one data frame and store results
+    df_lst[[i]] = do.call('rbind', tmp_lst)
+  }
+
+  
+  # make list of values to return
+  res_lst = list(df_list = df_lst, betas = betas, V = V)
+  return(res_lst)
 }
 
 autocorr.mat <- function(n, alpha) {
   mat <- diag(n)
-  return(rho^abs(row(mat)-col(mat)))
+  return(alpha^abs(row(mat)-col(mat)))
 }
 
-make_covar_mat <- function(df, rho, alpha, tau){
+make_covar_mat <- function(df, rho, alpha, tau, scale_by_num_neighbors = F){
   # make the initial block sub-matrices
   n = length(unique(df$date))
   autocor_mat = autocorr.mat(n, alpha = alpha)
@@ -1007,12 +1082,15 @@ make_covar_mat <- function(df, rho, alpha, tau){
   
   # create each block-row for each facility
   for(i in 1:length(facilities)){
-    f = facilities[i]
+    f1 = facilities[i]
     row_mat = NULL
+    
+    # get the number of neighbors this facility has
+    num_neighbors = W %>% filter(facility.x == f1) %>% nrow()
+    # print(sprintf('%s: NUM neighbors = %s', f1, num_neighbors))
     
     # go through each block-column
     for(j in 1:length(facilities)){
-      f1 = facilities[i]
       f2 = facilities[j]
       df_pair = data.frame(facility.x = f1, facility.y = f2)
       # print(sprintf('%s, %s', f1, f2))
@@ -1025,7 +1103,11 @@ make_covar_mat <- function(df, rho, alpha, tau){
         # spatial neighbors
       }else if(nrow(merge(df_pair, W)) > 0){
         #print('spatial mat')
-        row_mat = cbind(row_mat, spatial_mat)
+        if(scale_by_num_neighbors){
+          row_mat = cbind(row_mat, spatial_mat/num_neighbors)
+        }else{
+          row_mat = cbind(row_mat, spatial_mat)
+        }
         
         # no correlation
       }else{
