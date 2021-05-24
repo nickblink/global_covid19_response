@@ -853,6 +853,53 @@ calculate_metrics <- function(df, imp_vec, imputed_only = T, median_estimate = F
   return(res)
 }
 
+# plot a set of metrics for a list of simulation runs
+plot_metrics <- function(imputed_list, imp_vec, rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T){
+  
+  
+  # get the metrics from each simulation run
+  res_full = NULL
+  for(r in 1:length(imputed_list)){
+    tmp <- calculate_metrics(imputed_list[[r]], imp_vec, imputed_only = imputed_only)
+    tmp$r = r
+    res_full <- rbind(res_full, tmp)
+  }
+  
+  # convert to long form
+  long = tidyr::gather(res_full, method, value, y_pred_harmonic:y_CARBayes_ST)
+  
+  # replace the names
+  if(!is.null(rename_vec)){
+    for(i in 1:length(imp_vec)){
+      long$method = gsub(imp_vec[i], rename_vec[i],long$method)
+    }
+  }
+  
+  plot_list = list()
+  # plot each metric
+  for(i in 1:length(unique(long$metric))){
+    
+    m = unique(long$metric)[i]
+    
+    tmp2 = long %>% filter(metric == m)
+    
+    p1 <- ggplot(tmp2, aes(x = method, y = value, fill = method)) +  #, color = method)
+      geom_violin(position="dodge", alpha=0.5) + 
+      geom_jitter(position = position_jitter(0.2)) + 
+      scale_color_manual(values = color_vec) +
+      scale_fill_manual(values = color_vec) + 
+      theme_bw() + 
+      theme(legend.position = 'none') +
+      ggtitle(m)
+    
+    plot_list[[i]] = p1
+  }
+  
+  # make the final plot
+  final_plot <- plot_grid(plotlist = plot_list)
+  
+  return(final_plot)
+}
 
 ##### Simulation functions #####
 # function to simulate data
@@ -939,7 +986,7 @@ sample_betas = function(facilities){
   return(betas)
 }
 
-simulate_data <- function(district_sizes, n = 1){
+simulate_data <- function(district_sizes, R = 1){
   # set up data frame
   df = initialize_df(district_sizes)
   
@@ -957,7 +1004,7 @@ simulate_data <- function(district_sizes, n = 1){
   df_lst = list()
   
   # make n sampled sets of data
-  for(i in 1:n){
+  for(i in 1:R){
     
     # simulate values given the betas
     tmp_lst = lapply(facilities, function(xx){
@@ -995,7 +1042,7 @@ simulate_data <- function(district_sizes, n = 1){
   return(res_lst)
 }
 
-simulate_data_spatiotemporal <- function(district_sizes, n = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T){
+simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T){
   # set up data frame
   df = initialize_df(district_sizes)
   
@@ -1016,7 +1063,7 @@ simulate_data_spatiotemporal <- function(district_sizes, n = 1, rho = 0.3, alpha
   df_lst = list()
   
   # make n sampled sets of data
-  for(i in 1:n){
+  for(i in 1:R){
     # get the spatio-temporal random effects
     df$phi = MASS::mvrnorm(n = 1, rep(0, nrow(V)), V)
     
