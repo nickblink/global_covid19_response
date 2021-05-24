@@ -69,8 +69,46 @@ imp_only = plot_metrics(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes
 
 full_only = plot_metrics(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = F)
 
-#### 
+#### Testing data-point simulation ####
 
+tmp_lst <- lapply(imp_vec, function(xx){
+  tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE', 'MAPE'),
+                   value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
+                             mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
+                             mean(df[,paste0(xx, '_0.5')] - df$y_true),
+                             mean(abs(df[,paste0(xx, '_0.5')] - df$y_true)),
+                             sqrt(mean((df[,paste0(xx, '_0.5')] - df$y_true)^2)),
+                             mean(abs(df[,paste0(xx, '_0.5')] - df$y_true)/df$y_true, na.rm = T)))
+  colnames(tmp)[2] = xx
+  return(tmp)
+})
+
+y_true = imputed_list[[1]]$y_true
+y = imputed_list[[1]]$y
+
+method = imp_vec[1]
+
+point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
+lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
+upper_0975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
+lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
+upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
+median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
+
+# full dataset
+bias = rowMeans(apply(median, 2, function(xx) {xx - y_true}))
+absolute_bias = rowMeans(apply(median, 2, function(xx) {abs(xx - y_true)}))
+RMSE = sqrt(rowMeans(apply(median, 2, function(xx) {(xx - y_true)^2})))
+MAPE = rowMeans(apply(median, 2, function(xx) {abs(xx - y_true)/y_true}))
+
+coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true > lower_25[,ii] & y_true < upper_75[,ii])))
+coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true > lower_025[,ii] & y_true < upper_0975[,ii])))
+
+interval_width = #
+MCMC variance = #
+
+# then set this up for the imputed only data
+# set up an error check for the minimum number of imputed data points
 
 #### MCAR p = 0.1 ####
 
