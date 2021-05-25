@@ -808,6 +808,9 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
 
 # calculate the desired metrics for a set of imputation methods
 calculate_metrics <- function(df, imp_vec, imputed_only = T, median_estimate = F){
+  
+  warning('this function incorrectly aggregates by simulation, not by data point, so dont trust these results')
+  
   df = as.data.frame(df)
   
   # if imputed only, compute metrics only on the missing values
@@ -854,8 +857,9 @@ calculate_metrics <- function(df, imp_vec, imputed_only = T, median_estimate = F
 }
 
 # plot a set of metrics for a list of simulation runs
-plot_metrics <- function(imputed_list, imp_vec, rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T){
+plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T){
   
+  warning('this function incorrectly aggregates by simulation, not by data point, so dont trust these results')
   
   # get the metrics from each simulation run
   res_full = NULL
@@ -897,6 +901,164 @@ plot_metrics <- function(imputed_list, imp_vec, rename_vec = NULL, color_vec = c
   
   # make the final plot
   final_plot <- plot_grid(plotlist = plot_list)
+  
+  return(final_plot)
+}
+
+# calculate the metrics for individual data points across simulated imputations
+calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmonic", "y_CARBayes_ST"), imputed_only = T){
+  #y_true = imputed_list[[1]]$y_true
+  
+  # get the true values everywhere and at the deleted time points
+  y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_true']))
+  y_missing = do.call('cbind', lapply(imputed_list, function(xx) {
+    y_true = xx[,'y_true'];
+    y_true[!is.na(xx[,'y'])] = NA
+    y_true
+  }))
+  # ^above, an NA means the value was not missing, and a number means the value was missing
+  
+  # get the number of times each data point was missing across simulations
+  num_missing = apply(y_missing, 1, function(xx) sum(!is.na(xx)))
+  
+  if(!imputed_only){
+    df = NULL
+    # imputed only here
+    for(method in imp_vec){
+      
+      tmp = imputed_list[[1]][,c('date','facility','district')]
+      tmp$method = method
+      tmp$num_missing = num_missing
+      
+      point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
+      lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
+      upper_0975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
+      lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
+      upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
+      median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
+      
+      # full dataset
+      tmp$bias = rowMeans(sapply(1:ncol(median), function(ii) {median[,ii] - y_true[,ii]}))
+      tmp$absolute_bias = rowMeans(sapply(1:ncol(median), function(ii) {abs(median[,ii] - y_true[,ii])}))
+      tmp$MAPE = rowMeans(sapply(1:ncol(median), function(ii) {abs(median[,ii] - y_true[,ii])/y_true[,ii]}))
+      tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(median), function(ii) {(median[,ii] - y_true[,ii])^2})))
+      
+      tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_25[,ii] & y_true[,ii] < upper_75[,ii])))
+      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_025[,ii] & y_true[,ii] < upper_0975[,ii])))
+      
+      # measure of how wide the 95% prediction intervals are
+      tmp$interval_width = rowMeans(upper_0975 - lower_025) 
+      tmp$point_sd = apply(median, 1, sd)
+      
+      # update the results
+      df = rbind(df, tmp)
+    }
+    
+  }else{
+    df = NULL
+    # imputed only here
+    for(method in imp_vec){
+      
+      tmp = imputed_list[[1]][,c('date','facility','district')]
+      tmp$method = method
+      tmp$num_missing = num_missing
+      
+      point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
+      lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
+      upper_0975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
+      lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
+      upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
+      median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
+      
+      # full dataset
+      tmp$bias = rowMeans(sapply(1:ncol(median), function(ii) {median[,ii] - y_missing[,ii]}), na.rm = T)
+      tmp$absolute_bias = rowMeans(sapply(1:ncol(median), function(ii) {abs(median[,ii] - y_missing[,ii])}), na.rm = T)
+      tmp$MAPE = rowMeans(sapply(1:ncol(median), function(ii) {abs(median[,ii] - y_missing[,ii])/y_missing[,ii]}), na.rm = T)
+      tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(median), function(ii) {(median[,ii] - y_missing[,ii])^2}), na.rm = T))
+      
+      tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_25[,ii] & y_missing[,ii] < upper_75[,ii])), na.rm = T)
+      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_025[,ii] & y_missing[,ii] < upper_0975[,ii])), na.rm = T)
+      
+      # get the interval width and standard deviation only at points that are missing
+      tmp$interval_width = rowMeans(do.call('cbind', lapply(imputed_list, function(xx){
+        interval = xx[,paste0(method, '_0.975')] - xx[,paste0(method, '_0.025')];
+        interval[!is.na(xx[,'y'])] = NA
+        interval
+      })), na.rm = T)
+      
+      tmp$point_sd = apply(do.call('cbind', lapply(imputed_list, function(xx){
+        median = xx[,paste0(method, '_0.5')];
+        median[!is.na(xx[,'y'])] = NA
+        median
+      })), 1, function(xx) sd(xx, na.rm = T))
+      
+      # update the results
+      df = rbind(df, tmp)
+    }
+  }
+  
+  #res_lst = list(df = df, num_missing = num_missing)
+  return(df)
+}
+
+# plot the metrics by individual data points across simulated imputations
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5){
+  
+  if(is.null(outcomes)){
+    outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
+  }
+  
+  # get the metrics from each simulation run
+  res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = imputed_only)
+  
+  if(any(res$num_missing < min_missing) & imputed_only){
+    # remove the data points that werent missing enough
+    ind = which(res$num_missing < min_missing)
+    res = res[-ind,]
+    
+    print(sprintf('removing %s data points because they werent missing %s times', length(ind), min_missing))
+  }
+  
+  # convert to long form
+  long = tidyr::gather(res, metric, value, bias:point_sd)
+  
+  # replace the names
+  if(!is.null(rename_vec)){
+    for(i in 1:length(imp_vec)){
+      long$method = gsub(imp_vec[i], rename_vec[i],long$method)
+    }
+  }
+  
+  plot_list = list()
+  # plot each metric
+  for(i in 1:length(unique(long$metric))){
+    
+    m = unique(long$metric)[i]
+    
+    tmp2 = long %>% filter(metric == m)
+    
+    p1 <- ggplot(tmp2, aes(x = method, y = value, fill = method)) +  #, color = method)
+      geom_violin(position="dodge", alpha=0.5) + 
+      geom_jitter(position = position_jitter(0.1)) + 
+      scale_color_manual(values = color_vec) +
+      scale_fill_manual(values = color_vec) + 
+      theme_bw() + 
+      theme(legend.position = 'none') +
+      ggtitle(m)
+    
+    if(m == 'bias'){
+      p1 <- p1 + geom_hline(yintercept = 0)
+    }else if(m == 'coverage50'){
+      p1 <- p1 + geom_hline(yintercept = 0.5)
+    }else if(m == 'coverage95'){
+      p1 <- p1 + geom_hline(yintercept = 0.95)
+    }
+    
+    plot_list[[i]] = p1
+  }
+  
+  # make the final plot
+  final_plot <- plot_grid(plotlist = plot_list, nrow = 2)
   
   return(final_plot)
 }

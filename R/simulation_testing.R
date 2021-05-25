@@ -10,25 +10,6 @@ library(ggplot2)
 library(cowplot)
 
 
-#### Assessing the simulated data ####
-
-# lst <- simulate_data(district_sizes = c(2,3,4,5,7), n = 2)
-# df = lst$df
-
-lst <- simulate_data_spatiotemporal(district_sizes = c(4), n = 2, rho = 0.3, alpha = 0.5, tau = 0.5)
-df = lst$df_list[[1]]
-
-lst2 <- simulate_data(district_sizes = c(4), n = 2)
-df2 = lst2$df_list[[1]]
-
-par(mfrow = c(2,2))
-for(f in sample(unique(df$facility), 4)){
-  tmp = df %>% filter(facility == f)
-  tmp2 = df2 %>% filter(facility == f)
-  
-  plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, 1.2*max(tmp$y)))
-  lines(tmp2$date, tmp2$y, col = 'red')
-}
 
 #### MCAR p = 0.2 spatio-temporal ####
 
@@ -54,61 +35,48 @@ for(i in 1:R){
   df_miss = CAR_list$facility_df
   
   imputed_list[[i]] = df_miss
-  tmp <- calculate_metrics(df_miss, imp_vec, imputed_only = F)
-  tmp$r = i
-  res_full <- rbind(res_full, tmp)
-  tmp <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
-  tmp$r = i
-  res_imputed <- rbind(res_imputed, tmp)
+  # tmp <- calculate_metrics(df_miss, imp_vec, imputed_only = F)
+  # tmp$r = i
+  # res_full <- rbind(res_full, tmp)
+  # tmp <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
+  # tmp$r = i
+  # res_imputed <- rbind(res_imputed, tmp)
 }
 
 # rename_vec = c('parametric', 'CARBayes')
 # color_vec = c('red','blue')
 
-imp_only = plot_metrics(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = T)
+p1 <- plot_metrics_by_point(imputed_list, imputed_only = F, min_missing = 2)
 
-full_only = plot_metrics(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = F)
+p2 <- plot_metrics_by_point(imputed_list, imputed_only = T, min_missing = 2)
 
-#### Testing data-point simulation ####
+# imp_only = plot_metrics_bysim(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = T)
+# 
+# full_only = plot_metrics_bysim(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = F)
 
-tmp_lst <- lapply(imp_vec, function(xx){
-  tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE', 'MAPE'),
-                   value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
-                             mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
-                             mean(df[,paste0(xx, '_0.5')] - df$y_true),
-                             mean(abs(df[,paste0(xx, '_0.5')] - df$y_true)),
-                             sqrt(mean((df[,paste0(xx, '_0.5')] - df$y_true)^2)),
-                             mean(abs(df[,paste0(xx, '_0.5')] - df$y_true)/df$y_true, na.rm = T)))
-  colnames(tmp)[2] = xx
-  return(tmp)
-})
+p1 <- plot_metrics_by_point(imputed_list, imputed_only = F, min_missing = 2)
 
-y_true = imputed_list[[1]]$y_true
-y = imputed_list[[1]]$y
+p2 <- plot_metrics_by_point(imputed_list, imputed_only = T, min_missing = 2)
 
-method = imp_vec[1]
+#### Assessing the simulated data ####
 
-point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
-lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-upper_0975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
-lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
-median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
+# lst <- simulate_data(district_sizes = c(2,3,4,5,7), n = 2)
+# df = lst$df
 
-# full dataset
-bias = rowMeans(apply(median, 2, function(xx) {xx - y_true}))
-absolute_bias = rowMeans(apply(median, 2, function(xx) {abs(xx - y_true)}))
-RMSE = sqrt(rowMeans(apply(median, 2, function(xx) {(xx - y_true)^2})))
-MAPE = rowMeans(apply(median, 2, function(xx) {abs(xx - y_true)/y_true}))
+lst <- simulate_data_spatiotemporal(district_sizes = c(4), n = 2, rho = 0.3, alpha = 0.5, tau = 0.5)
+df = lst$df_list[[1]]
 
-coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true > lower_25[,ii] & y_true < upper_75[,ii])))
-coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true > lower_025[,ii] & y_true < upper_0975[,ii])))
+lst2 <- simulate_data(district_sizes = c(4), n = 2)
+df2 = lst2$df_list[[1]]
 
-interval_width = #
-MCMC variance = #
-
-# then set this up for the imputed only data
-# set up an error check for the minimum number of imputed data points
+par(mfrow = c(2,2))
+for(f in sample(unique(df$facility), 4)){
+  tmp = df %>% filter(facility == f)
+  tmp2 = df2 %>% filter(facility == f)
+  
+  plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, 1.2*max(tmp$y)))
+  lines(tmp2$date, tmp2$y, col = 'red')
+}
 
 #### MCAR p = 0.1 ####
 
