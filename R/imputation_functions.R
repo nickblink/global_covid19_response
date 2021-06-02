@@ -1340,7 +1340,7 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
     # convert to matching format
     phi = as.data.frame(phi)
     phi$date = dates
-    phi_df = tidyr::gather(phi, facility, phi, A1:A4)
+    phi_df = tidyr::gather(phi, facility, phi, setdiff(colnames(phi), c('facility','date')))
     
     # merge the phi values into the original data frame
     df = merge(df, phi_df, by = c('date','facility'))
@@ -1540,3 +1540,67 @@ MNAR_sim <- function(df, p, direction = NULL, alpha = 1.5, by_facility = T){
   return(df)
 }
 
+MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau = 1, by_facility = T){
+  # make phi for df
+  # for all, or for each facility,
+  # sample according to expit(phi)
+  df$y_true = df$y
+  
+  # get all facility names
+  facilities = unique(df$facility) %>% sort()
+  
+  # get all dates
+  dates = unique(df$date) %>% sort()
+  
+  # make the spatio-temporal precision matrix
+  Q = make_precision_mat(df, rho = rho)
+  
+  tryCatch({
+    V = tau^2*solve(Q)
+  }, error = function(e){
+    print(e)
+    print('havent dealt with non-invertible precision matrices yet')
+    browser()
+  })
+  
+  # checking ordering of facilities matches
+  if(!identical(colnames(V), facilities)){
+    stop('names of covariances and facilities dont match')
+  }
+  
+  phi = matrix(0, nrow = length(dates), ncol = length(facilities))
+  colnames(phi) = facilities
+  
+  # first time step
+  phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, nrow(V)), Sigma = V)
+  
+  # cycle through other time steps, using auto-correlated priors
+  for(i in 2:length(dates)){
+    phi[i,] = MASS::mvrnorm(n = 1, mu = alpha*phi[i-1,], Sigma = V)
+  }
+  
+  # convert to matching format
+  phi = as.data.frame(phi)
+  phi$date = dates
+  phi_df = tidyr::gather(phi, facility, phiM, setdiff(colnames(phi), c('facility','date')))
+  
+  # convert to expit for probability
+  phi_df$prob.sample = exp(phi_df$phiM)/(1 + exp(phi_df$phiM))
+  
+  # merge the phi values into the original data frame
+  df = merge(df, phi_df, by = c('date','facility'))
+  
+  if(by_facility){
+    num_impute = round(p*nrow(df)/length(unique(df$facility)))
+    df = do.call('rbind', lapply(unique(df$facility), function(xx){
+      tmp = df %>% filter(facility == xx)
+      tmp$y[sample(nrow(tmp), num_impute, prob = tmp$prob.sample)] <- NA
+      return(tmp)
+    }))
+  }else{
+    num_impute = round(p*nrow(df))
+    df$y[sample(nrow(df), num_impute, prob = df$prob.sample)] <- NA
+  }
+  
+  return(df)
+}

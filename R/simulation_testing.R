@@ -76,6 +76,71 @@ for(f in sample(unique(df$facility), 4)){
   lines(tmp2$date, tmp2$y, col = 'red')
 }
 
+#### Assessing MAR simulation ####
+lst <- simulate_data_spatiotemporal(district_sizes = c(10), R = 1, rho = 0.3, alpha = 0.5, tau = 0.5)
+df = lst$df_list[[1]]
+
+
+### no correlation
+df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0, alpha = 0, tau = 3, by_facility = T)
+df_spread = df_miss %>%
+  dplyr::select(date, district, facility, y) %>%
+  tidyr::spread(facility, y)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = 1 - as.matrix(tmp2)
+
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
+
+
+### spatial correlation
+df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0.9, alpha = 0, tau = 3, by_facility = T)
+df_spread = df_miss %>%
+  dplyr::select(date, district, facility, y) %>%
+  tidyr::spread(facility, y)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = 1 - as.matrix(tmp2)
+
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
+
+
+### temporal correlation
+df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0, alpha = 0.9, tau = 3, by_facility = T)
+df_spread = df_miss %>%
+  dplyr::select(date, district, facility, y) %>%
+  tidyr::spread(facility, y)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = 1 - as.matrix(tmp2)
+
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
+
+### spatial and temporal correlation
+df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0.9, alpha = 0.9, tau = 3, by_facility = T)
+df_spread = df_miss %>%
+  dplyr::select(date, district, facility, y) %>%
+  tidyr::spread(facility, y)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = 1 - as.matrix(tmp2)
+
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
+
+
+#
 #### MCAR p = 0.1 ####
 
 df <- simulate_data(district_sizes = c(2,3,4,5,7))
