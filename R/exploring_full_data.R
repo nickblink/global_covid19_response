@@ -38,7 +38,8 @@ mean(is.na(D$indicator_denom)) # 0.27
 facility_miss = D %>% 
   group_by(facility) %>%
   summarize(denom_miss = mean(is.na(indicator_denom)),
-            ari_miss = mean(is.na(indicator_count_ari_total)))
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            ari_miss_count = sum(is.na(indicator_count_ari_total)))
 
 district_miss = D %>% 
   group_by(district) %>%
@@ -140,6 +141,7 @@ districts = district_miss %>%
 par(mfrow = c(3,3))
 set.seed(1)
 for(d in sample(districts, 3)){
+  print(d)
   df = D %>% filter(district == d) %>%
     dplyr::select(date, district, facility, indicator_denom)
   
@@ -173,7 +175,7 @@ tmp2 = as.matrix(tmp2)
 rownames(tmp2) = as.character(df_spread$date)
 heatmap(tmp2, keep.dendro = F, Rowv = NA, ylab = 'date', xlab = 'facilities', scale = 'none', labCol = '')
 
-heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', labCol = '', key = F)
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', labCol = '', key = F)
 
 
 ### ARI
@@ -183,6 +185,7 @@ districts = district_miss %>%
 
 par(mfrow = c(3,3))
 for(d in sample(districts, 3)){
+  print(d)
   df = D %>% filter(district == d) %>%
     dplyr::select(date, district, facility, indicator_count_ari_total)
   
@@ -346,7 +349,138 @@ mean(cor_list_denom)
 # 0.048
 
 #
-##### (STILL EDITING) Spatial correlation of raw values #####
+
+##### Making R01 ARI spatial correlation figs #####
+
+facility_miss = D %>% 
+  group_by(facility) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            ari_count = sum(!is.na(indicator_count_ari_total)))
+
+exclude = facility_miss %>% filter(ari_count < 20) %>% select(facility) %>% pull()
+
+D = add_periodic_cov(D)
+uni_fac = unique(D$facility)
+
+### raw values
+res = NULL
+cor_list = c()
+
+for(d in unique(D$district)){
+  # get the county
+  county = D %>% filter(district == d) %>% distinct(county) %>% pull()
+  
+  # spread the data for this district
+  df = D %>% filter(district == d, !(facility %in% exclude)) %>%
+    select(date, district, facility, indicator_count_ari_total)
+  df_spread = tidyr::spread(df, facility, indicator_count_ari_total)
+  
+  # get the correlation matrix across facilities
+  tmp <- cor(df_spread[,-c(1,2)], use = 'pairwise.complete.obs')
+  tmp[lower.tri(tmp, diag = T)] <- NA
+  
+  # store the correlations
+  cor_district = na.omit(as.vector(tmp))
+  cor_list = c(cor_list, cor_district)
+  
+  # store the results with county and district
+  res_district = data.frame(county = rep(county, length(cor_district)), district = rep(d, length(cor_district)), cor = cor_district)
+  res = rbind(res, res_district)
+}
+
+res_ARI_raw = res
+cor_list_ARI_raw = cor_list
+
+### get the deviance residuals
+uni_fac = unique(D$facility)
+D$ARI_resid = NA
+
+# for each facility, run the harmonic model
+test = lapply(uni_fac, function(xx){
+  D3 = D %>% filter(facility == xx)
+  
+  if(sum(!is.na(D3$indicator_count_ari_total)) < 20){
+    print(sprintf('skipping %s because of %s missing', xx, sum(is.na(D3))))
+    return(NULL)
+  }
+  #print(xx)
+  
+  # create the formulas
+  count_ARI_form = as.formula("indicator_count_ari_total ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
+  count_denom_form = as.formula("indicator_denom ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
+  
+  # run the models
+  D3$ARI_resid[!is.na(D3$indicator_count_ari_total)] = tryCatch({
+    mod_1 = MASS::glm.nb(count_ARI_form, data = D3)
+    summary(mod_1)$deviance.resid
+  }, error = function(e){
+    rep(NA, sum(!is.na(D3$indicator_count_ari_total)))
+  })
+  
+  
+  # only keep relevant columns  
+  D3 = D3 %>%
+    dplyr::select(date, county, district, facility, ARI_resid)
+  
+  # return the results
+  D3
+})
+
+# convert to one data frame
+D2 = do.call('rbind',test)
+
+### ARI analyze them like you did with all the other values
+res = NULL
+cor_list = c()
+
+for(d in unique(D2$district)){
+  # get the county
+  county = D %>% filter(district == d) %>% distinct(county) %>% pull()
+  
+  # spread the data for this district
+  df = D2 %>% filter(district == d) %>%
+    select(date, district, facility, ARI_resid)
+  df_spread = tidyr::spread(df, facility, ARI_resid)
+  
+  # get the correlation matrix across facilities
+  tmp <- cor(df_spread[,-c(1,2)], use = 'pairwise.complete.obs')
+  tmp[lower.tri(tmp, diag = T)] <- NA
+  
+  # store the correlations
+  cor_list = c(cor_list, na.omit(as.vector(tmp)))
+  
+  # store the correlations
+  cor_district = na.omit(as.vector(tmp))
+  cor_list = c(cor_list, cor_district)
+  
+  # store the results with county and district
+  res_district = data.frame(county = rep(county, length(cor_district)), district = rep(d, length(cor_district)), cor = cor_district)
+  res = rbind(res, res_district)
+}
+
+within_district_cors = res %>% group_by(county) %>%
+  summarize(cor_within = mean(cor))
+
+res_ARI_resid = res
+cor_list_ARI_resid = cor_list
+
+### plot 'em!
+par(mfrow = c(1,2))
+hist(cor_list_ARI_raw, main = 'within-district ARI values', xlab = 'correlation', breaks = 20, freq = F)
+abline(v = mean(cor_list_ARI_raw), col = 'red')
+mean(cor_list_ARI_raw) # 0.1288
+
+
+
+ggplot(data = cor_list_ARI_raw) + geom_histogram()
+
+hist(cor_list_ARI_resid, main = 'within-district ARI residuals', xlab = 'correlation', breaks = 20, freq = F)
+abline(v = mean(cor_list_ARI_resid), col = 'red')
+mean(cor_list_ARI_resid) # 0.0733
+
+
+##### Spatial correlation of raw values #####
 
 D = add_periodic_cov(D)
 uni_fac = unique(D$facility)
@@ -416,8 +550,8 @@ within_district_cors = res %>% group_by(county) %>%
 
 # plotting district means of correlations
 par(mfrow = c(1,2))
-hist(res_ARI$cor_ARI, main = 'within-district ARI', xlab = 'mean correlation')
-hist(res_denom$cor_denom, main = 'within-district denom', xlab = 'mean correlation')
+hist(res_ARI$cor, main = 'within-district ARI', xlab = 'mean correlation')
+# hist(res_denom$cor_denom, main = 'within-district denom', xlab = 'mean correlation')
 # pretty high. Interesting.
 
 # plotting facility correlations

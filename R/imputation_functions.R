@@ -1204,7 +1204,7 @@ simulate_data <- function(district_sizes, R = 1){
   return(res_lst)
 }
 
-simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T){
+simulate_data_spatiotemporal_deprecated <- function(district_sizes, R = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T){
   # set up data frame
   df = initialize_df(district_sizes)
   
@@ -1265,12 +1265,103 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   return(res_lst)
 }
 
-autocorr.mat <- function(n, alpha) {
+simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T){
+  # set up data frame
+  df = initialize_df(district_sizes)
+  
+  # make periodic covariates
+  df = add_periodic_cov(df)
+  
+  # get all facility names
+  facilities = unique(df$facility) %>% sort()
+  
+  # get all dates
+  dates = unique(df$date) %>% sort()
+  #n = length(dates)
+  
+  # set random seed and sample betas
+  set.seed(10)
+  betas = sample_betas(facilities)
+  
+  ### get the mean effects (since these don't change across the simulation samples)
+  df = do.call('rbind', lapply(facilities, function(xx){
+    tmp = df %>% filter(facility == xx)
+    
+    # keep the 1 for intercepts
+    X = tmp %>% 
+      mutate(intercept = 1) %>%
+      dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+    
+    # error checking
+    if(!identical(colnames(betas), colnames(X))){
+      browser()
+    }
+    
+    # make the 8x1 beta vector for this facility
+    beta_f = t(betas[xx,,drop = F])
+    
+    # get mean prediction from linear model
+    tmp$mu = (as.matrix(X)%*%beta_f)[,1]
+    
+    return(tmp)
+  }))
+  
+  # make the spatio-temporal precision matrix
+  Q = make_precision_mat(df, rho = rho)
+  
+  tryCatch({
+    V = tau^2*solve(Q)
+  }, error = function(e){
+    print(e)
+    print('havent dealt with non-invertible precision matrices yet')
+    browser()
+  })
+  
+  # checking ordering of facilities matches
+  if(!identical(colnames(V), facilities)){
+    stop('names of covariances and facilities dont match')
+  }
+  
+  # make R sampled sets of data
+  df_lst = lapply(1:R, function(i){
+    ### get the spatio-temporal random effects
+    # initialize phi
+    phi = matrix(0, nrow = length(dates), ncol = length(facilities))
+    colnames(phi) = facilities
+    
+    # first time step
+    phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, nrow(V)), Sigma = V)
+    
+    # cycle through other time steps, using auto-correlated priors
+    for(i in 2:length(dates)){
+      phi[i,] = MASS::mvrnorm(n = 1, mu = alpha*phi[i-1,], Sigma = V)
+    }
+    
+    # convert to matching format
+    phi = as.data.frame(phi)
+    phi$date = dates
+    phi_df = tidyr::gather(phi, facility, phi, A1:A4)
+    
+    # merge the phi values into the original data frame
+    df = merge(df, phi_df, by = c('date','facility'))
+    
+    # simulate the observed values
+    df$y = rpois(nrow(df), exp(df$mu + df$phi))
+    
+    return(df)
+  })
+  
+  # make list of values to return
+  res_lst = list(df_list = df_lst, betas = betas, V = V)
+  return(res_lst)
+}
+
+autocorr.mat_deprecated <- function(n, alpha) {
   mat <- diag(n)
   return(alpha^abs(row(mat)-col(mat)))
 }
 
-make_covar_mat <- function(df, rho, alpha, tau, scale_by_num_neighbors = F){
+make_covar_mat_deprecated <- function(df, rho, alpha, tau, scale_by_num_neighbors = F){
   # make the initial block sub-matrices
   n = length(unique(df$date))
   autocor_mat = autocorr.mat(n, alpha = alpha)
@@ -1339,6 +1430,52 @@ make_covar_mat <- function(df, rho, alpha, tau, scale_by_num_neighbors = F){
   if(!identical(test, rownames(covar_mat))){stop('make sure facilities and dates match')}
   
   return(covar_mat)
+}
+
+make_precision_mat <- function(df, rho){
+  # check the rho value
+  if(rho < 0 | rho >= 1){
+    stop('please input a rho in [0,1)')
+  }
+  
+  # create the list of matching facilities
+  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  pairs = full_join(D2, D2, by = 'district') %>%
+    filter(facility.x != facility.y) %>%
+    dplyr::select(-district)
+  
+  # get unique facilities
+  facilities = unique(df$facility) %>% sort()
+  
+  # initialize the W2 matrix (note that what I am calling W here is what the original paper calls diag(W1) - W)
+  W2 = matrix(0, nrow = length(facilities), ncol = length(facilities))
+  colnames(W2) = facilities
+  rownames(W2) = facilities
+  
+  for(i in 1:length(facilities)){
+    f1 = facilities[i]
+    
+    # get the pairs with this facility
+    tmp = pairs %>% filter(facility.x == f1)
+    
+    if(nrow(tmp) == 0){
+      print('havent done single-district facilities yet')
+      browser()
+    }else{
+      # put -1 where there are pairs of facilities
+      matid = match(tmp$facility.y, facilities)
+      W2[i,matid] = -1
+    }
+    
+    # get the number of neighbors this facility has
+    W2[i,i] = pairs %>% filter(facility.x == f1) %>% nrow()
+    # print(sprintf('%s: NUM neighbors = %s', f1, W2[i,i]))
+  }
+    
+  # make the final Q matrix
+  Q = rho*W2 + (1-rho)*diag(rep(1, length(facilities)))
+  
+  return(Q)
 }
 
 MCAR_sim <- function(df, p, by_facility = F){

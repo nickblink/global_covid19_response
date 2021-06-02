@@ -9,8 +9,6 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-
-
 #### MCAR p = 0.2 spatio-temporal ####
 
 R = 50
@@ -63,11 +61,11 @@ p2 <- plot_metrics_by_point(imputed_list, imputed_only = T, min_missing = 2)
 # lst <- simulate_data(district_sizes = c(2,3,4,5,7), n = 2)
 # df = lst$df
 
-lst <- simulate_data_spatiotemporal(district_sizes = c(4), n = 2, rho = 0.3, alpha = 0.5, tau = 0.5)
-df = lst$df_list[[1]]
+lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = 2, rho = 0, alpha = 0.5, tau = 1)
+df = lst$df_list[[2]]
 
-lst2 <- simulate_data(district_sizes = c(4), n = 2)
-df2 = lst2$df_list[[1]]
+lst2 <- simulate_data(district_sizes = c(4), R = 2)
+df2 = lst2$df_list[[2]]
 
 par(mfrow = c(2,2))
 for(f in sample(unique(df$facility), 4)){
