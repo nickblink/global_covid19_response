@@ -11,7 +11,9 @@ library(cowplot)
 
 #### MCAR p = 0.2 spatio-temporal ####
 
-R = 50
+R = 500
+
+system.time({
 lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.3, alpha = 0.5, tau = 0.5)
 
 imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
@@ -33,29 +35,16 @@ for(i in 1:R){
   df_miss = CAR_list$facility_df
   
   imputed_list[[i]] = df_miss
-  # tmp <- calculate_metrics(df_miss, imp_vec, imputed_only = F)
-  # tmp$r = i
-  # res_full <- rbind(res_full, tmp)
-  # tmp <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
-  # tmp$r = i
-  # res_imputed <- rbind(res_imputed, tmp)
 }
 
-# rename_vec = c('parametric', 'CARBayes')
-# color_vec = c('red','blue')
+p1 <- plot_metrics_by_point(imputed_list, imputed_only = F, min_missing = 50, rename_vec = c('glmFreq','CARBayes'))
 
-p1 <- plot_metrics_by_point(imputed_list, imputed_only = F, min_missing = 2)
+p2 <- plot_metrics_by_point(imputed_list, imputed_only = T, min_missing = 50, rename_vec = c('glmFreq','CARBayes'))
+})
 
-p2 <- plot_metrics_by_point(imputed_list, imputed_only = T, min_missing = 2)
+# save(imputed_list, p1, p2, file = 'results/simulation_MCARp2_R500_res.RData')
 
-# imp_only = plot_metrics_bysim(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = T)
-# 
-# full_only = plot_metrics_bysim(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = F)
-
-p1 <- plot_metrics_by_point(imputed_list, imputed_only = F, min_missing = 2)
-
-p2 <- plot_metrics_by_point(imputed_list, imputed_only = T, min_missing = 2)
-
+#
 #### Assessing the simulated data ####
 
 # lst <- simulate_data(district_sizes = c(2,3,4,5,7), n = 2)
@@ -141,6 +130,78 @@ gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facili
 
 
 #
+#### MAR p = 0.2 spatio-temporal ####
+
+R = 500
+system.time({
+lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.5, alpha = 0.5, tau = 0.5)
+
+imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
+
+imputed_list = list()
+res_full = res_imputed = NULL
+
+imputed_list = lapply(1:R, function(i){
+  df = lst$df_list[[i]]
+  
+  # simulation function!
+  df_miss = MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.5, alpha = 0.5, tau = 3, by_facility = T)
+  
+  # run the periodic imputation
+  periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+  df_miss = periodic_list$df
+  
+  # run the CARBayes imputation
+  CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
+  df_miss = CAR_list$facility_df
+  
+  df_miss
+})
+
+p1 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = F, min_missing = 50)
+
+p2 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = T, min_missing = 50)
+
+}) # 38m for R = 500
+
+# save(imputed_list, p1, p2, file = 'results/simulation_MARp2_R500_res.RData')
+
+#### MNAR p = 0.2 spatio-temporal ####
+
+R = 2000
+system.time({
+  lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.5, alpha = 0.5, tau = 0.5)
+  
+  imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST')
+  
+  imputed_list = list()
+  res_full = res_imputed = NULL
+  
+  imputed_list = lapply(1:R, function(i){
+    df = lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss = MNAR_sim(df, p = 0.2, direction = 'upper', gamma = 1, by_facility = T)
+    
+    # run the periodic imputation
+    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    df_miss = periodic_list$df
+    
+    # run the CARBayes imputation
+    CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
+    df_miss = CAR_list$facility_df
+    
+    df_miss
+  })
+  
+  p1 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = F, min_missing = 50)
+  
+  p2 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = T, min_missing = 50)
+}) # 151 minutes
+
+# save(imputed_list, p1, p2, file = 'results/simulation_MNARp2_R2000_res.RData')
+
+######## GRAVEYARD #########
 #### MCAR p = 0.1 ####
 
 df <- simulate_data(district_sizes = c(2,3,4,5,7))

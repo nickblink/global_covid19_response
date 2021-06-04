@@ -1049,9 +1049,9 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
     if(m == 'bias'){
       p1 <- p1 + geom_hline(yintercept = 0)
     }else if(m == 'coverage50'){
-      p1 <- p1 + geom_hline(yintercept = 0.5)
+      p1 <- p1 + geom_hline(yintercept = 0.5) + ylim(0,1)
     }else if(m == 'coverage95'){
-      p1 <- p1 + geom_hline(yintercept = 0.95)
+      p1 <- p1 + geom_hline(yintercept = 0.95) + ylim(0,1)
     }
     
     plot_list[[i]] = p1
@@ -1358,7 +1358,7 @@ MCAR_sim <- function(df, p, by_facility = F){
   return(df)
 }
 
-MNAR_sim <- function(df, p, direction = NULL, alpha = 1.5, by_facility = T){
+MNAR_sim <- function(df, p, direction = NULL, gamma = 1.5, by_facility = T){
   df$y_true = df$y
   if(by_facility){
     # get the number of points to impute
@@ -1369,7 +1369,7 @@ MNAR_sim <- function(df, p, direction = NULL, alpha = 1.5, by_facility = T){
       df = do.call('rbind', lapply(unique(df$facility), function(xx){
         tmp = df %>% filter(facility == xx)
         m = median(tmp$y)
-        q = (abs(tmp$y - m))^alpha
+        q = (abs(tmp$y - m))^gamma
         tmp$y[sample(nrow(tmp), num_impute, prob = q)] <- NA
         return(tmp)
       }))
@@ -1378,7 +1378,7 @@ MNAR_sim <- function(df, p, direction = NULL, alpha = 1.5, by_facility = T){
       df = do.call('rbind', lapply(unique(df$facility), function(xx){
         tmp = df %>% filter(facility == xx)
         m = min(tmp$y)
-        q = (abs(tmp$y - m))^alpha
+        q = (abs(tmp$y - m))^gamma
         tmp$y[sample(nrow(tmp), num_impute, prob = q)] <- NA
         return(tmp)
       }))
@@ -1387,7 +1387,7 @@ MNAR_sim <- function(df, p, direction = NULL, alpha = 1.5, by_facility = T){
       df = do.call('rbind', lapply(unique(df$facility), function(xx){
         tmp = df %>% filter(facility == xx)
         m = max(tmp$y)
-        q = (abs(tmp$y - m))^alpha
+        q = (abs(tmp$y - m))^gamma
         tmp$y[sample(nrow(tmp), num_impute, prob = q)] <- NA
         return(tmp)
       }))
