@@ -44,7 +44,62 @@ lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = 1, rho = 0.3, alp
 df = lst$df_list[[1]]
 df = MCAR_sim(df, p = 0.2, by_facility = T)
 
-surveillance_imputation = function(df, max_iter = 50, tol = 1e-4, verbose = T){
+# fits the freqGLMepi model given the data
+fit_freqGLMepi <- function(df){
+  # make likelihood function
+  ll.wrapper = function(params, target_col = 'y_imp'){
+    mu = model.mean(df, params)
+    logL = ll(mu, df[,target_col])
+    return(-logL)
+  }
+  
+  # set up initialization
+  init = rep(0,10)
+  names(init) = c('AR.1', 'NE.1', 'B0', 'B1', 'Bcos1', 'Bsin1', 'Bcos2', 'Bsin2', 'Bcos3', 'Bsin3')
+  
+  # fit using Nelder-Mead and L-BFGS-B and pick the better one
+  params = optim(init, ll.wrapper, control = list(maxit = 5000))
+  
+  # L-BFGS
+  tryCatch({
+    params2 = optim(init, ll.wrapper, method = 'L-BFGS-B', control = list(maxit = 5000))
+    if(params2$value < params$value & params2$convergence == 0){
+      params = params2
+    }
+  }, error = function(e){
+    #print(sprintf('skipping this round of L-BFGS-B because of error: %s', e))
+  })
+  
+  # try different initialization values to compare convergence
+  for(i in 1:10){
+    init = rnorm(10,0,i/3)
+    # nelder-mead
+    params2 = optim(init, ll.wrapper, control = list(maxit = 5000))
+    if(params2$value < params$value & params2$convergence == 0){
+      params = params2
+    }
+    
+    # L-BFGS
+    tryCatch({
+      params2 = optim(init, ll.wrapper, method = 'L-BFGS-B', control = list(maxit = 5000))
+      if(params2$value < params$value & params2$convergence == 0){
+        params = params2
+      }
+    }, error = function(e){
+      print(sprintf('skipping this round of L-BFGS-B because of error: %s', e))
+    })
+  }
+  
+  # for error checking
+  if(params$convergence != 0){
+    browser()
+  }
+  
+  return(params)
+}
+
+
+freqGLMepi_imputation = function(df, max_iter = 50, tol = 1e-4, verbose = T, individual_facility_models = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -66,7 +121,7 @@ surveillance_imputation = function(df, max_iter = 50, tol = 1e-4, verbose = T){
     # run the model
     mod_col <- MASS::glm.nb(formula_col, data = tt)
     
-    # fill in the missing values from the data frame
+    # update predictions
     tt$y_pred = predict(mod_col, tt, type = 'response')
     
     return(tt)
@@ -86,67 +141,41 @@ surveillance_imputation = function(df, max_iter = 50, tol = 1e-4, verbose = T){
     add_neighbors(., 'y_imp')
   
   ### Run freqGLM_epidemic model iteratively
-  # make likelihood function
-  ll.wrapper = function(params, target_col = 'y_imp'){
-    mu = model.mean(df, params)
-    logL = ll(mu, df[,target_col])
-    return(-logL)
-  }
-  
   iter = 1
   y_pred_list[[1]] = df$y_pred
   prop_diffs = c(1)
   while(prop_diffs[length(prop_diffs)] > tol & iter < max_iter){
     iter = iter + 1
-    
-    # set up initialization
-    init = rep(0,10)
-    names(init) = c('AR.1', 'NE.1', 'B0', 'B1', 'Bcos1', 'Bsin1', 'Bcos2', 'Bsin2', 'Bcos3', 'Bsin3')
-    
-    # fit using Nelder-Mead and L-BFGS-B and pick the better one
-    params = optim(init, ll.wrapper, control = list(maxit = 5000))
-    
-    # L-BFGS
-    tryCatch({
-      params2 = optim(init, ll.wrapper, method = 'L-BFGS-B', control = list(maxit = 5000))
-      if(params2$value < params$value & params2$convergence == 0){
-        params = params2
-      }
-    }, error = function(e){
-      print(sprintf('skipping this round of L-BFGS-B because of error: %s', e))
-    })
-    
-    # try different initialization values to compare convergence
-    for(i in 1:10){
-      init = rnorm(10,0,i/3)
-      # nelder-mead
-      params2 = optim(init, ll.wrapper, control = list(maxit = 5000))
-      if(params2$value < params$value & params2$convergence == 0){
-        params = params2
-      }
-      
-      # L-BFGS
-      tryCatch({
-        params2 = optim(init, ll.wrapper, method = 'L-BFGS-B', control = list(maxit = 5000))
-        if(params2$value < params$value & params2$convergence == 0){
-          params = params2
-        }
-      }, error = function(e){
-        print(sprintf('skipping this round of L-BFGS-B because of error: %s', e))
-      })
-    }
-    
-    # THIS IS FOR ALL FACILITIES AT ONCE DINGUS.
-    # The question is, do we specify the model to run for all facilities? Or do we run it for each facility individually and then just use the primary imputations for the other facilities
 
-    # for error checking
-    if(params$convergence != 0){
-      browser()
+    if(individual_facility_models){
+      # run the individual model for each group.
+      tmp <- lapply(uni_group, function(xx) {
+        # subset data
+        tt <- df %>% filter(facility == xx)
+        
+        # fit the model
+        params = fit_freqGLMepi(tt)
+        
+        # update y_pred
+        tt$y_pred = model.mean(tt, params$par)
+        
+        return(list(tt,params))
+      })
+      
+      # get matrix of the parameter estimates
+      parmat = sapply(tmp, function(xx) xx[[2]]$par)
+      
+      # combine into one data frame
+      df = do.call('rbind', lapply(tmp, '[[', 1)) %>% arrange(facility, date)
+    }else{
+      # fit the model
+      params = fit_freqGLMepi(df)
+      
+      # update y_pred 
+      df$y_pred =model.mean(df, params$par)
     }
-    
-    # update y_pred 
-    y_pred_list[[iter]] = model.mean(df, params$par)
-    df$y_pred = y_pred_list[[iter]]
+
+    y_pred_list[[iter]] = df$y_pred
     
     # update y_imp
     na.ind.2 = intersect(na.ind, which(!is.na(df$y_pred)))
@@ -162,7 +191,12 @@ surveillance_imputation = function(df, max_iter = 50, tol = 1e-4, verbose = T){
     # update
     if(iter %% 10 == 0 & verbose){
       print(iter)
-      print(params$par)
+      if(individual_facility_models){
+        print(parmat)
+      }else{
+        print(params$par)
+      }
+
     }
   }
   
@@ -177,7 +211,7 @@ surveillance_imputation = function(df, max_iter = 50, tol = 1e-4, verbose = T){
   
 }
 
-surveillance_imputation(df, max_iter = 100) -> test
+freqGLMepi_imputation(df, max_iter = 50) -> test
 
 
 
@@ -187,6 +221,7 @@ par(mfrow = c(2,2))
 for(fac in unique(test$facility)){
   tmp = test %>% filter(facility == fac) %>% arrange(date)
   plot(tmp$date, tmp$y, type = 'l', main = fac)
+  lines(tmp$date, tmp$y_imp, type = 'l', col = 'blue')
   lines(tmp$date, tmp$y_pred, col = 'red')
 }
 
@@ -230,8 +265,6 @@ model.1 <- list(ar = list(f = ~ 1),
                 optimizer = list(variance = list(method = 'Nelder-Mead')))
 
 result.1 <- hhh4(ARI, model.1)
-
-# (2) Try different inits
 
 # (3) Figure out how to get parameter standard error estimates
 
