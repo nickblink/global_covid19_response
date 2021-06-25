@@ -1,5 +1,6 @@
 ### The functions used for imputation in Liberia
 
+##### Helper Functions #####
 # function to add periodic terms
 add_periodic_cov <- function(df, period = 12){
   df = df %>%
@@ -11,6 +12,60 @@ add_periodic_cov <- function(df, period = 12){
                   sin2 = sin(2*2*pi*month/period),
                   cos3 = cos(2*3*pi*month/period),
                   sin3 = sin(2*3*pi*month/period))
+  return(df)
+}
+
+# add autoregressive terms to the data
+add_autoregressive <- function(df, target_col = 'y', num.terms = 1){
+  
+  if(!(target_col %in% colnames(df))){
+    stop('need a target column to autoregress')
+  }
+  
+  tmp <- lapply(unique(df$facility), function(xx) {
+    tt <- df %>% filter(facility == xx) %>% arrange(date)
+    tt$y.AR1 = c(NA, tt[1:(nrow(tt) - 1), target_col])
+    return(tt)
+  })
+  
+  df <- do.call('rbind',tmp)
+  return(df)
+}
+
+# compute the sum of the values at all the neighbors to a given facility
+add_neighbors <- function(df, target_col = 'y', lag = 0){
+  if(lag > 0){
+    stop('havent implemented lags for neighbor calculation')
+  }
+  
+  # remove the neighbor column
+  if('y.neighbors' %in% colnames(df)){
+    df$y.neighbors = NULL
+  }
+  
+  # get the adjacency matrix
+  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  W = full_join(D2, D2, by = 'district') %>%
+    filter(facility.x != facility.y) %>%
+    dplyr::select(-district) %>%
+    igraph::graph_from_data_frame() %>%
+    igraph::as_adjacency_matrix() %>%
+    as.matrix()
+  
+  # get the counts for each facility 
+  y.counts <- df %>% 
+    dplyr::select(date, facility, UQ(target_col)) %>%
+    tidyr::spread(facility,get(target_col)) %>% 
+    arrange(date)
+  
+  if(!identical(colnames(W), colnames(y.counts)[-1])){
+    stop('Adjacency and y matrix column names dont match')
+  }
+  
+  df = cbind(y.counts[,'date',drop = F], as.data.frame(as.matrix(y.counts[,-1])%*%W)) %>% 
+    tidyr::gather(facility, y.neighbors, -date) %>%
+    merge(df, by = c('date','facility'))
+  
   return(df)
 }
 
@@ -303,7 +358,7 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', fac
     formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
   }
   
-  
+  browser()
   # run CAR Bayes
   chain1 <- ST.CARar(formula = formula_col, family = "poisson",
                      data = df, W = W, burnin = burnin, n.sample = n.sample,

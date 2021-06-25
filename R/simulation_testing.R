@@ -132,7 +132,7 @@ gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facili
 #
 #### MAR p = 0.2 spatio-temporal ####
 
-R = 500
+R = 5
 system.time({
 lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.5, alpha = 0.5, tau = 0.5)
 
