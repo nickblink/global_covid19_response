@@ -53,6 +53,11 @@ county_miss = D %>%
             ari_miss = mean(is.na(indicator_count_ari_total)),
             n = length(unique(facility)))
 
+
+hist(facility_miss$ari_miss, main = 'facility ARI missingness', xlab = 'proportion missing')
+abline(v = 0.2, col = 'red')
+
+
 par(mfrow=c(2,3))
 
 # plot(density(county_miss$ari_miss), main = 'county ARI missing')
