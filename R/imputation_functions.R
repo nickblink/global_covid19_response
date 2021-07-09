@@ -138,7 +138,8 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
           beta_boot <- MASS::mvrnorm(1,beta_hat,beta_vcov)
           pred_boot <- (tt %>% 
                           mutate(intercept=1) %>%
-                          dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                          #dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                          dplyr::select(intercept,year,cos1,sin1,cos2,sin2,cos3,sin3) %>%
                           as.matrix())%*%as.matrix(beta_boot)
           pred_boot_exp <- exp(pred_boot) 
           pred_boot_exp[which(is.na(pred_boot_exp))] <- 1
@@ -322,7 +323,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', facility_intercept = T, burnin = 20000, n.sample = 40000, prediction_sample = T){
+CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', model = c('fixed','facility_intercept','facility_coeffs'), burnin = 20000, n.sample = 40000, prediction_sample = T){
   
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -352,13 +353,16 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', fac
     as.matrix()
   
   # model formula
-  if(facility_intercept){
+  if(model == 'facility_intercept'){
     formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3 + facility", col))
+  }else if(model == 'facility_fixed'){
+    formula_col = as.formula(sprintf("%s ~ facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3", col))
   }else{
     formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
   }
   
   browser()
+  
   # run CAR Bayes
   chain1 <- ST.CARar(formula = formula_col, family = "poisson",
                      data = df, W = W, burnin = burnin, n.sample = n.sample,
@@ -612,9 +616,10 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
   
   
   # NM_control = list(maxit = 10000, reltol = 1e-12)
-  NM_control = list(maxit = 5000)
+  NM_control = list(maxit = 10000)
   # BFGS_control = list(maxit = 10000, factr = 1e-11))
-  BFGS_control = list(maxit = 5000)
+  BFGS_control = list(maxit = 10000)
+  
   # fit using Nelder-Mead and L-BFGS-B and pick the better one
   params = optim(init, ll.wrapper, control = NM_control)
   
@@ -633,9 +638,14 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
   # try different initialization values to compare convergence
   if(num_inits > 1){
     for(i in 2:num_inits){
-      init = rnorm(10,0,i/3)
+      init = rnorm(10,0,10*i/num_inits)
       # nelder-mead
-      params2 = optim(init, ll.wrapper,  control = NM_control)
+      tryCatch({
+        params2 = optim(init, ll.wrapper,  control = NM_control)
+      }, error = function(e){
+        browser()
+      })
+      
       if(params2$value < params$value & params2$convergence == 0){
         params = params2
       }
@@ -648,7 +658,9 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
             params = params2
           }
         }, error = function(e){
-          print(sprintf('skipping this round of L-BFGS-B because of error: %s', e))
+          if(verbose){
+            print(sprintf('skipping this round of L-BFGS-B because of error: %s', e)) 
+          }
         })
       }
     }
@@ -656,7 +668,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
   
   # for error checking
   if(params$convergence != 0){
-    browser()
+    print('didnt converge for one iteration')
   }
   
   if(verbose){
@@ -676,7 +688,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975),  verbose = T){
+freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -699,7 +711,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     mod_col <- MASS::glm.nb(formula_col, data = tt)
     
     # update predictions
-    tt$y_pred = predict(mod_col, tt, type = 'response')
+    tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
     
     return(tt)
   })
@@ -710,7 +722,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   # filling in missing values by randomly sampling mean prediction from Poisson
   df$y_imp = df$y
   na.ind = which(is.na(df$y))
-  df$y_imp[na.ind] <- rpois(n = length(na.ind), df$y_pred[na.ind])
+  df$y_imp[na.ind] <- rpois(n = length(na.ind), df$y_pred_freqGLMepi[na.ind])
   
   # add the neighbors and auto-regressive
   df = add_autoregressive(df, 'y_imp') %>%
@@ -718,7 +730,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   
   ### Run freqGLM_epidemic model iteratively
   iter = 1
-  y_pred_list[[1]] = df$y_pred
+  y_pred_list[[1]] = df$y_pred_freqGLMepi
   prop_diffs = c(1)
   while(prop_diffs[length(prop_diffs)] > tol & iter <= max_iter){
     iter = iter + 1
@@ -733,7 +745,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         params = fit_freqGLMepi(tt, verbose = F)
         
         # update y_pred
-        tt$y_pred = model.mean(tt, params$par)
+        tt$y_pred_freqGLMepi = model.mean(tt, params$par)
         
         return(list(df = tt, params = params))
       })
@@ -752,16 +764,16 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
       parmat = fit_freqGLMepi(df)$par
       
       # update y_pred 
-      df$y_pred =model.mean(df, parmat)
+      df$y_pred_freqGLMepi = model.mean(df, parmat)
       
     }
     
     # store the predictions for this iteration
-    y_pred_list[[iter]] = df$y_pred
+    y_pred_list[[iter]] = df$y_pred_freqGLMepi
     
     # update y_imp
-    na.ind.2 = intersect(na.ind, which(!is.na(df$y_pred)))
-    df$y_imp[na.ind.2] <- rpois(n = length(na.ind.2), df$y_pred[na.ind.2])
+    na.ind.2 = intersect(na.ind, which(!is.na(df$y_pred_freqGLMepi)))
+    df$y_imp[na.ind.2] <- rpois(n = length(na.ind.2), df$y_pred_freqGLMepi[na.ind.2])
     
     # compare y_imps
     prop_diffs = c(prop_diffs, mean(abs(y_pred_list[[iter]][na.ind] - y_pred_list[[iter-1]][na.ind])/y_pred_list[[iter-1]][na.ind], na.rm = T))
@@ -839,6 +851,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     browser()
   }else if(prediction_intervals == 'bootstrap'){
     warning('for bootstrap, only doing 1 initial value for optimization and only doing Nelder Mead')
+    warning('for bootstrap, not testing for outliers')
     # 1) For each facility,
     tmp <- lapply(1:length(uni_group), function(i) {
       # subset data
@@ -851,10 +864,31 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         tt_boot = sample_n(tt, size = nrow(tt), replace = T)
         
         # fit the model
-        params = fit_freqGLMepi(tt_boot, BFGS = F, num_inits = 1, verbose = F)
+        params = fit_freqGLMepi(tt_boot, BFGS = F, num_inits = 1, verbose = verbose)
         
         # update y_pred sampled from the full data frame tt
         x = suppressWarnings(rpois(n = nrow(tt), model.mean(tt, params$par)))
+        
+        # test for outliers and then re-fit params (sometimes convergence can lead to crazy results)
+        if(refit_boot_outliers){
+          fit_iter = 1
+          while(any(x > 10*median(x, na.rm = T), na.rm = T) & fit_iter <= 3){
+            
+            if(verbose){
+              print(sort(x))
+              print('rerunning fitting')
+            }
+            params = fit_freqGLMepi(tt_boot, BFGS = F, num_inits = 10^(fit_iter), verbose = verbose)
+            x = suppressWarnings(rpois(n = nrow(tt), model.mean(tt, params$par)))
+            
+            fit_iter = fit_iter + 1
+          }
+          
+          # check if we still have outliers
+          if(any(x > 10*median(x, na.rm = T), na.rm = T)){
+            print('outlier found for one bootstrap iteration')
+          }
+        }
         
         return(x)
         
@@ -1173,6 +1207,7 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
       geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.2) +
       scale_color_manual(values = c(color_vec)) + 
       scale_fill_manual(values = c(color_vec)) + 
+      ylim(c(0,1.5*max(tmp$y_true))) + 
       ggtitle(sprintf('facility %s', f)) + 
       ylab('y') +
       theme_bw() +
@@ -1437,6 +1472,10 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
       p1 <- p1 + geom_hline(yintercept = 0.5) + ylim(0,1)
     }else if(m == 'coverage95'){
       p1 <- p1 + geom_hline(yintercept = 0.95) + ylim(0,1)
+    }else if(m == 'interval_width'){
+      tt = long %>% filter(method != 'glmFreq_epi', metric == 'interval_width')
+      max_lim = round(1.3*max(tt$value, na.rm = T))
+      p1 = p1 + ylim(c(0, max_lim))
     }
     
     plot_list[[i]] = p1
