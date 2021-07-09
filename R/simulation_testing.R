@@ -11,13 +11,14 @@ library(cowplot)
 
 
 #### Comparing CARBayes models ####
-R = 5
+
+R = 50
 
 system.time({
   lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.3, alpha = 0.5, tau = 0.5)
   
-  imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CARBayes_ST")
-  rename_vec = c('glmFreq','glmFreq_epi','CARBayes')
+  imp_vec = c("y_CB_fixed", "y_CB_intercept", "y_CB_facility")
+  rename_vec = imp_vec
   color_vec = c('red','blue','green')
   
   imputed_list = list()
@@ -28,29 +29,35 @@ system.time({
     # simulation function!
     df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
     
-    # run the periodic imputation
-    freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'bootstrap', R_PI = 100, verbose = F) 
-    df_miss = freqGLMepi_list$df
+    # run the CARBayes imputation with constant coeffs across all facilities
+    CAR_list1 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'fixed')
+    df_miss = CAR_list1$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_fixed', colnames(df_miss))
     
-    # run the periodic imputation
-    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
-    df_miss = periodic_list$df
+    #  run the CARBayes imputation with different intercepts by facility
+    CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_intercept')
+    df_miss = CAR_list2$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_intercept', colnames(df_miss))
     
-    # run the CARBayes imputation
-    CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
-    df_miss = CAR_list$facility_df
+    #  run the CARBayes imputation with different coeffs by facility
+    CAR_list3 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
+    df_miss = CAR_list3$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_facility', colnames(df_miss))
     
     imputed_list[[i]] = df_miss
   }
   
   #plot_metrics_by_point(imputed_list, imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CARBayes_ST"), min_missing = 0, rename_vec = c('glmFreq','glmFreq_epi','CARBayes'), color_vec = c('red','blue','green'))
   
-  pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
+  pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, color_vec = color_vec)
   
-  p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 10, rename_vec = rename_vec)
+  p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 0)
   
-  p2 <- p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 10, rename_vec = rename_vec)
+  p2 <- p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 0)
 })
+
+# interestingly, it seems like the intercept does basically as good as the diff. facility ones, but I simply don't buy it
+
 #### MCAR p = 0.2 spatio-temporal ####
 
 R = 5
@@ -91,7 +98,7 @@ pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, imp_names = rena
 
 p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 10, rename_vec = rename_vec)
 
-p2 <- p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 10, rename_vec = rename_vec)
+p2 <- p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 10, rename_vec = rename_vec)
 })
 
 ## 20 minutes for 50 iterations 

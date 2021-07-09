@@ -323,7 +323,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', model = c('fixed','facility_intercept','facility_coeffs'), burnin = 20000, n.sample = 40000, prediction_sample = T){
+CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T){
   
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -360,8 +360,6 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', mod
   }else{
     formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
   }
-  
-  browser()
   
   # run CAR Bayes
   chain1 <- ST.CARar(formula = formula_col, family = "poisson",
@@ -1422,7 +1420,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = c('parametric', 'CARBayes'), color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5){
   
   if(is.null(outcomes)){
     outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
