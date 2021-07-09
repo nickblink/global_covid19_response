@@ -1202,7 +1202,7 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
     p1 <- ggplot() +
       geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
       geom_line(data = df_f, aes(x = date, y = y, group = method, color = method)) +
-      geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.2) +
+      geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1) +
       scale_color_manual(values = c(color_vec)) + 
       scale_fill_manual(values = c(color_vec)) + 
       ylim(c(0,1.5*max(tmp$y_true))) + 
