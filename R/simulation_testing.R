@@ -9,6 +9,8 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+NOTE ON 09/03/2021 - You finished writing the freqEpi_GLM simulated data. You should graphically check that its reasonable and then run some simulations on it.
+
 #### MCAR p = 0.2 no spatio-temporal ####
 
 R = 500
@@ -73,64 +75,16 @@ bb = sapply(imputed_list, function(xx) mean(xx$y_pred_freqGLMepi_0.975 - xx$y_pr
 # ah and looking at the model coefficients the Bayesian model with different betas now almost exactly reflects the periodic model
 
 #
-#### Comparing CARBayes models ####
-
-R = 50
-
-system.time({
-  lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.3, alpha = 0.5, tau = 0.5)
-  
-  imp_vec = c("y_CB_fixed", "y_CB_intercept", "y_CB_facility")
-  rename_vec = imp_vec
-  color_vec = c('red','blue','green')
-  
-  imputed_list = list()
-  res_full = res_imputed = NULL
-  for(i in 1:R){
-    df = lst$df_list[[i]]
-    
-    # simulation function!
-    df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
-    
-    # run the CARBayes imputation with constant coeffs across all facilities
-    CAR_list1 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'fixed')
-    df_miss = CAR_list1$facility_df
-    colnames(df_miss) = gsub('CARBayes_ST', 'CB_fixed', colnames(df_miss))
-    
-    #  run the CARBayes imputation with different intercepts by facility
-    CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_intercept')
-    df_miss = CAR_list2$facility_df
-    colnames(df_miss) = gsub('CARBayes_ST', 'CB_intercept', colnames(df_miss))
-    
-    #  run the CARBayes imputation with different coeffs by facility
-    CAR_list3 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
-    df_miss = CAR_list3$facility_df
-    colnames(df_miss) = gsub('CARBayes_ST', 'CB_facility', colnames(df_miss))
-    
-    imputed_list[[i]] = df_miss
-  }
-  
-  #plot_metrics_by_point(imputed_list, imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CARBayes_ST"), min_missing = 0, rename_vec = c('glmFreq','glmFreq_epi','CARBayes'), color_vec = c('red','blue','green'))
-  
-  pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, color_vec = color_vec)
-  
-  p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 0)
-  
-  p2 <- p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 0)
-})
-
-# interestingly, it seems like the intercept does basically as good as the diff. facility ones, but I simply don't buy it
-
 #### MCAR p = 0.2 spatio-temporal ####
 
-R = 5
+R = 500
 
 system.time({
-lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.3, alpha = 0.5, tau = 0.5)
+lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.5, alpha = 0.3, tau = 0.5)
 
-imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CARBayes_ST")
-rename_vec = c('glmFreq','glmFreq_epi','CARBayes')
-color_vec = c('red','blue','green')
+imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CB_intercept", "y_CB_facility")
+rename_vec = c('glmFreq','glmFreq_epi','CARBayes_int', 'CARBayes_facility')
+color_vec = c('red','blue','lightgreen', 'forestgreen')
 
 imputed_list = list()
 res_full = res_imputed = NULL
@@ -148,109 +102,28 @@ for(i in 1:R){
   periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
   df_miss = periodic_list$df
   
-  # run the CARBayes imputation
-  CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
-  df_miss = CAR_list$facility_df
+  #  run the CARBayes imputation with different intercepts by facility
+  CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_intercept')
+  df_miss = CAR_list2$facility_df
+  colnames(df_miss) = gsub('CARBayes_ST', 'CB_intercept', colnames(df_miss))
+  
+  #  run the CARBayes imputation with different coeffs by facility
+  CAR_list3 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
+  df_miss = CAR_list3$facility_df
+  colnames(df_miss) = gsub('CARBayes_ST', 'CB_facility', colnames(df_miss))
   
   imputed_list[[i]] = df_miss
 }
 
-#plot_metrics_by_point(imputed_list, imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CARBayes_ST"), min_missing = 0, rename_vec = c('glmFreq','glmFreq_epi','CARBayes'), color_vec = c('red','blue','green'))
-
 pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
 
-p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 10, rename_vec = rename_vec)
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 50, rename_vec = rename_vec)
 
-p2 <- p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 10, rename_vec = rename_vec)
+p2 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
 })
 
 ## 20 minutes for 50 iterations 
-# save(imputed_list, p1, p2, file = 'results/simulation_MCARp2_R500_res.RData')
-
-#
-#### Assessing the simulated data ####
-
-# lst <- simulate_data(district_sizes = c(2,3,4,5,7), n = 2)
-# df = lst$df
-
-lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = 2, rho = 0, alpha = 0.5, tau = 1)
-df = lst$df_list[[2]]
-
-lst2 <- simulate_data(district_sizes = c(4), R = 2)
-df2 = lst2$df_list[[2]]
-
-par(mfrow = c(2,2))
-for(f in sample(unique(df$facility), 4)){
-  tmp = df %>% filter(facility == f)
-  tmp2 = df2 %>% filter(facility == f)
-  
-  plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, 1.2*max(tmp$y)))
-  lines(tmp2$date, tmp2$y, col = 'red')
-}
-
-#### Assessing MAR simulation ####
-lst <- simulate_data_spatiotemporal(district_sizes = c(10), R = 1, rho = 0.3, alpha = 0.5, tau = 0.5)
-df = lst$df_list[[1]]
-
-
-### no correlation
-df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0, alpha = 0, tau = 3, by_facility = T)
-df_spread = df_miss %>%
-  dplyr::select(date, district, facility, y) %>%
-  tidyr::spread(facility, y)
-
-tmp2 = df_spread[,-c(1,2)]
-for(col in colnames(tmp2)){
-  tmp2[,col] = as.integer(is.na(tmp2[,col]))
-}
-tmp2 = 1 - as.matrix(tmp2)
-
-gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
-
-
-### spatial correlation
-df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0.9, alpha = 0, tau = 3, by_facility = T)
-df_spread = df_miss %>%
-  dplyr::select(date, district, facility, y) %>%
-  tidyr::spread(facility, y)
-
-tmp2 = df_spread[,-c(1,2)]
-for(col in colnames(tmp2)){
-  tmp2[,col] = as.integer(is.na(tmp2[,col]))
-}
-tmp2 = 1 - as.matrix(tmp2)
-
-gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
-
-
-### temporal correlation
-df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0, alpha = 0.9, tau = 3, by_facility = T)
-df_spread = df_miss %>%
-  dplyr::select(date, district, facility, y) %>%
-  tidyr::spread(facility, y)
-
-tmp2 = df_spread[,-c(1,2)]
-for(col in colnames(tmp2)){
-  tmp2[,col] = as.integer(is.na(tmp2[,col]))
-}
-tmp2 = 1 - as.matrix(tmp2)
-
-gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
-
-### spatial and temporal correlation
-df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0.9, alpha = 0.9, tau = 3, by_facility = T)
-df_spread = df_miss %>%
-  dplyr::select(date, district, facility, y) %>%
-  tidyr::spread(facility, y)
-
-tmp2 = df_spread[,-c(1,2)]
-for(col in colnames(tmp2)){
-  tmp2[,col] = as.integer(is.na(tmp2[,col]))
-}
-tmp2 = 1 - as.matrix(tmp2)
-
-gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
-
+# save(imputed_list, p1, p2, pfit, file = 'results/simulation_ST_MCARp2_R500_res_07112021.RData')
 
 #
 #### MAR p = 0.2 spatio-temporal ####
@@ -417,3 +290,107 @@ p6 <- plot_county_fits(county_miss, imp_vec, color_vec, title = 'p = 0.2')
 res7 <- calculate_metrics(df_miss, imp_vec,imputed_only = F)
 res8 <- calculate_metrics(df_miss, imp_vec,imputed_only = T)
 res9 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate = T)
+
+#### Assessing the simulated data ####
+
+# lst <- simulate_data(district_sizes = c(2,3,4,5,7), n = 2)
+# df = lst$df
+
+lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = 2, rho = 0.1, alpha = 0.1, tau = 0.5)
+df = lst$df_list[[2]]
+
+lst2 <- simulate_data(district_sizes = c(4), R = 2)
+df2 = lst2$df_list[[2]]
+
+par(mfrow = c(2,2))
+for(f in sample(unique(df$facility), 4)){
+  tmp = df %>% filter(facility == f)
+  tmp2 = df2 %>% filter(facility == f)
+  
+  plot(tmp$date, tmp$y, type = 'l', main = f, ylim = c(0, 1.2*max(tmp$y)))
+  lines(tmp2$date, tmp2$y, col = 'red')
+}
+
+#### Assessing MAR simulation ####
+lst <- simulate_data_spatiotemporal(district_sizes = c(10), R = 1, rho = 0.3, alpha = 0.5, tau = 0.5)
+df = lst$df_list[[1]]
+
+
+### no correlation
+df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0, alpha = 0, tau = 3, by_facility = T)
+df_spread = df_miss %>%
+  dplyr::select(date, district, facility, y) %>%
+  tidyr::spread(facility, y)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = 1 - as.matrix(tmp2)
+
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
+
+
+### spatial correlation
+df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0.9, alpha = 0, tau = 3, by_facility = T)
+df_spread = df_miss %>%
+  dplyr::select(date, district, facility, y) %>%
+  tidyr::spread(facility, y)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = 1 - as.matrix(tmp2)
+
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
+
+
+### temporal correlation
+df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0, alpha = 0.9, tau = 3, by_facility = T)
+df_spread = df_miss %>%
+  dplyr::select(date, district, facility, y) %>%
+  tidyr::spread(facility, y)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = 1 - as.matrix(tmp2)
+
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
+
+### spatial and temporal correlation
+df_miss = MAR_spatiotemporal_sim(df, p = 0.3, rho = 0.9, alpha = 0.9, tau = 3, by_facility = T)
+df_spread = df_miss %>%
+  dplyr::select(date, district, facility, y) %>%
+  tidyr::spread(facility, y)
+
+tmp2 = df_spread[,-c(1,2)]
+for(col in colnames(tmp2)){
+  tmp2[,col] = as.integer(is.na(tmp2[,col]))
+}
+tmp2 = 1 - as.matrix(tmp2)
+
+gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = NA, Colv = T, xlab = 'facilities', trace = 'none', key = F)
+
+
+#
+#### Making plots of missingness at 15% and 40% ####
+lst <- simulate_data(district_sizes = c(1), R = 1)
+
+df = lst$df_list[[1]]
+
+df1 = MCAR_sim(df, p = 0.15, by_facility = T)
+df2 = MCAR_sim(df, p = 0.4, by_facility = T)
+
+# run the periodic imputation
+periodic_list = periodic_imputation(df1, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+df1 = periodic_list$df
+
+par(mfrow = c(1,2))
+plot(df1$date, df1$y, type = 'l', xlab = 'date', ylab = 'y', main = '15% missing')
+#lines(df1$date, df1$y_pred_harmonic, col = 'red')
+plot(df1$date, df2$y, type = 'l', xlab = 'date', ylab = 'y', main = '40% missing')
+
+

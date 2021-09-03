@@ -33,7 +33,7 @@ add_autoregressive <- function(df, target_col = 'y', num.terms = 1){
 }
 
 # compute the sum of the values at all the neighbors to a given facility
-add_neighbors <- function(df, target_col = 'y', lag = 0){
+add_neighbors <- function(df, target_col = 'y', lag = 0, scale_by_num_neighbors = F){
   if(lag > 0){
     stop('havent implemented lags for neighbor calculation')
   }
@@ -52,6 +52,11 @@ add_neighbors <- function(df, target_col = 'y', lag = 0){
     igraph::as_adjacency_matrix() %>%
     as.matrix()
   
+  # scale the neighbor sum by the number of neighbors
+  if(scale_by_num_neighbors){
+    W = apply(W, 2, function(xx) xx/sum(xx))
+  }
+  
   # get the counts for each facility 
   y.counts <- df %>% 
     dplyr::select(date, facility, UQ(target_col)) %>%
@@ -69,6 +74,7 @@ add_neighbors <- function(df, target_col = 'y', lag = 0){
   return(df)
 }
 
+#
 ##### Imputation Functions #####
 
 # OG imputation method
@@ -846,7 +852,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     })
     
     df <- do.call('rbind',lapply(tmp,'[[',1))
-    browser()
+
   }else if(prediction_intervals == 'bootstrap'){
     warning('for bootstrap, only doing 1 initial value for optimization and only doing Nelder Mead')
     warning('for bootstrap, not testing for outliers')
@@ -913,6 +919,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   return(return_lst)
 }
 
+#
 ##### Plotting + Metric Functions #####
 
 plot_results <- function(res, subset = NULL){
@@ -1447,6 +1454,9 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
     }
   }
   
+  # make a factor so the ordering in the plots stays
+  long$method=  factor(long$method, levels = rename_vec)
+  
   plot_list = list()
   # plot each metric
   for(i in 1:length(unique(long$metric))){
@@ -1461,8 +1471,11 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
       scale_color_manual(values = color_vec) +
       scale_fill_manual(values = color_vec) + 
       theme_bw() + 
-      theme(legend.position = 'none') +
+      theme(legend.position = 'none',
+            axis.text.x = element_text(angle = 45, hjust = 1)) +
       ggtitle(m)
+    
+    #browser()
     
     if(m == 'bias'){
       p1 <- p1 + geom_hline(yintercept = 0)
@@ -1714,6 +1727,95 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   
   # make list of values to return
   res_lst = list(df_list = df_lst, betas = betas, V = V)
+  return(res_lst)
+}
+
+simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T){
+  
+  warning('counting all districts as neighbors')
+  print(sprintf('lambda: exp(%0.2f) = %0.2f; phi: exp(%0.2f) = %0.2f', lambda, exp(lambda), phi, exp(phi)))
+  
+  # set up data frame
+  df = initialize_df(district_sizes)
+  
+  # make periodic covariates
+  df = add_periodic_cov(df)
+  
+  # get all facility names
+  facilities = unique(df$facility) %>% sort()
+  
+  # get all dates
+  dates = unique(df$date) %>% sort()
+  #n = length(dates)
+  
+  # set random seed and sample betas
+  set.seed(10)
+  betas = sample_betas(facilities)
+  
+  ### get the seasonal effects (since these don't change across the simulation samples)
+  df = do.call('rbind', lapply(facilities, function(xx){
+    tmp = df %>% filter(facility == xx)
+    
+    # keep the 1 for intercepts
+    X = tmp %>% 
+      mutate(intercept = 1) %>%
+      dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+    
+    # error checking
+    if(!identical(colnames(betas), colnames(X))){
+      browser()
+    }
+    
+    # make the 8x1 beta vector for this facility
+    beta_f = t(betas[xx,,drop = F])
+    
+    # get mean prediction from linear model
+    tmp$mu_seasonal = (as.matrix(X)%*%beta_f)[,1]
+    
+    return(tmp)
+  }))
+  
+  # initial sampling
+  df$y_seasonal = rpois(n = nrow(df), lambda = exp(df$mu_seasonal))
+  
+  # initialize list of final data frame
+  df_lst = list()
+  
+  for(r in 1:R){
+    
+    # to store the predicted values at successive iterations
+    y_pred_list = list()
+    
+    tmp = df %>%
+      mutate(y = y_seasonal)
+    
+    for(i in 1:num_iters){
+      # add the neighbors and auto-regressive
+      tmp = add_autoregressive(tmp, 'y') %>%
+        add_neighbors(., 'y', scale_by_num_neighbors = add_num_neighbors)
+      
+      # only resampling after the first time point
+      ind = which(!is.na(tmp$y.AR1))
+      
+      # getting the mean according to the model and resampling
+      mean_y = exp(lambda)*tmp$y.AR1 + exp(phi)*tmp$y.neighbors + exp(tmp$mu_seasonal)
+      tmp$y[ind] = rpois(n = length(ind), lambda = mean_y[ind])
+      
+      # storing the results
+      y_pred_list[[i]] = tmp$y
+      
+    }
+    
+    if(mean(y_pred_list[[num_iters]]) > 5*mean(y_pred_list[[1]])){
+      print('there might be some divergence of the estimated values')
+      browser()
+    }
+    
+    df_lst[[r]] = tmp
+  }
+  
+  # return it!
+  res_lst = list(df_list = df_lst, betas = betas, lambda = lambda, phi = phi)
   return(res_lst)
 }
 
