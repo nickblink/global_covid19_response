@@ -1331,8 +1331,14 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 }
 
 # calculate the metrics for individual data points across simulated imputations
-calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmonic", "y_CARBayes_ST"), imputed_only = T){
+calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmonic", "y_CARBayes_ST"), imputed_only = T, rm_ARna = F){
   #y_true = imputed_list[[1]]$y_true
+  
+  # removing the starting points with NA AR1 values, since these
+  if(rm_ARna){
+    print('removing the starting points because of NA autoregressive term')
+    imputed_list = lapply(imputed_list, function(xx) xx[!is.na(xx$y.AR1),])
+  }
   
   # get the true values everywhere and at the deleted time points
   y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_true']))
@@ -1427,16 +1433,18 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F){
   
   if(is.null(outcomes)){
     outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
   }
   
   # get the metrics from each simulation run
-  res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = imputed_only)
+  res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = imputed_only, rm_ARna = rm_ARna)
   
   if(any(res$num_missing < min_missing) & imputed_only){
+    stop('all points are not missing enough (check min_missing)')
+  }else if(any(res$num_missing < min_missing) & imputed_only){
     # remove the data points that werent missing enough
     ind = which(res$num_missing < min_missing)
     res = res[-ind,]
@@ -1498,6 +1506,7 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
   return(final_plot)
 }
 
+#
 ##### Simulation functions #####
 # function to simulate data
 simulate_imputation <- function(df, col, p = 0.1, group = NULL){
@@ -1730,7 +1739,7 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   return(res_lst)
 }
 
-simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T){
+simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F){
   
   warning('counting all districts as neighbors')
   print(sprintf('lambda: exp(%0.2f) = %0.2f; phi: exp(%0.2f) = %0.2f', lambda, exp(lambda), phi, exp(phi)))
@@ -1792,7 +1801,7 @@ simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = 
     for(i in 1:num_iters){
       # add the neighbors and auto-regressive
       tmp = add_autoregressive(tmp, 'y') %>%
-        add_neighbors(., 'y', scale_by_num_neighbors = add_num_neighbors)
+        add_neighbors(., 'y', scale_by_num_neighbors = scale_by_num_neighbors)
       
       # only resampling after the first time point
       ind = which(!is.na(tmp$y.AR1))
