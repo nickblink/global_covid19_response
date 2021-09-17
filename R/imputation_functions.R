@@ -568,8 +568,17 @@ model.mean <- function(D, params){
   return(mu)
 }
 
+# likelihood function
+ll.wrapper = function(params, D, target_col){
+  mu = model.mean(D, params)
+  logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
+  print(logL)
+  return(logL)
+}
+
 freqGLMepi_variance <- function(param_vec, D){
   
+  warning('weird scoping in variance function. Try to make it like the freqGLM_epi fitting procedure')
   # make likelihood function
   ll.wrapper = function(params, target_col = 'y_imp'){
     mu = model.mean(D, params)
@@ -603,21 +612,13 @@ freqGLMepi_variance <- function(param_vec, D){
 #   num_inits: number of different initial parameter tries
 #   BFGS: Also try BFGS along with Nelder-Mead
 #   verbose: Printing output or not
-fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
+fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col = 'y_imp'){
   t0 = Sys.time()
-  
-  # make likelihood function
-  ll.wrapper = function(params, target_col = 'y_imp'){
-    mu = model.mean(df, params)
-    logL = sum(-mu + df[,target_col]*log(mu), na.rm = T)
-    return(-logL)
-  }
   
   # set up initialization
   init = rep(0,10)
   parnames = c('By.AR1', 'By.neighbors', 'Bintercept', 'Byear', 'Bcos1', 'Bsin1', 'Bcos2', 'Bsin2', 'Bcos3', 'Bsin3')
   names(init) = parnames
-  
   
   # NM_control = list(maxit = 10000, reltol = 1e-12)
   NM_control = list(maxit = 10000)
@@ -625,12 +626,17 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
   BFGS_control = list(maxit = 10000)
   
   # fit using Nelder-Mead and L-BFGS-B and pick the better one
-  params = optim(init, ll.wrapper, control = NM_control)
+  tryCatch({
+    params = optim(par = init, fn = ll.wrapper, D = df, target_col = target_col, control = NM_control)
+  }, error = function(e){
+    browser()
+  })
+  browser()
   
   # L-BFGS
   if(BFGS){
     tryCatch({
-      params2 = optim(init, ll.wrapper, method = 'L-BFGS-B',  control = BFGS_control)
+      params2 = optim(init, ll.wrapper,  D = df, target_col = target_col, method = 'L-BFGS-B',  control = BFGS_control)
       if(params2$value < params$value & params2$convergence == 0){
         params = params2
       }
@@ -645,7 +651,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
       init = rnorm(10,0,10*i/num_inits)
       # nelder-mead
       tryCatch({
-        params2 = optim(init, ll.wrapper,  control = NM_control)
+        params2 = optim(init, ll.wrapper, D = df, target_col = target_col, control = NM_control)
       }, error = function(e){
         browser()
       })
@@ -657,7 +663,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
       # L-BFGS
       if(BFGS){
         tryCatch({
-          params2 = optim(init, ll.wrapper, method = 'L-BFGS-B',  control = BFGS_control)
+          params2 = optim(init, ll.wrapper,  D = df, target_col = target_col, method = 'L-BFGS-B',  control = BFGS_control)
           if(params2$value < params$value & params2$convergence == 0){
             params = params2
           }
@@ -673,6 +679,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T){
   # for error checking
   if(params$convergence != 0){
     print('didnt converge for one iteration')
+    #browser()
   }
   
   if(verbose){
@@ -1739,6 +1746,13 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   return(res_lst)
 }
 
+
+#### Function to simulate data under the freqGLM_epi framework
+##
+## district_sizes = number of facilities in the districtss
+## R = number of simulated data sets
+## lambda = autoregressive term
+## phi = neighbor term
 simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F){
   
   warning('counting all districts as neighbors')
