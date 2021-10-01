@@ -266,10 +266,25 @@ result.3 <- hhh4(ARI, model.3)
 coef(result.3, se = T,
      idx2Exp = T)
 
-# gosh darnit I just need to do this by hand now
+# gosh darnit I just need to do this by hand now.
+# ^ Why? I can't do seasonal terms by the individual facility?
+# How are they getting the standard errors of these estimates?
 
-# btw I still dont get how CARBayesST picks up the adjacency column but whatever.
+f.end <- addSeason2formula(f = ~ -1 + fe(I(t/12), unitSpecific = T) + fe(1, unitSpecific = T), S = c(3,3,3,3), period = 12)
 
+model.4 <- list(ar = list(f = ~ 1, f = ~ 1, f = ~ 1, f = ~ 1, unitSpecific = T),
+                ne = list(f = ~ 1,
+                          weights = neighbourhood(ARI),
+                          normalize = T),
+                end = list(f = f.end),
+                family = 'Poisson', verbose = T,
+                optimizer = list(variance = list(method = 'Nelder-Mead')))
 
+result.4 <- hhh4(ARI, model.4)
+result.4
+
+# can I do ar or ne terms by facility?
+# How do they optimize?
+# How do they find the variance? Some Fisher estimation
 
 

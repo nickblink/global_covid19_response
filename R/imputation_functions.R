@@ -24,7 +24,7 @@ add_autoregressive <- function(df, target_col = 'y', num.terms = 1){
   
   tmp <- lapply(unique(df$facility), function(xx) {
     tt <- df %>% filter(facility == xx) %>% arrange(date)
-    tt$y.AR1 = c(NA, tt[1:(nrow(tt) - 1), target_col])
+    tt[,sprintf('%s.AR1', target_col)] = c(NA, tt[1:(nrow(tt) - 1), target_col])
     return(tt)
   })
   
@@ -572,8 +572,7 @@ model.mean <- function(D, params){
 ll.wrapper = function(params, D, target_col){
   mu = model.mean(D, params)
   logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
-  print(logL)
-  return(logL)
+  return(-logL)
 }
 
 freqGLMepi_variance <- function(param_vec, D){
@@ -612,13 +611,22 @@ freqGLMepi_variance <- function(param_vec, D){
 #   num_inits: number of different initial parameter tries
 #   BFGS: Also try BFGS along with Nelder-Mead
 #   verbose: Printing output or not
-fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col = 'y_imp'){
+fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col = 'y_imp', init = NULL){
   t0 = Sys.time()
   
   # set up initialization
-  init = rep(0,10)
+  if(is.null(init)){
+    init = rep(0,10)
+  }
+  
   parnames = c('By.AR1', 'By.neighbors', 'Bintercept', 'Byear', 'Bcos1', 'Bsin1', 'Bcos2', 'Bsin2', 'Bcos3', 'Bsin3')
   names(init) = parnames
+  
+  init_OG = init
+  
+  # init = c(-3.98630374, -1.72730745, 7.04425288, -0.13527676, -0.34012130, -0.07970224, -0.17471972, -0.10980406, -0.22505447, -0.04618626)
+  
+  # init = c(-2, -2, log(mean(df$y_imp)), rep(0,7))
   
   # NM_control = list(maxit = 10000, reltol = 1e-12)
   NM_control = list(maxit = 10000)
@@ -631,7 +639,6 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
   }, error = function(e){
     browser()
   })
-  browser()
   
   # L-BFGS
   if(BFGS){
@@ -648,7 +655,10 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
   # try different initialization values to compare convergence
   if(num_inits > 1){
     for(i in 2:num_inits){
-      init = rnorm(10,0,10*i/num_inits)
+      # init = rnorm(10,0,10*i/num_inits)
+      
+      init = init_OG + rnorm(10,0,10*i/num_inits)
+      
       # nelder-mead
       tryCatch({
         params2 = optim(init, ll.wrapper, D = df, target_col = target_col, control = NM_control)
@@ -657,6 +667,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
       })
       
       if(params2$value < params$value & params2$convergence == 0){
+        print('using another initialization')
         params = params2
       }
       
@@ -665,6 +676,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
         tryCatch({
           params2 = optim(init, ll.wrapper,  D = df, target_col = target_col, method = 'L-BFGS-B',  control = BFGS_control)
           if(params2$value < params$value & params2$convergence == 0){
+            print('using another initialization')
             params = params2
           }
         }, error = function(e){
@@ -699,7 +711,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = T){
+freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = T, optim_init = NULL){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -753,7 +765,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         tt <- df %>% filter(facility == xx)
         
         # fit the model
-        params = fit_freqGLMepi(tt, verbose = F)
+        params = fit_freqGLMepi(tt, verbose = F, init = optim_init[[xx]])
         
         # update y_pred
         tt$y_pred_freqGLMepi = model.mean(tt, params$par)
@@ -768,6 +780,9 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
       rownames(parmat) = names(tmp[[1]]$params$par)
       colnames(parmat) = uni_group
       
+      # get the convergence of each facility
+      convergence = sapply(tmp, function(xx) (xx[[2]]$convergence == 0))
+      
       # combine into one data frame
       df = do.call('rbind', lapply(tmp, '[[', 1)) %>% arrange(facility, date)
     }else{
@@ -781,6 +796,11 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     
     # store the predictions for this iteration
     y_pred_list[[iter]] = df$y_pred_freqGLMepi
+    
+    if(length(na.ind) == 0){
+      print('only running one iteration because there is no missingness')
+      break
+    }
     
     # update y_imp
     na.ind.2 = intersect(na.ind, which(!is.na(df$y_pred_freqGLMepi)))
@@ -922,7 +942,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   }
   
   # prep data to return
-  return_lst = list(df = df, params = parmat, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
+  return_lst = list(df = df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
   return(return_lst)
 }
 
@@ -1753,7 +1773,7 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
 ## R = number of simulated data sets
 ## lambda = autoregressive term
 ## phi = neighbor term
-simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F){
+simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10){
   
   warning('counting all districts as neighbors')
   print(sprintf('lambda: exp(%0.2f) = %0.2f; phi: exp(%0.2f) = %0.2f', lambda, exp(lambda), phi, exp(phi)))
@@ -1772,7 +1792,7 @@ simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = 
   #n = length(dates)
   
   # set random seed and sample betas
-  set.seed(10)
+  set.seed(seed)
   betas = sample_betas(facilities)
   
   ### get the seasonal effects (since these don't change across the simulation samples)
@@ -1836,9 +1856,14 @@ simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = 
     
     df_lst[[r]] = tmp
   }
+
+  params_true = as.data.frame(t(betas))
+  rownames(params_true) = paste0('B', rownames(params_true))
+  params_true = rbind(t(data.frame(By.AR1 = rep(lambda, ncol(params_true)), By.neighbors = rep(phi, ncol(params_true)), row.names = colnames(params_true))), params_true)
+  
   
   # return it!
-  res_lst = list(df_list = df_lst, betas = betas, lambda = lambda, phi = phi)
+  res_lst = list(df_list = df_lst, betas = betas, lambda = lambda, phi = phi, params = params_true)
   return(res_lst)
 }
 
