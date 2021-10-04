@@ -1602,11 +1602,11 @@ initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = 
   return(df)
 }
 
-sample_betas = function(facilities){
+sample_betas = function(facilities, b0_mean = 7, b1_mean = -0.2, b1_sd = 0.2){
   betas = matrix(0, nrow = length(facilities), ncol = 8)
   
-  betas[,1] = rnorm(7, 1, n = nrow(betas))
-  betas[,2] = rnorm(-0.2, 0.2, n = nrow(betas))
+  betas[,1] = rnorm(b0_mean, 1, n = nrow(betas))
+  betas[,2] = rnorm(b1_mean, b1_sd, n = nrow(betas))
   
   for(j in 3:8){
     betas[,j] = rnorm(0, 0.2, n = nrow(betas))
@@ -1675,7 +1675,7 @@ simulate_data <- function(district_sizes, R = 1){
   return(res_lst)
 }
 
-simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T){
+simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T, b0_mean = 7, b1_mean = -0.2){
   # set up data frame
   df = initialize_df(district_sizes)
   
@@ -1691,7 +1691,7 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   
   # set random seed and sample betas
   set.seed(10)
-  betas = sample_betas(facilities)
+  betas = sample_betas(facilities, b0_mean = b0_mean, b1_mean = b1_mean)
   
   ### get the mean effects (since these don't change across the simulation samples)
   df = do.call('rbind', lapply(facilities, function(xx){
@@ -1773,13 +1773,13 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
 ## R = number of simulated data sets
 ## lambda = autoregressive term
 ## phi = neighbor term
-simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10){
+simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2016-01-01', end_date = '2019-12-01', b0_mean = 7, b1_mean = -0.2, b1_sd = 0.2){
   
   warning('counting all districts as neighbors')
   print(sprintf('lambda: exp(%0.2f) = %0.2f; phi: exp(%0.2f) = %0.2f', lambda, exp(lambda), phi, exp(phi)))
   
   # set up data frame
-  df = initialize_df(district_sizes)
+  df = initialize_df(district_sizes, start_date = start_date, end_date = end_date)
   
   # make periodic covariates
   df = add_periodic_cov(df)
@@ -1793,7 +1793,7 @@ simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = 
   
   # set random seed and sample betas
   set.seed(seed)
-  betas = sample_betas(facilities)
+  betas = sample_betas(facilities, b0_mean = b0_mean, b1_mean = b1_mean, b1_sd = b1_sd)
   
   ### get the seasonal effects (since these don't change across the simulation samples)
   df = do.call('rbind', lapply(facilities, function(xx){

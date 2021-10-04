@@ -208,3 +208,527 @@ test = res_lst[[40]]$df
 
 # why is it always A1 that's the most off? The higher intercept? Or is there some weird bug in how I simulate the data that makes it worse. 
 
+
+
+#### Testing sample sizes ####
+
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+
+res_lst = list()
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$lambda, res$phi, res$betas[i,])
+}
+
+for(i in 1:100){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+# save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_20yrs_testFit_results_10012021.RData')
+
+params_full = NULL
+for(j in 1:4){
+  # creating the necessary data frame, an ugly way
+  params_true = as.data.frame(t(res$betas[j,,drop = F]))
+  colnames(params_true) = 'value'
+  params_true$parameter = paste0('B', rownames(params_true))
+  params_true = rbind(data.frame(value = c(res$lambda, res$phi), parameter = c('By.AR1', 'By.neighbors')),params_true)
+  
+  new_df = NULL
+  for(i in 1:length(res_lst)){
+    new_df = rbind(new_df, t(res_lst[[i]]$params[,j,drop = F]))
+  }
+  
+  # should be true as a check
+  identical(colnames(new_df), params_true$parameter)
+  
+  # organize the parameters data frmae
+  params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.AR1:Bsin3)
+  params = merge(params, params_true)
+  params$residual = params$estimate - params$value
+  params$residual_prop = params$residual/abs(params$value)
+  params$parameter = gsub('By.AR1','lambda', params$parameter)
+  params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+  
+  params$facility = i
+  
+  params_full = rbind(params_full, params)
+}
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+
+#### Testing sample sizes - 100 years ####
+
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '1970-01-01', b1_mean = -.01, b1_sd = .001)
+
+res_lst = list()
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$lambda, res$phi, res$betas[i,])
+}
+
+for(i in 1:100){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+HERE AT 312pm on 10/01
+
+TRY THIS WITH LOWER LAMBDA AND PHI VALUES? THAT MIGHT MAKE IT CONVERGE BETTER
+
+# save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_100yrs_testFit_results_10012021.RData')
+
+
+# creating the necessary data frame, an ugly way
+params_true = as.data.frame(t(res$betas[1,,drop = F]))
+colnames(params_true) = 'value'
+params_true$parameter = paste0('B', rownames(params_true))
+params_true = rbind(data.frame(value = c(res$lambda, res$phi), parameter = c('By.AR1', 'By.neighbors')),params_true)
+
+new_df = NULL
+for(i in 1:length(res_lst)){
+  new_df = rbind(new_df, t(res_lst[[i]]$params[,1,drop = F]))
+}
+
+# should be true as a check
+identical(colnames(new_df), params_true$parameter)
+
+# organize the parameters data frmae
+params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.AR1:Bsin3)
+params = merge(params, params_true)
+params$residual = params$estimate - params$value
+params$residual_prop = params$residual/abs(params$value)
+params$parameter = gsub('By.AR1','lambda', params$parameter)
+params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+
+#### Testing no lambda (no autocorrelation) ####
+source('R/freqGLM_epi_fxns_noLambda.R')
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2016-01-01', b1_mean = -0.1, b1_sd = 0.1)
+
+res_lst = list()
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$phi, res$betas[i,])
+}
+
+for(i in 1:100){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+#save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_noLambda_testFit_results_10012021.RData')
+
+params_full = NULL
+for(j in 1:4){
+  # creating the necessary data frame, an ugly way
+  params_true = as.data.frame(t(res$betas[j,,drop = F]))
+  colnames(params_true) = 'value'
+  params_true$parameter = paste0('B', rownames(params_true))
+  params_true = rbind(data.frame(value = res$phi, parameter = c('By.neighbors')),params_true)
+  
+  new_df = NULL
+  for(i in 1:length(res_lst)){
+    new_df = rbind(new_df, t(res_lst[[i]]$params[,j,drop = F]))
+  }
+  
+  # should be true as a check
+  print(identical(colnames(new_df), params_true$parameter))
+  
+  # organize the parameters data frmae
+  params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.neighbors:Bsin3)
+  params = merge(params, params_true)
+  params$residual = params$estimate - params$value
+  params$residual_prop = params$residual/abs(params$value)
+  #params$parameter = gsub('By.AR1','lambda', params$parameter)
+  params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+  
+  params$facility = i
+  
+  params_full = rbind(params_full, params)
+}
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+
+
+
+
+#
+#### Testing no lambda (no autocorrelation) - 20 years ####
+source('R/freqGLM_epi_fxns_noLambda.R')
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+
+res_lst = list()
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$phi, res$betas[i,])
+}
+
+for(i in 1:100){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_noLambda_20yrs_testFit_results_10012021.RData')
+
+params_full = NULL
+for(j in 1:4){
+  # creating the necessary data frame, an ugly way
+  params_true = as.data.frame(t(res$betas[j,,drop = F]))
+  colnames(params_true) = 'value'
+  params_true$parameter = paste0('B', rownames(params_true))
+  params_true = rbind(data.frame(value = res$phi, parameter = c('By.neighbors')),params_true)
+  
+  new_df = NULL
+  for(i in 1:length(res_lst)){
+    new_df = rbind(new_df, t(res_lst[[i]]$params[,j,drop = F]))
+  }
+  
+  # should be true as a check
+  print(identical(colnames(new_df), params_true$parameter))
+  
+  # organize the parameters data frmae
+  params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.neighbors:Bsin3)
+  params = merge(params, params_true)
+  params$residual = params$estimate - params$value
+  params$residual_prop = params$residual/abs(params$value)
+  #params$parameter = gsub('By.AR1','lambda', params$parameter)
+  params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+  
+  params$facility = i
+  
+  params_full = rbind(params_full, params)
+}
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+
+
+#### Testing no lambda (no autocorrelation) - 20 years - higher spatial ####
+source('R/freqGLM_epi_fxns_noLambda.R')
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -1.3, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+
+res_lst = list()
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$phi, res$betas[i,])
+}
+
+for(i in 1:100){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+#save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_noLambda_phi1.3_20yrs_testFit_results_10012021.RData')
+
+params_full = NULL
+for(j in 1:4){
+  # creating the necessary data frame, an ugly way
+  params_true = as.data.frame(t(res$betas[j,,drop = F]))
+  colnames(params_true) = 'value'
+  params_true$parameter = paste0('B', rownames(params_true))
+  params_true = rbind(data.frame(value = res$phi, parameter = c('By.neighbors')),params_true)
+  
+  new_df = NULL
+  for(i in 1:length(res_lst)){
+    new_df = rbind(new_df, t(res_lst[[i]]$params[,j,drop = F]))
+  }
+  
+  # should be true as a check
+  print(identical(colnames(new_df), params_true$parameter))
+  
+  # organize the parameters data frmae
+  params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.neighbors:Bsin3)
+  params = merge(params, params_true)
+  params$residual = params$estimate - params$value
+  params$residual_prop = params$residual/abs(params$value)
+  #params$parameter = gsub('By.AR1','lambda', params$parameter)
+  params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+  
+  params$facility = i
+  
+  params_full = rbind(params_full, params)
+}
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+
+#### Testing no phi (no spatial correlation) - 4 years ####
+source('R/freqGLM_epi_fxns_noPhi.R')
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = 10, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2016-01-01', b1_mean = -0.1, b1_sd = 0.1)
+
+res_lst = list()
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$lambda, res$betas[i,])
+}
+
+for(i in 1:100){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+
+#save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_nophi_testFit_results_10012021.RData')
+
+params_full = NULL
+for(j in 1:4){
+  # creating the necessary data frame, an ugly way
+  params_true = as.data.frame(t(res$betas[j,,drop = F]))
+  colnames(params_true) = 'value'
+  params_true$parameter = paste0('B', rownames(params_true))
+  params_true = rbind(data.frame(value = res$lambda, parameter = c('By.AR1')),params_true)
+  
+  new_df = NULL
+  for(i in 1:length(res_lst)){
+    new_df = rbind(new_df, t(res_lst[[i]]$params[,j,drop = F]))
+  }
+  
+  # should be true as a check
+  print(identical(colnames(new_df), params_true$parameter))
+  
+  # organize the parameters data frmae
+  params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.AR1:Bsin3)
+  params = merge(params, params_true)
+  params$residual = params$estimate - params$value
+  params$residual_prop = params$residual/abs(params$value)
+  params$parameter = gsub('By.AR1','lambda', params$parameter)
+  #params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+  
+  params$facility = i
+  
+  params_full = rbind(params_full, params)
+}
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+
+#
+#### Testing no phi (no spatial correlation) - 20 years ####
+source('R/freqGLM_epi_fxns_noPhi.R')
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = 10, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+
+res_lst = list()
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$lambda, res$betas[i,])
+}
+
+for(i in 1:100){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+
+# save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_nophi_20yrs_testFit_results_10012021.RData')
+
+params_full = NULL
+for(j in 1:4){
+  # creating the necessary data frame, an ugly way
+  params_true = as.data.frame(t(res$betas[j,,drop = F]))
+  colnames(params_true) = 'value'
+  params_true$parameter = paste0('B', rownames(params_true))
+  params_true = rbind(data.frame(value = res$lambda, parameter = c('By.AR1')),params_true)
+  
+  new_df = NULL
+  for(i in 1:length(res_lst)){
+    new_df = rbind(new_df, t(res_lst[[i]]$params[,j,drop = F]))
+  }
+  
+  # should be true as a check
+  print(identical(colnames(new_df), params_true$parameter))
+  
+  # organize the parameters data frmae
+  params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.AR1:Bsin3)
+  params = merge(params, params_true)
+  params$residual = params$estimate - params$value
+  params$residual_prop = params$residual/abs(params$value)
+  params$parameter = gsub('By.AR1','lambda', params$parameter)
+  #params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+  
+  params$facility = i
+  
+  params_full = rbind(params_full, params)
+}
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+
+#
+#### Testing no phi (no spatial correlation) - 20 years - higher lambda ####
+source('R/freqGLM_epi_fxns_noPhi.R')
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -1.3, phi = 10, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+
+res_lst = list()
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$lambda, res$betas[i,])
+}
+
+for(i in 1:100){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+
+# save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_nophi_lambda13_20yrs_testFit_results_10012021.RData')
+
+params_full = NULL
+for(j in 1:4){
+  # creating the necessary data frame, an ugly way
+  params_true = as.data.frame(t(res$betas[j,,drop = F]))
+  colnames(params_true) = 'value'
+  params_true$parameter = paste0('B', rownames(params_true))
+  params_true = rbind(data.frame(value = res$lambda, parameter = c('By.AR1')),params_true)
+  
+  new_df = NULL
+  for(i in 1:length(res_lst)){
+    new_df = rbind(new_df, t(res_lst[[i]]$params[,j,drop = F]))
+  }
+  
+  # should be true as a check
+  print(identical(colnames(new_df), params_true$parameter))
+  
+  # organize the parameters data frmae
+  params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.AR1:Bsin3)
+  params = merge(params, params_true)
+  params$residual = params$estimate - params$value
+  params$residual_prop = params$residual/abs(params$value)
+  params$parameter = gsub('By.AR1','lambda', params$parameter)
+  #params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+  
+  params$facility = i
+  
+  params_full = rbind(params_full, params)
+}
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+
+#
