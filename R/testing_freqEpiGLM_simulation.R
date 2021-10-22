@@ -12,7 +12,8 @@ library(cowplot)
 
 # Next to try to just fit the data without any missingness
 
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10)
+# res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
 
 df = res$df_list[[1]]
 
@@ -30,13 +31,15 @@ for(i in 1:100){
   #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
   tmp = res$df_list[[i]]
   tmp$y_true = tmp$y
-  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F) 
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, scale_by_num_neighbors = T) 
   res_lst[[i]] = freqGLMepi_list
   #print(freqGLMepi_list$params)
 }
 
-# save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_testFit_results_09232021.RData')
 
+# save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_testFit_results_v2_10042021.RData')
+
+#
 #### No missingness - cheating with initial values ####
 res_lst = list()
 
@@ -50,12 +53,12 @@ for(i in 1:100){
   #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
   tmp = res$df_list[[i]]
   tmp$y_true = tmp$y
-  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits, scale_by_num_neighbors = T) 
   res_lst[[i]] = freqGLMepi_list
   #print(freqGLMepi_list$params)
 }
 
-save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_testFit_results_09232021.RData')
+#save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_testFit_results_10052021.RData')
 
 #
 #### MCAR 0.2 and parameter estimates ####
@@ -210,9 +213,9 @@ test = res_lst[[40]]$df
 
 
 
-#### Testing sample sizes ####
+#### Testing sample sizes - 20 years ####
 
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
 
 res_lst = list()
 
@@ -230,7 +233,7 @@ for(i in 1:100){
   #print(freqGLMepi_list$params)
 }
 
-# save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_20yrs_testFit_results_10012021.RData')
+# save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_20yrs_testFit_results_10072021.RData')
 
 params_full = NULL
 for(j in 1:4){
@@ -246,7 +249,7 @@ for(j in 1:4){
   }
   
   # should be true as a check
-  identical(colnames(new_df), params_true$parameter)
+  print(identical(colnames(new_df), params_true$parameter))
   
   # organize the parameters data frmae
   params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.AR1:Bsin3)
@@ -276,7 +279,7 @@ ggplot(params, aes(x = parameter, y = residual_prop)) +
 
 #### Testing sample sizes - 100 years ####
 
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '1970-01-01', b1_mean = -.01, b1_sd = .001)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '1970-01-01', b1_mean = -.01, b1_sd = .001)
 
 res_lst = list()
 
@@ -339,7 +342,7 @@ ggplot(params, aes(x = parameter, y = residual_prop)) +
 
 #### Testing no lambda (no autocorrelation) ####
 source('R/freqGLM_epi_fxns_noLambda.R')
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2016-01-01', b1_mean = -0.1, b1_sd = 0.1)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2016-01-01', b1_mean = -0.1, b1_sd = 0.1)
 
 res_lst = list()
 
@@ -352,12 +355,14 @@ for(i in 1:100){
   #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
   tmp = res$df_list[[i]]
   tmp$y_true = tmp$y
-  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits, scale_by_num_neighbors = T) 
   res_lst[[i]] = freqGLMepi_list
   #print(freqGLMepi_list$params)
 }
 
-#save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_noLambda_testFit_results_10012021.RData')
+
+
+# save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_noLambda_testFit_results_10072021.RData')
 
 params_full = NULL
 for(j in 1:4){
@@ -400,14 +405,10 @@ ggplot(params, aes(x = parameter, y = residual_prop)) +
   geom_hline(yintercept = -1, color = 'red') +
   ggtitle('parameter estimate residuals/abs(true value)')
 
-
-
-
-
 #
 #### Testing no lambda (no autocorrelation) - 20 years ####
 source('R/freqGLM_epi_fxns_noLambda.R')
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
 
 res_lst = list()
 
@@ -425,7 +426,7 @@ for(i in 1:100){
   #print(freqGLMepi_list$params)
 }
 
-save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_noLambda_20yrs_testFit_results_10012021.RData')
+#save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_noLambda_20yrs_testFit_results_10072021.RData')
 
 params_full = NULL
 for(j in 1:4){
@@ -472,7 +473,7 @@ ggplot(params, aes(x = parameter, y = residual_prop)) +
 
 #### Testing no lambda (no autocorrelation) - 20 years - higher spatial ####
 source('R/freqGLM_epi_fxns_noLambda.R')
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -1.3, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = 10, phi = -1.3, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
 
 res_lst = list()
 
@@ -485,12 +486,12 @@ for(i in 1:100){
   #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
   tmp = res$df_list[[i]]
   tmp$y_true = tmp$y
-  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits) 
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'bootstrap', R_PI = 2, verbose = F, optim_init = optim_inits, scale_by_num_neighbors = T) 
   res_lst[[i]] = freqGLMepi_list
   #print(freqGLMepi_list$params)
 }
 
-#save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_noLambda_phi1.3_20yrs_testFit_results_10012021.RData')
+#save(res_lst, res, file = 'results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_noLambda_phi1.3_20yrs_testFit_results_10072021.RData')
 
 params_full = NULL
 for(j in 1:4){
@@ -536,7 +537,7 @@ ggplot(params, aes(x = parameter, y = residual_prop)) +
 
 #### Testing no phi (no spatial correlation) - 4 years ####
 source('R/freqGLM_epi_fxns_noPhi.R')
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = 10, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2016-01-01', b1_mean = -0.1, b1_sd = 0.1)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = 10, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2016-01-01', b1_mean = -0.1, b1_sd = 0.1)
 
 res_lst = list()
 
@@ -602,7 +603,7 @@ ggplot(params, aes(x = parameter, y = residual_prop)) +
 #
 #### Testing no phi (no spatial correlation) - 20 years ####
 source('R/freqGLM_epi_fxns_noPhi.R')
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = 10, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = 10, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
 
 res_lst = list()
 
@@ -668,7 +669,7 @@ ggplot(params, aes(x = parameter, y = residual_prop)) +
 #
 #### Testing no phi (no spatial correlation) - 20 years - higher lambda ####
 source('R/freqGLM_epi_fxns_noPhi.R')
-res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -1.3, phi = 10, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -1.3, phi = 10, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
 
 res_lst = list()
 
@@ -732,3 +733,67 @@ ggplot(params, aes(x = parameter, y = residual_prop)) +
 
 
 #
+#### Plotting ####
+
+load('results/freqGLM_epi_debugging/freqGLM_epi_noMISS_true_inits_testFit_results_10052021.RData')
+
+
+# for the model with lambda and phi
+params_full = NULL
+param_norm_diff = data.frame(A1 = rep(as.numeric(NA), 100),
+                             A2 = rep(as.numeric(NA), 100),
+                             A3 = rep(as.numeric(NA), 100),
+                             A4 = rep(as.numeric(NA), 100))
+for(j in 1:4){
+  # creating the necessary data frame, an ugly way
+  params_true = as.data.frame(t(res$betas[j,,drop = F]))
+  colnames(params_true) = 'value'
+  params_true$parameter = paste0('B', rownames(params_true))
+  params_true = rbind(data.frame(value = c(res$lambda, res$phi), parameter = c('By.AR1', 'By.neighbors')),params_true)
+  
+  new_df = NULL
+  for(i in 1:length(res_lst)){
+    new_df = rbind(new_df, t(res_lst[[i]]$params[,j,drop = F]))
+  }
+  
+  # should be true as a check
+  print(identical(colnames(new_df), params_true$parameter))
+  
+  param_norm_diff[,j] = apply(new_df, 1, function(xx){
+    return(norm(xx - params_true$value))
+  })
+  
+  # organize the parameters data frmae
+  params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.AR1:Bsin3)
+  params = merge(params, params_true)
+  params$residual = params$estimate - params$value
+  params$residual_prop = params$residual/abs(params$value)
+  params$parameter = gsub('By.AR1','lambda', params$parameter)
+  params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+  
+  params$facility = i
+  
+  params_full = rbind(params_full, params)
+}
+
+param_norm_diff$sum = rowSums(param_norm_diff)
+
+indices = c()
+tt = param_norm_diff$sum
+for(i in 1:10){
+  ind = which(tt == max(tt, na.rm = T))
+  tt[ind] = NA
+  indices = c(indices, ind)
+}
+
+par(mfrow = c(2,2))
+for(ii in indices){
+  df = res_lst[[ii]]$df
+  print(res_lst[[ii]]$params)
+  for(f in unique(df$facility)){
+    tmp = df %>% filter(facility == f)
+    plot(tmp$date, tmp$y, type = 'l', ylim = c(0,max(tmp$y)), main = paste0(ii, ': ',f))
+    lines(tmp$date, tmp$y_pred_freqGLMepi, col = 'red')
+  }
+}
+

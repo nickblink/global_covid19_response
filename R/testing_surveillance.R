@@ -56,6 +56,8 @@ result1 <- update(result0, family = 'NegBin1')
 # the ar = list(f = ~-1) default excludes the autocorrelation parameter, but this line of code, includes it
 result2 <- update(result1, ar = list(f = ~1))
 
+result3 <- update(result2, ne = list(f = ~1, weights = neighbourhood(meningo)))
+
 # I think currently this does not include the time trend (actually the written out model has a full time trend - does ours just have a yearly trend? Why not just a full time one?)
 
 plot(result2)

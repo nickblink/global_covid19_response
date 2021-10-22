@@ -624,10 +624,6 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
   
   init_OG = init
   
-  # init = c(-3.98630374, -1.72730745, 7.04425288, -0.13527676, -0.34012130, -0.07970224, -0.17471972, -0.10980406, -0.22505447, -0.04618626)
-  
-  # init = c(-2, -2, log(mean(df$y_imp)), rep(0,7))
-  
   # NM_control = list(maxit = 10000, reltol = 1e-12)
   NM_control = list(maxit = 10000)
   # BFGS_control = list(maxit = 10000, factr = 1e-11))
@@ -657,7 +653,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
     for(i in 2:num_inits){
       # init = rnorm(10,0,10*i/num_inits)
       
-      init = init_OG + rnorm(10,0,10*i/num_inits)
+      init = init_OG + rnorm(10,0,5*i/num_inits)
       
       # nelder-mead
       tryCatch({
@@ -667,7 +663,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
       })
       
       if(params2$value < params$value & params2$convergence == 0){
-        print('using another initialization')
+        if(verbose){print('using another initialization')}
         params = params2
       }
       
@@ -676,7 +672,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
         tryCatch({
           params2 = optim(init, ll.wrapper,  D = df, target_col = target_col, method = 'L-BFGS-B',  control = BFGS_control)
           if(params2$value < params$value & params2$convergence == 0){
-            print('using another initialization')
+            if(verbose){print('using another initialization')}
             params = params2
           }
         }, error = function(e){
@@ -690,7 +686,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
   
   # for error checking
   if(params$convergence != 0){
-    print('didnt converge for one iteration')
+    if(verbose){print('didnt converge for one iteration')}
     #browser()
   }
   
@@ -711,7 +707,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = T, optim_init = NULL){
+freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = F, optim_init = NULL, scale_by_num_neighbors = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -749,7 +745,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   
   # add the neighbors and auto-regressive
   df = add_autoregressive(df, 'y_imp') %>%
-    add_neighbors(., 'y_imp')
+    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors)
   
   ### Run freqGLM_epidemic model iteratively
   iter = 1
@@ -765,7 +761,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         tt <- df %>% filter(facility == xx)
         
         # fit the model
-        params = fit_freqGLMepi(tt, verbose = F, init = optim_init[[xx]])
+        params = fit_freqGLMepi(tt, verbose = verbose, init = optim_init[[xx]])
         
         # update y_pred
         tt$y_pred_freqGLMepi = model.mean(tt, params$par)
@@ -798,7 +794,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     y_pred_list[[iter]] = df$y_pred_freqGLMepi
     
     if(length(na.ind) == 0){
-      print('only running one iteration because there is no missingness')
+      if(verbose){print('only running one iteration because there is no missingness')}
       break
     }
     
@@ -1460,7 +1456,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, violin_points = F){
   
   if(is.null(outcomes)){
     outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
@@ -1502,13 +1498,24 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
     
     p1 <- ggplot(tmp2, aes(x = method, y = value, fill = method)) +  #, color = method)
       geom_violin(position="dodge", alpha=0.5) + 
-      geom_jitter(position = position_jitter(0.1)) + 
       scale_color_manual(values = color_vec) +
       scale_fill_manual(values = color_vec) + 
       theme_bw() + 
-      theme(legend.position = 'none',
-            axis.text.x = element_text(angle = 45, hjust = 1)) +
+      theme(axis.title.x = element_blank(),
+            axis.text.x = element_blank()) +
       ggtitle(m)
+    
+    # stash the legend
+    if(i == 1){
+      legend = get_legend(p1 + theme(legend.position = 'bottom'))
+    }
+    
+    # remove the legend for this plot
+    p1 <- p1 + theme(legend.position = 'none')
+    
+    if(violin_points){
+      p1 <- p1 + geom_jitter(position = position_jitter(0.1))
+    }
     
     #browser()
     
@@ -1528,7 +1535,7 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
   }
   
   # make the final plot
-  final_plot <- plot_grid(plotlist = plot_list, nrow = 2)
+  final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = 2), legend, ncol = 1, rel_heights = c(10,1))
   
   return(final_plot)
 }

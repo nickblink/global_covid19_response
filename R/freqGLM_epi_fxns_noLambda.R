@@ -95,13 +95,14 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
     for(i in 2:num_inits){
       # init = rnorm(10,0,10*i/num_inits)
       
-      init = init_OG + rnorm(9,0,10*i/num_inits)
+      init = init_OG + rnorm(9,0,5*i/num_inits)
       
       # nelder-mead
       tryCatch({
         params2 = optim(init, ll.wrapper, D = df, target_col = target_col, control = NM_control)
       }, error = function(e){
-        browser()
+        print(sprintf('skipping this round of Nelder-Mead because of error: %s', e))
+        #browser()
       })
       
       if(params2$value < params$value & params2$convergence == 0){
@@ -149,7 +150,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = T, optim_init = NULL){
+freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = T, optim_init = NULL, scale_by_num_neighbors = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -187,7 +188,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   
   # add the neighbors and auto-regressive
   df = add_autoregressive(df, 'y_imp') %>%
-    add_neighbors(., 'y_imp')
+    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors)
   
   ### Run freqGLM_epidemic model iteratively
   iter = 1
@@ -383,7 +384,6 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   return_lst = list(df = df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
   return(return_lst)
 }
-
 
 
 simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = F, seed = 10, start_date = '2016-01-01', end_date = '2019-12-01', b0_mean = 7, b1_mean = -0.2, b1_sd = 0.2){
