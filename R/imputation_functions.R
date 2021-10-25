@@ -74,6 +74,19 @@ add_neighbors <- function(df, target_col = 'y', lag = 0, scale_by_num_neighbors 
   return(df)
 }
 
+date_facility_check <- function(imputed_list){
+  date_fac_mat = imputed_list[[1]][, c("date", "facility")]
+  date_fac = paste0(date_fac_mat[,1], '--', date_fac_mat[,2])
+  
+  for(i in 2:length(imputed_list)){
+    date_fac_mat_new = imputed_list[[i]][, c("date", "facility")]
+    date_fac_new = paste0(date_fac_mat_new[,1], '--', date_fac_mat[,2])
+    if(!identical(date_fac_new, date_fac)){
+      stop('mismatch in dates and facilities in the imputed list run')
+    }
+  }
+}
+
 #
 ##### Imputation Functions #####
 
@@ -1354,7 +1367,8 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 }
 
 # calculate the metrics for individual data points across simulated imputations
-calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmonic", "y_CARBayes_ST"), imputed_only = T, rm_ARna = F){
+calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmonic", "y_CARBayes_ST"), imputed_only = T, rm_ARna = F, use_point_est = F){
+  
   #y_true = imputed_list[[1]]$y_true
   
   # removing the starting points with NA AR1 values, since these
@@ -1362,6 +1376,9 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
     print('removing the starting points because of NA autoregressive term')
     imputed_list = lapply(imputed_list, function(xx) xx[!is.na(xx$y.AR1),])
   }
+  
+  # make sure the dates and facilities match
+  date_facility_check(imputed_list)
   
   # get the true values everywhere and at the deleted time points
   y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_true']))
@@ -1391,11 +1408,17 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
       median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
       
+      if(use_point_est){
+        outcome = point_est
+      }else{
+        outcome = median
+      }
+      
       # full dataset
-      tmp$bias = rowMeans(sapply(1:ncol(median), function(ii) {median[,ii] - y_true[,ii]}))
-      tmp$absolute_bias = rowMeans(sapply(1:ncol(median), function(ii) {abs(median[,ii] - y_true[,ii])}))
-      tmp$MAPE = rowMeans(sapply(1:ncol(median), function(ii) {abs(median[,ii] - y_true[,ii])/y_true[,ii]}))
-      tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(median), function(ii) {(median[,ii] - y_true[,ii])^2})))
+      tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_true[,ii]}))
+      tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])}))
+      tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
+      tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
       
       tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_25[,ii] & y_true[,ii] < upper_75[,ii])))
       tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_025[,ii] & y_true[,ii] < upper_0975[,ii])))
@@ -1424,11 +1447,18 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
       median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
       
+      if(use_point_est){
+        outcome = point_est
+      }else{
+        outcome = median
+      }
+      
+      #bias2 = rowMeans(sapply(1:ncol(median), function(ii) {point_est[,ii] - y_missing[,ii]}), na.rm = T)
       # full dataset
-      tmp$bias = rowMeans(sapply(1:ncol(median), function(ii) {median[,ii] - y_missing[,ii]}), na.rm = T)
-      tmp$absolute_bias = rowMeans(sapply(1:ncol(median), function(ii) {abs(median[,ii] - y_missing[,ii])}), na.rm = T)
-      tmp$MAPE = rowMeans(sapply(1:ncol(median), function(ii) {abs(median[,ii] - y_missing[,ii])/y_missing[,ii]}), na.rm = T)
-      tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(median), function(ii) {(median[,ii] - y_missing[,ii])^2}), na.rm = T))
+      tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_missing[,ii]}), na.rm = T)
+      tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])}), na.rm = T)
+      tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])/y_missing[,ii]}), na.rm = T)
+      tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_missing[,ii])^2}), na.rm = T))
       
       tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_25[,ii] & y_missing[,ii] < upper_75[,ii])), na.rm = T)
       tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_025[,ii] & y_missing[,ii] < upper_0975[,ii])), na.rm = T)
@@ -1456,14 +1486,14 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, violin_points = F){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F){
   
   if(is.null(outcomes)){
     outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
   }
   
   # get the metrics from each simulation run
-  res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = imputed_only, rm_ARna = rm_ARna)
+  res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = imputed_only, rm_ARna = rm_ARna, use_point_est = use_point_est)
   
   if(any(res$num_missing < min_missing) & imputed_only){
     stop('all points are not missing enough (check min_missing)')

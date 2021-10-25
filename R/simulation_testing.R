@@ -16,7 +16,6 @@ R = 500
 system.time({
   lst <- res <- simulate_data_freqGLM_epi(district_sizes = 4, R = R, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
 
-  
   imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CB_intercept", "y_CB_facility")
   rename_vec = c('glmFreq','glmFreq_epi','CARBayes_int', 'CARBayes_facility')
   color_vec = c('red','blue','lightgreen', 'forestgreen')
@@ -52,9 +51,17 @@ system.time({
   
   pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
   
+  # all data points
   p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 25, rename_vec = rename_vec, rm_ARna = T)
   
+  # just imputed data points
   p2 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 25, rename_vec = rename_vec, rm_ARna = T)
+  
+  p3 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 25, rename_vec = rename_vec, rm_ARna = T, use_point_est = T)
+  
+  # just imputed data points
+  p4 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 25, rename_vec = rename_vec, rm_ARna = T, use_point_est = T)
+  
 }) # 7-8 hours
 # 
 
