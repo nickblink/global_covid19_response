@@ -581,9 +581,23 @@ model.mean <- function(D, params){
   return(mu)
 }
 
+model.mean.exp <- function(D, params){
+  mu = params[1]*D$y.AR1 + # auto-regressive
+    params[2]*D$y.neighbors + # neighbors
+    exp(params[3] + params[4]*D$year + params[5]*D$cos1 + params[6]*D$sin1 + params[7]*D$cos2 + params[8]*D$sin2 + params[9]*D$cos3 + params[10]*D$sin3) # yearly + seasonal component
+  
+  return(mu)
+}
+
 # likelihood function
 ll.wrapper = function(params, D, target_col){
   mu = model.mean(D, params)
+  logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
+  return(-logL)
+}
+
+ll.wrapper.exp = function(params, D, target_col){
+  mu = model.mean.exp(D, params)
   logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
   return(-logL)
 }
@@ -598,15 +612,64 @@ freqGLMepi_variance <- function(param_vec, D){
     return(logL)
   }
   
-  # get the observed infromation matrix
+  ll.wrapper.exp = function(params, target_col = 'y_imp'){
+    mu = model.mean.exp(D, params)
+    logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
+    return(-logL)
+  }
+  
+  
+  # get the observed information matrix
   obs_I = -numDeriv::hessian(ll.wrapper, param_vec)
   
   obs_2 = -pracma::hessian(ll.wrapper, param_vec)
   
-  #browser()
+  obs_grad = numDeriv::grad(ll.wrapper, param_vec)
   
-  if(det(obs_I) < 0){
+  # for numerical stability of the variance components
+  param_vec_exp = param_vec
+  param_vec_exp[1:2] = exp(param_vec_exp[1:2])
+
+  obs_test = -numDeriv::hessian(ll.wrapper.exp, param_vec_exp)
+  obs_test_2 =  -pracma::hessian(ll.wrapper.exp, param_vec_exp)
+  
+  # need to do the delta method anyway
+  
+  ## Analytically, lezz do it.
+  
+  X = cbind(1, D[,c('year','cos1','sin1','cos2','sin2','cos3','sin3')])
+ 
+  # ugly way - these's def some matrix algebra to speed this up but ignoring this for now
+  logL_hess <- matrix(0, nrow = length(param_vec), ncol = length(param_vec))
+  logL_grad <- matrix(0, nrow = length(param_vec), ncol = 1)
+  mu = model.mean(D, param_vec)
+  for(i in 2:nrow(D)){
+    y_i = D$y_imp[i]
+    x_i = as.matrix(t(X[i,]))
+    
+    mu_grad_i = as.matrix(unlist(c(exp(param_vec[1])*D$y.AR1[i],
+                  exp(param_vec[2])*D$y.neighbors[i],
+                  x_i*exp(t(x_i)%*%param_vec[3:10])[1,1])))
+    
+    mu_grad2_i = Matrix::bdiag(list(exp(param_vec[1])*D$y.AR1[i],
+                           exp(param_vec[2])*D$y.neighbors[i],
+                           x_i%*%t(x_i)*exp(t(x_i)%*%param_vec[3:10])[1,1]))
+
+    logL_grad <- logL_grad + (y_i/mu[i] - 1)*mu_grad_i
+    logL_hess <- logL_hess + (y_i/mu[i] - 1)*mu_grad2_i - y_i/(mu[i]^2)*mu_grad_i %*% t(mu_grad_i)
+  }
+  
+  if(norm(obs_I + logL_hess)/norm(logL_hess) > .01){
     browser()
+  }
+
+  if(det(obs_I) < 0){
+    if(det(logL_hess) < 0){
+      browser()
+    }else{
+      obs_I = -logL_hess
+    }
+    
   }
   
   # get the variance of the parameters

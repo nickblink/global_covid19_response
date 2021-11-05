@@ -797,3 +797,30 @@ for(ii in indices){
   }
 }
 
+
+#### Testing the fits of other packages ####
+
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 2, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+tmp = res$df_list[[1]]
+tmp$y_true = tmp$y
+freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 2, scale_by_num_neighbors = T) 
+
+A = tmp %>% filter(facility == 'A1')
+
+
+## Try this with 20 years
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 2, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01')
+
+tmp = res$df_list[[1]]
+tmp$y_true = tmp$y
+freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 2, scale_by_num_neighbors = T) 
+
+
+
+# addreg approach - nvm each x needs to be non-negative this doesn't work. Also this doesn't really fit what my model is doing anyway. I'm doing some weird function of the predictors that's not even linear
+y = A$y
+x = A[,c('y.neighbors', 'y.AR1', 'year', "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
+
+fit.1 <- addreg::nnpois(y, x)
+
