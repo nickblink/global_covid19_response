@@ -798,7 +798,7 @@ for(ii in indices){
 }
 
 
-#### Testing the fits of other packages ####
+#### Testing parametric bootstrap ####
 
 res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 2, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
 
@@ -808,7 +808,6 @@ freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_
 
 A = tmp %>% filter(facility == 'A1')
 
-
 ## Try this with 20 years
 res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 2, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01')
 
@@ -817,10 +816,332 @@ tmp$y_true = tmp$y
 freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 2, scale_by_num_neighbors = T) 
 
 
+### Counting the number of errors
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
 
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+num_errors = sum(sapply(res_lst, function(xx) xx$num_errors))
+# 116
+prop_erros = num_errors/400
+# 29%!
+
+# Now with 20 years
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01')
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+num_errors = sum(sapply(res_lst, function(xx) xx$num_errors)) # 71
+prop_erros = num_errors/400 # 18%!
+
+#
+model.cols = c(16, 3, 5, 7, 8, 9, 10, 11, 12)
+
+
+
+corrplot::corrplot(cor(tmp[tmp$facility == 'A1', model.cols], use = 'complete.obs'))
+
+#### Testing parametric bootstrap - cheating with initial values ####
+
+### Counting the number of errors
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+optim_inits = list()
+for(i in 1:nrow(res$betas)){
+  optim_inits[[rownames(res$betas)[i]]] = c(res$lambda, res$phi, res$betas[i,])
+}
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F, optim_init = optim_inits) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+sum(sapply(res_lst, function(xx) xx$num_errors))
+# 61
+
+sum(sapply(res_lst, function(xx) xx$num_errors))/400
+# .15/ 15% - so significantly better
+
+# Now with 20 years
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01')
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+num_errors = sum(sapply(res_lst, function(xx) xx$num_errors)) 
+prop_erros = num_errors/400 
+
+#
+model.cols = c(16, 3, 5, 7, 8, 9, 10, 11, 12)
+
+
+
+corrplot::corrplot(cor(tmp[tmp$facility == 'A1', model.cols], use = 'complete.obs'))
+
+#### Testing parametric bootstrap on diff. models ####
+
+source('R/freqGLM_epi_fxns_noLambda.R')
+
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 5, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, )
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+# Still not good. Are the y's between facilities just too highly correlated?
+cors = c()
+for(i in 1:length(res$df_list)){
+  tmp = res$df_list[[i]]
+  tt = tmp %>% 
+    select(date, facility, y) %>%
+    reshape(., idvar = 'date', timevar = 'facility', direction = 'wide')
+  
+  cors = c(cors, c(cor(tt[,-1])))
+}
+cors = cors[cors != 1]
+
+# Darn should I mess around with the data?
+
+## No phi
+source('R/freqGLM_epi_fxns_noPhi.R')
+
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 5, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+# Still not good. Are the y's between facilities just too highly correlated?
+cors = c()
+for(i in 1:length(res$df_list)){
+  tmp = res$df_list[[i]]
+  tt = tmp %>% 
+    select(date, facility, y) %>%
+    reshape(., idvar = 'date', timevar = 'facility', direction = 'wide')
+  
+  cors = c(cors, c(cor(tt[,-1])))
+}
+cors = cors[cors != 1]
+
+#### Testing parametric bootstrap no lambda or phi ####
+source('R/freqGLM_epi_fxns_noPhi_noLambda.R')
+
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+sum(sapply(res_lst, function(xx) xx$num_errors))
+# phew. But also quite low covariances
+
+tt = unlist(lapply(res_lst, function(xx){
+  # print(unique(xx$df$district));
+  lapply(xx$vcov_list, function(yy){
+    #browser()
+    res<- ifelse(is.null(yy), -1, det(yy));
+    return(res)
+  })}))
+
+mean(tt == -1)
+mean(tt)
+median(tt)
+# so very very low. Is that a problem? It's the exponentiating that is potentially an issue here.
+
+
+
+
+#### Testing parametric bootstrap on real data ####
+
+D = readRDS('data/liberia_cleaned_NL.rds')
+
+facility_miss = D %>% 
+  group_by(facility) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            ari_miss_count = sum(is.na(indicator_count_ari_total)))
+
+D = D %>% 
+  filter(facility %in% facility_miss$facility[facility_miss$ari_miss <= 0.5])
+
+# fix name for smoother name matching
+D$facility = gsub("'","", D$facility)
+D$facility = gsub("-"," ", D$facility)
+
+tt = table(D$district)
+multi_dists = names(tt[tt > 56])
+
+res_lst = list()
+for(dist in multi_dists){
+  # prep the data
+  tmp = D %>% filter(district == dist) %>%
+    select(date, district, facility, y = indicator_count_ari_total)
+  tmp = tmp %>% 
+    add_periodic_cov() %>%
+    add_autoregressive() %>%
+    add_neighbors()
+  tmp$y_true = tmp$y
+  
+  # run the model
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[dist]] = freqGLMepi_list
+}
+
+lst = unlist(lapply(res_lst, function(xx) xx$convergence))
+table(lst)
+
+tt = unlist(lapply(res_lst, function(xx){
+ # print(unique(xx$df$district));
+  lapply(xx$vcov_list, function(yy){
+    #browser()
+    res<- ifelse(is.null(yy), -1, det(yy));
+    return(res)
+  })}))
+
+mean(tt == -1)
+
+
+
+lapply(res_lst, function(xx){print(length(xx$vcov_list))})
+#### Testing parametric bootstrap with nlminb ####
+source('R/freqGLM_epi_fxns_expPhiLamVar3.R')
+
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+sum(sapply(res_lst, function(xx) xx$num_errors)) # Only 1 Out of 400!
+
+# for testing
+tt <- sapply(res_lst, function(xx) xx$params[,1])
+
+# a little bias. That could have to do with the initial values
+
+save(res_lst, file = 'results/freGLM_100sim_nlminb.RData')
+
+### Want to compare some of the variances when it does converge
+source('R/imputation_functions.R')
+res_lst2 = list()
+for(i in 1:10){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst2[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+diag(res_lst2[[1]]$vcov_list[[2]])
+diag(res_lst[[1]]$vcov_list[[2]])
+# oh ya we wouldn't expect these to be the exact same because of the exponentiating duh. But shouldn't the other diagonals be the same?
+
+# Should I try rerunning this all with nlminb?
+
+#### Testing parametric bootstrap with exponentiated first two params ####
+source('R/freqGLM_epi_fxns_expPhiLamVar.R')
+
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 100, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+sum(sapply(res_lst, function(xx) xx$num_errors)) # only 16/400? What's up with that? So maybe it does have to do with finding the inverse of a high determinant matrix
+
+#### Testing the fits of other packages ####
 # addreg approach - nvm each x needs to be non-negative this doesn't work. Also this doesn't really fit what my model is doing anyway. I'm doing some weird function of the predictors that's not even linear
 y = A$y
 x = A[,c('y.neighbors', 'y.AR1', 'year', "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
 
 fit.1 <- addreg::nnpois(y, x)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

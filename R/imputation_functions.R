@@ -24,7 +24,7 @@ add_autoregressive <- function(df, target_col = 'y', num.terms = 1){
   
   tmp <- lapply(unique(df$facility), function(xx) {
     tt <- df %>% filter(facility == xx) %>% arrange(date)
-    tt[,sprintf('%s.AR1', target_col)] = c(NA, tt[1:(nrow(tt) - 1), target_col])
+    tt[,sprintf('%s.AR1', target_col)] = c(NA, tt[1:(nrow(tt) - 1), target_col, drop = T])
     return(tt)
   })
   
@@ -63,8 +63,21 @@ add_neighbors <- function(df, target_col = 'y', lag = 0, scale_by_num_neighbors 
     tidyr::spread(facility,get(target_col)) %>% 
     arrange(date)
   
+
   if(!identical(colnames(W), colnames(y.counts)[-1])){
-    stop('Adjacency and y matrix column names dont match')
+    # if the colnames do match but are in the wrong order, reorder them
+    if(length(setdiff(colnames(W), colnames(y.counts)[-1])) == 0 &
+       length(setdiff(colnames(y.counts)[-1], colnames(W))) == 0){
+      
+      matid = match(colnames(y.counts)[-1], colnames(W))
+      y.counts = y.counts[,c(1, matid + 1)]
+      
+      # for error checking
+      if(!identical(colnames(W), colnames(y.counts)[-1])){browser()}
+    }else{
+      stop('Adjacency and y matrix column names dont match')
+    }
+    ind = which(colnames(W) != colnames(y.counts)[-1])
   }
   
   df = cbind(y.counts[,'date',drop = F], as.data.frame(as.matrix(y.counts[,-1])%*%W)) %>% 
@@ -612,6 +625,76 @@ freqGLMepi_variance <- function(param_vec, D){
     return(logL)
   }
   
+  # get the observed information matrix
+  obs_I = -numDeriv::hessian(ll.wrapper, param_vec)
+  
+  if(det(obs_I) < 0){
+    return(list(variance = NULL, pos_def = F))
+  }else{
+    pos_def = T
+  }
+  
+  # get the variance of the parameters
+  V = tryCatch({solve(obs_I)}, error = function(e) {print(det(obs_I)); browser()})
+  # V = solve(obs_I)
+  
+  # update names
+  colnames(V) = names(param_vec)
+  rownames(V) = names(param_vec)
+  
+  #res_lst = list(variance = V, pos_def = pos_def)
+  
+  return(V)
+}
+
+freqGLMepi_variance2 <- function(param_vec, D){
+  
+  warning('weird scoping in variance function. Try to make it like the freqGLM_epi fitting procedure')
+  # make likelihood function
+  ll.wrapper = function(params, target_col = 'y_imp'){
+    mu = model.mean(D, params)
+    logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
+    return(logL)
+  }
+  
+  ll.wrapper.exp = function(params, target_col = 'y_imp'){
+    mu = model.mean.exp(D, params)
+    logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
+    return(-logL)
+  }
+  
+  # get the observed information matrix
+  obs_I = -numDeriv::hessian(ll.wrapper, param_vec)
+  
+  # if(det(obs_I) < 0){
+  #   return(list(variance = NULL, pos_def = F))
+  # }else{
+  #   pos_def = T
+  # }
+  
+  # get the variance of the parameters
+  #V = tryCatch({solve(obs_I)}, error = function(e) {print(det(obs_I)); browser()})
+  V = solve(obs_I)
+  
+  # update names
+  colnames(V) = names(param_vec)
+  rownames(V) = names(param_vec)
+  
+  #res_lst = list(variance = V, pos_def = pos_def)
+  
+  return(V)
+}
+
+freqGLMepi_variance_testing <- function(param_vec, D){
+  
+  warning('weird scoping in variance function. Try to make it like the freqGLM_epi fitting procedure')
+  # make likelihood function
+  ll.wrapper = function(params, target_col = 'y_imp'){
+    mu = model.mean(D, params)
+    logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
+    return(logL)
+  }
+  
   ll.wrapper.exp = function(params, target_col = 'y_imp'){
     mu = model.mean.exp(D, params)
     logL = sum(-mu + D[,target_col]*log(mu), na.rm = T)
@@ -673,6 +756,7 @@ freqGLMepi_variance <- function(param_vec, D){
   }
   
   # get the variance of the parameters
+  #V = tryCatch({solve(obs_I}, error = function(e) {browser()})})
   V = solve(obs_I)
   
   # update names
@@ -798,6 +882,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   # the unique facility groups
   uni_group = unique(df$facility)
   
+  #browser()
   # run the individual model for each group.
   tmp <- lapply(uni_group, function(xx) {
     tt <- df %>% filter(facility == xx)
@@ -901,6 +986,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     print(sprintf('convergence reached in %s iterations', iter))
   }
   
+  num_errors = 0
   if(prediction_intervals == 'parametric_bootstrap'){
     warning('havent solved issue with non-positive-definite estimation of covariance')
     # estimate the variance of the MLEs
@@ -909,22 +995,33 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     # parametric bootstrap for prediction intervals
     # 1) For each facility,
     tmp <- lapply(1:length(uni_group), function(i) {
-      print(i)
       # subset data
       tt <- df %>% filter(facility == uni_group[i])
       
       # get the coefficients and compute the variance
       coef_hat = parmat[,i]
-      coef_vcov = freqGLMepi_variance(param_vec = parmat[,i], tt)
+
+      coef_vcov = tryCatch({freqGLMepi_variance(param_vec = parmat[,i], tt)
+      }, error = function(e){
+        return(NULL)
+      })
       
-      print(det(coef_vcov))
+      if(is.null(coef_vcov)){
+        return(NULL)
+      }
       
-      # if(i == 3){
-      #   browser()
+      
+      #vcov_lst = freqGLMepi_variance(param_vec = parmat[,i], tt)
+      # coef_vcov = vcov_lst$variance
+      # 
+      # # if not positive definite return an error
+      # if(!vcov_lst$pos_def){
+      #   return(NULL)
       # }
       
       # bootstrap 
-      sapply(1:R_PI, function(r){
+      sim.boot <- tryCatch({
+        sapply(1:R_PI, function(r){
         
         # sample coefficients and get the mean
         coef_boot <- MASS::mvrnorm(1,coef_hat,coef_vcov)
@@ -933,10 +1030,27 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         pred_boot[which(is.na(pred_boot))] <- 1
         x = rpois(n = nrow(tt), pred_boot)
         
-        return(x)
-        
-      }) -> sim.boot
-      
+        return(x)})
+        },
+        error = function(e){
+          return(-1)
+        })
+      # sapply(1:R_PI, function(r){
+      #   
+      #   # sample coefficients and get the mean
+      #   coef_boot <- MASS::mvrnorm(1,coef_hat,coef_vcov)
+      #   pred_boot <- model.mean(tt, coef_boot)
+      #   
+      #   pred_boot[which(is.na(pred_boot))] <- 1
+      #   x = rpois(n = nrow(tt), pred_boot)
+      #   
+      #   return(x)
+      #   
+      # }) -> sim.boot
+      if(length(sim.boot) == 1 | any(is.na(sim.boot))){
+        return(NULL)
+      }
+      #browser()
       # get the quantiles and store them
       fitted_quants = t(apply(sim.boot, 1, function(xx){
         quantile(xx, probs = quant_probs)
@@ -946,10 +1060,12 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
       
       # combine the final results and return
       tt = cbind(tt, fitted_quants)
-      tmp_lst = list(tt, sim.boot)
+      tmp_lst = list(tt, sim.boot, coef_vcov)
       return(tmp_lst)
     })
     
+    num_errors = sum(sapply(tmp, function(xx) is.null(xx[[1]])))
+    vcov_list = lapply(tmp, function(xx) xx[[3]])
     df <- do.call('rbind',lapply(tmp,'[[',1))
 
   }else if(prediction_intervals == 'bootstrap'){
@@ -1014,7 +1130,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   }
   
   # prep data to return
-  return_lst = list(df = df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
+  return_lst = list(df = df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs, num_errors = num_errors, vcov_list = vcov_list)
   return(return_lst)
 }
 

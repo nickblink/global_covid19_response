@@ -286,6 +286,13 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
       
       print(det(coef_vcov))
       
+      
+      # model.cols = c(3, 5, 7, 8, 9, 10, 11, 12)
+      # corrplot::corrplot(cor(tt[, model.cols], use = 'complete.obs'))
+      # 
+      # 
+      # browser()
+      
       # if(i == 3){
       #   browser()
       # }

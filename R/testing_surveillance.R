@@ -201,7 +201,9 @@ tp = oneStepAhead(result.B2, tp = nrow(fluBYBW))
 setwd('C:/Users/nickl/Documents/global_covid19_response/')
 source('R/imputation_functions.R')
 
-D <- simulate_data_spatiotemporal(district_sizes = c(4), R = 1, rho = 0.3, alpha = 0.5, tau = 0.5)[[1]][[1]]
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 10, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+D = res[[1]][[1]]
 
 D2 = D %>% dplyr::select(district, facility) %>% distinct()
 W = full_join(D2, D2, by = 'district') %>%
@@ -283,10 +285,15 @@ model.4 <- list(ar = list(f = ~ 1, f = ~ 1, f = ~ 1, f = ~ 1, unitSpecific = T),
                 optimizer = list(variance = list(method = 'Nelder-Mead')))
 
 result.4 <- hhh4(ARI, model.4)
-result.4
+coef(result.4, se = T,
+     idx2Exp = T)
 
-# can I do ar or ne terms by facility?
-# How do they optimize?
-# How do they find the variance? Some Fisher estimation
+coef(result.4, se = T)
+
+# so most of the parameters are solid, except for the auto-regressive one which has crazy standard errors. I don't know exactly how they get the variance here. Time for some source code!
+
+# So they can do the mean parameters by each facility, but they cannot do the autocorrelation or spatial parameters by facility. That is why I switched to my own implementation. Especially if places have differing numbers of neighbors - actually this normalizes the neighbor weights if done well. Now, I don't know exactly how the find the covariance of things, but I could at least check how well this does with the same auto and spatial correlation.
+
+HERE add in the multiplier times ar and ne ya dingus
 
 
