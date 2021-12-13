@@ -8,6 +8,7 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(cowplot)
+library(boot)
 
 
 # Next to try to just fit the data without any missingness
@@ -880,6 +881,8 @@ for(i in 1:length(res$df_list)){
   #print(freqGLMepi_list$params)
 }
 
+# i = 2 <- has an error
+
 sum(sapply(res_lst, function(xx) xx$num_errors))
 # 61
 
@@ -1079,7 +1082,7 @@ tt <- sapply(res_lst, function(xx) xx$params[,1])
 
 # a little bias. That could have to do with the initial values
 
-save(res_lst, file = 'results/freGLM_100sim_nlminb.RData')
+# save(res, res_lst, file = 'results/freGLM_100sim_nlminb.RData')
 
 ### Want to compare some of the variances when it does converge
 source('R/imputation_functions.R')
@@ -1099,6 +1102,99 @@ diag(res_lst[[1]]$vcov_list[[2]])
 
 # Should I try rerunning this all with nlminb?
 
+### I should also check the coverage of the parameter estimates. 
+
+params_true = as.data.frame(t(res$betas[1,,drop = F]))
+colnames(params_true) = 'value'
+params_true$parameter = paste0('B', rownames(params_true))
+params_true = rbind(data.frame(value = c(res$lambda, res$phi), parameter = c('By.AR1', 'By.neighbors')),params_true)
+params_true$value[1:2] <- exp(-2)
+
+new_df = NULL
+var_df = NULL
+for(i in 1:length(res_lst)){
+  new_df = rbind(new_df, t(res_lst[[i]]$params[,1,drop = F]))
+  vcov = diag(res_lst[[i]]$vcov_list[[1]])
+  if(length(vcov) == 0){
+    var_df = rbind(var_df, rep(NA, 10))
+  }else{
+    var_df = rbind(var_df, vcov)
+  }
+}
+
+# should be true as a check
+identical(colnames(new_df), params_true$parameter)
+
+# organize the parameters data frmae
+params = tidyr::gather(as.data.frame(new_df),  parameter, estimate, By.AR1:Bsin3)
+params$id = 1:100
+vars = tidyr::gather(as.data.frame(var_df),  parameter, var, By.AR1:Bsin3)
+vars$id = 1:100
+params = merge(params, vars, by = c('parameter', 'id'))
+params$lower95 = params$estimate - 1.96*sqrt(params$var)
+params$upper95 = params$estimate + 1.96*sqrt(params$var)
+params$lower50 = params$estimate - 0.674*sqrt(params$var)
+params$upper50 = params$estimate + 0.674*sqrt(params$var)
+params = merge(params, params_true)
+params$residual = params$estimate - params$value
+params$residual_prop = params$residual/abs(params$value)
+params$parameter = gsub('By.AR1','lambda', params$parameter)
+params$parameter = gsub('By.neighbors', 'phi', params$parameter)
+
+# removing one bad variance for now
+params <- na.omit(params)
+
+params %>% group_by(parameter) %>%
+  mutate(coverage95 = mean(value > lower95 & value < upper95),
+         coverage50 = mean(value > lower50 & value < upper50)) %>%
+  select(parameter, coverage50, coverage95) %>%
+  unique()
+
+# yay the coverage is good!
+
+
+ggplot(params, aes(x = parameter, y = residual)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  ggtitle('parameter estimate residuals')
+
+ggplot(params, aes(x = parameter, y = residual_prop)) + 
+  geom_boxplot() +
+  ylim(-5, 5) +
+  geom_hline(yintercept = 1, color = 'red') +
+  geom_hline(yintercept = -1, color = 'red') +
+  ggtitle('parameter estimate residuals/abs(true value)')
+
+# interesting. Remember this is only one facility. I should try the others.
+
+
+### Now with 500
+
+source('R/freqGLM_epi_fxns_expPhiLamVar3.R')
+
+set.seed(10)
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 500, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+
+res_lst = list()
+for(i in 1:length(res$df_list)){
+  #df_miss = MCAR_sim(, p = 0.2, by_facility = T)
+  tmp = res$df_list[[i]]
+  tmp$y_true = tmp$y
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'parametric_bootstrap', R_PI = 10, verbose = F) 
+  res_lst[[i]] = freqGLMepi_list
+  #print(freqGLMepi_list$params)
+}
+
+sum(sapply(res_lst, function(xx) xx$num_errors)) # Only 1 Out of 400! 2 out of 2000!
+
+# for testing
+tt <- sapply(res_lst, function(xx) xx$params[,1])
+
+# a little bias. That could have to do with the initial values
+
+# save(res, res_lst, file = 'results/freGLM_500sim_nlminb.RData')
+
 #### Testing parametric bootstrap with exponentiated first two params ####
 source('R/freqGLM_epi_fxns_expPhiLamVar.R')
 
@@ -1117,12 +1213,132 @@ for(i in 1:length(res$df_list)){
 
 sum(sapply(res_lst, function(xx) xx$num_errors)) # only 16/400? What's up with that? So maybe it does have to do with finding the inverse of a high determinant matrix
 
+#### Testing Block Bootstrap ####
+res <- simulate_data_freqGLM_epi(district_sizes = 4, R = 2, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+tmp = res$df_list[[1]]
+tmp$y_true = tmp$y
+system.time({
+  freqGLMepi_list = freqGLMepi_imputation(tmp, prediction_intervals = 'stationary_bootstrap', R_PI = 100, scale_by_num_neighbors = T) 
+}) # 20s
+
+# test plot
+
+df = freqGLMepi_list$df %>% filter(facility == 'A1')
+plot(df$y_pred_freqGLMepi, type = 'l')
+lines(df$y_pred_freqGLMepi_0.025, col = 'red')
+lines(df$y_pred_freqGLMepi_0.975, col = 'red')
+lines(df$y_pred_freqGLMepi_0.25, col = 'blue')
+lines(df$y_pred_freqGLMepi_0.75, col = 'blue')
+# ok reasonable
+
+
+#### Running block bootstrap on MCAR no ST ####
+R = 500
+
+system.time({
+  lst <- simulate_data(district_sizes = c(4), R = R)
+  
+  # initializae results
+  freqEPI_res_lst = list()
+  imputed_list = list()
+  for(i in 1:R){
+    df = lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
+    
+    # run the freqGLM_epi imputation
+    freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'stationary_bootstrap', R_PI = 100, scale_by_num_neighbors = T, blocksize = 6, smart_boot_init = T) 
+    df_miss = freqGLMepi_list$df
+    
+    # run the periodic imputation
+    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    df_miss = periodic_list$df
+    
+    freqEPI_res_lst[[i]] <- freqGLMepi_list
+    imputed_list[[i]] <- df_miss
+  }
+}) # 2.5 hours
+
+imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi")
+rename_vec = c('Basic Model','FreqEpi Model')
+color_vec = c('red','blue')
+
+plot_facility_fits(df_miss, imp_vec, rename_vec, color_vec)
+
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 0, rename_vec = rename_vec, max_intW_lim = 1e3)
+p1
+
+# save(freqEPI_res_lst, imputed_list, file = 'results/simulation_noST_MCARp2_R500_freqEpi_sb_12122021.RData')
+
+#### Running block bootstrap on MCAR with epiST ####
+R = 500
+
+system.time({
+  lst <- simulate_data_freqGLM_epi(district_sizes = 4, R = R, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+
+  freqEPI_res_lst = list()
+  imputed_list = list()
+  res_full = res_imputed = NULL
+  for(i in 1:R){
+    df = lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
+    
+    # run the freqGLM_epi imputation
+    freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'stationary_bootstrap', R_PI = 100, scale_by_num_neighbors = T, blocksize = 6) 
+    df_miss = freqGLMepi_list$df
+    
+    # run the periodic imputation
+    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    df_miss = periodic_list$df
+    
+    freqEPI_res_lst[[i]] <- freqGLMepi_list
+    imputed_list[[i]] = df_miss
+  }
+}) # 3 hours
+
+imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi")
+rename_vec = c('Basic Model','FreqEpi Model')
+color_vec = c('red','blue')
+
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec, use_point_est = T)
+
+#save(freqEPI_res_lst, imputed_list, file = 'results/simulation_ST_MCARp2_R500_freqEpi_sb_12122021.RData')
+
+
+#### Plots for 235 Presentation ####
+load('results/simulation_ST_MCARp2_R500_freqEpi_sb_12122021.RData')
+
+imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi")
+rename_vec = c('Basic Model','FreqEpi Model')
+color_vec = c('red','blue')
+
+df = imputed_list[[2]]
+plot_facility_fits(df, imp_vec, imp_names = rename_vec, color_vec = color_vec)
+
+ggsave('figures/BST 235 Project Figures/Single_imputation_fit_ST_12132021.png')
+
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec, use_point_est = T, max_intW_lim = 1e3)
+
+ggsave('figures/BST 235 Project Figures/Imputation_resutls_ST_12132021.png')
+
+
+
+#
 #### Testing the fits of other packages ####
 # addreg approach - nvm each x needs to be non-negative this doesn't work. Also this doesn't really fit what my model is doing anyway. I'm doing some weird function of the predictors that's not even linear
 y = A$y
 x = A[,c('y.neighbors', 'y.AR1', 'year', "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
 
 fit.1 <- addreg::nnpois(y, x)
+
+
+
+
+
 
 
 

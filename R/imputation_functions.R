@@ -24,7 +24,8 @@ add_autoregressive <- function(df, target_col = 'y', num.terms = 1){
   
   tmp <- lapply(unique(df$facility), function(xx) {
     tt <- df %>% filter(facility == xx) %>% arrange(date)
-    tt[,sprintf('%s.AR1', target_col)] = c(NA, tt[1:(nrow(tt) - 1), target_col, drop = T])
+    #tt[,sprintf('%s.AR1', target_col)] = c(NA, tt[1:(nrow(tt) - 1), target_col, drop = T])
+    tt[,'y.AR1'] = c(NA, tt[1:(nrow(tt) - 1), target_col, drop = T])
     return(tt)
   })
   
@@ -742,6 +743,7 @@ freqGLMepi_variance_testing <- function(param_vec, D){
     logL_hess <- logL_hess + (y_i/mu[i] - 1)*mu_grad2_i - y_i/(mu[i]^2)*mu_grad_i %*% t(mu_grad_i)
   }
   
+  
   if(norm(obs_I + logL_hess)/norm(logL_hess) > .01){
     browser()
   }
@@ -793,6 +795,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
   tryCatch({
     params = optim(par = init, fn = ll.wrapper, D = df, target_col = target_col, control = NM_control)
   }, error = function(e){
+    print(e)
     browser()
   })
   
@@ -867,7 +870,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = F, optim_init = NULL, scale_by_num_neighbors = T){
+freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap','stationary_bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, smart_boot_init = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -914,7 +917,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   prop_diffs = c(1)
   while(prop_diffs[length(prop_diffs)] > tol & iter <= max_iter){
     iter = iter + 1
-    
+
     if(individual_facility_models){
       # run the individual model for each group.
       tmp <- lapply(uni_group, function(xx) {
@@ -1007,10 +1010,12 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
       })
       
       if(is.null(coef_vcov)){
+        print('NULL!')
         return(NULL)
       }
       
-      
+      print('CALLING HAND-CALCULATED VARIANCE!')
+      freqGLMepi_variance_testing(param_vec = parmat[,i], tt)
       #vcov_lst = freqGLMepi_variance(param_vec = parmat[,i], tt)
       # coef_vcov = vcov_lst$variance
       # 
@@ -1127,6 +1132,63 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     })
     
     df <- do.call('rbind',lapply(tmp,'[[',1))
+  }else if(prediction_intervals == 'stationary_bootstrap'){
+    
+    # # function wrapper to fit the model
+    # fit_function = function(xx){
+    #   res = fit_freqGLMepi(xx, BFGS = F, num_inits = 1, verbose = verbose)
+    #   return(res$par)
+    # }
+    # 
+    
+    tmp <- lapply(1:length(uni_group), function(i) {
+      # subset data
+      tt <- df %>% filter(facility == uni_group[i])
+      
+      ## function wrapper to predict values from the model
+      if(smart_boot_init){
+        # start the initialization at the values from the main model
+        predict_function <- function(xx){
+          # fit model on bootstrapped data set
+          params = fit_freqGLMepi(xx, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])
+          
+          # predict model on original data set
+          x = suppressWarnings(rpois(n = nrow(tt), model.mean(tt, params$par)))
+          return(x)
+        }
+      }else{
+        predict_function <- function(xx){
+          # fit model on bootstrapped data set
+          params = fit_freqGLMepi(xx, BFGS = F, num_inits = 1, verbose = verbose)
+          
+          # predict model on original data set
+          x = suppressWarnings(rpois(n = nrow(tt), model.mean(tt, params$par)))
+          return(x)
+        }
+      }
+
+      
+      # run the stationary bootstrap
+      sim.boot <- tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
+      
+      # get the quantiles and store them
+      fitted_quants = t(apply(sim.boot, 2, function(xx){
+        quantile(xx, probs = quant_probs, na.rm = T)
+      }))
+      fitted_quants = as.data.frame(fitted_quants)
+      colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
+      
+      # combine the final results and return
+      tt = cbind(tt, fitted_quants)
+      tmp_lst = list(tt, sim.boot)
+      return(tmp_lst)
+    })
+    
+    # combining the final data frame
+    df <- do.call('rbind',lapply(tmp,'[[',1))
+    
+    # for returning
+    vcov_list = NULL
   }
   
   # prep data to return
@@ -1403,44 +1465,59 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
     iter = iter + 1
     tmp = df %>% filter(facility == f)
     
-    # initialize data frame for this facility
-    df_f = NULL
-    
-    for(j in 1:length(imp_vec)){
-      col = imp_vec[j]
+    if(!is.null(imp_vec)){
+      # initialize data frame for this facility
+      df_f = NULL
       
-      # get the lower and upper bounds
-      tmp2 = tmp[,c('date',col,paste0(col, '_0.025'),paste0(col, '_0.975'))] 
-      colnames(tmp2) = c('date', 'y', 'y_lower', 'y_upper')
-      tmp2$method = imp_names[j]
+      for(j in 1:length(imp_vec)){
+        col = imp_vec[j]
+        
+        # get the lower and upper bounds
+        tmp2 = tmp[,c('date',col,paste0(col, '_0.025'),paste0(col, '_0.975'))] 
+        colnames(tmp2) = c('date', 'y', 'y_lower', 'y_upper')
+        tmp2$method = imp_names[j]
+        
+        df_f = rbind(df_f, tmp2)
+      }
       
-      df_f = rbind(df_f, tmp2)
+      # ordering the method to be consistent and for the labeling
+      df_f$method = factor(df_f$method, levels = imp_names)
+      
+      # make the plot!
+      p1 <- ggplot() +
+        geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
+        geom_line(data = df_f, aes(x = date, y = y, group = method, color = method)) +
+        geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1) +
+        scale_color_manual(values = c(color_vec)) + 
+        scale_fill_manual(values = c(color_vec)) + 
+        ylim(c(0,1.5*max(tmp$y_true))) + 
+        ggtitle(sprintf('facility %s', f)) + 
+        ylab('y') +
+        theme_bw() +
+        theme(text = element_text(size = 10))
+      
+      # store the legend for later
+      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
+      
+      # remove the legend position on this plot
+      p1 = p1 + theme(legend.position = 'none') 
+      
+      # store the plot for this facility in the list
+      plot_list[[iter]] = p1
+    }else{
+      print('plotting baseline counts because no imputation methods are provided')
+      
+      p1 <- ggplot() +
+        geom_line(data = tmp, aes(x = date, y = y), size = 1) + 
+        ylim(c(0,1.5*max(tmp$y))) + 
+        ggtitle(sprintf('facility %s', f)) + 
+        ylab('y') +
+        theme_bw() +
+        theme(text = element_text(size = 10))
+        
+      plot_list[[iter]] = p1
     }
     
-    # ordering the method to be consistent and for the labeling
-    df_f$method = factor(df_f$method, levels = imp_names)
-    
-    # make the plot!
-    p1 <- ggplot() +
-      geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
-      geom_line(data = df_f, aes(x = date, y = y, group = method, color = method)) +
-      geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1) +
-      scale_color_manual(values = c(color_vec)) + 
-      scale_fill_manual(values = c(color_vec)) + 
-      ylim(c(0,1.5*max(tmp$y_true))) + 
-      ggtitle(sprintf('facility %s', f)) + 
-      ylab('y') +
-      theme_bw() +
-      theme(text = element_text(size = 10))
-    
-    # store the legend for later
-    legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
-    
-    # remove the legend position on this plot
-    p1 = p1 + theme(legend.position = 'none') 
-    
-    # store the plot for this facility in the list
-    plot_list[[iter]] = p1
   }
   
   plot_grid(plot_grid(plotlist = plot_list),legend, ncol = 1, rel_heights = c(10,1))
@@ -1604,7 +1681,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       
       # measure of how wide the 95% prediction intervals are
       tmp$interval_width = rowMeans(upper_0975 - lower_025) 
-      tmp$point_sd = apply(median, 1, sd)
+      tmp$point_sd = apply(outcome, 1, sd)
       
       # update the results
       df = rbind(df, tmp)
@@ -1613,6 +1690,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
   }else{
     df = NULL
     # imputed only here
+    
     for(method in imp_vec){
       
       tmp = imputed_list[[1]][,c('date','facility','district')]
@@ -1665,7 +1743,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL){
   
   if(is.null(outcomes)){
     outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
@@ -1673,8 +1751,8 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
   
   # get the metrics from each simulation run
   res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = imputed_only, rm_ARna = rm_ARna, use_point_est = use_point_est)
-  
-  if(any(res$num_missing < min_missing) & imputed_only){
+
+  if(all(res$num_missing < min_missing) & imputed_only){
     stop('all points are not missing enough (check min_missing)')
   }else if(any(res$num_missing < min_missing) & imputed_only){
     # remove the data points that werent missing enough
@@ -1726,8 +1804,6 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
       p1 <- p1 + geom_jitter(position = position_jitter(0.1))
     }
     
-    #browser()
-    
     if(m == 'bias'){
       p1 <- p1 + geom_hline(yintercept = 0)
     }else if(m == 'coverage50'){
@@ -1736,8 +1812,10 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
       p1 <- p1 + geom_hline(yintercept = 0.95) + ylim(0,1)
     }else if(m == 'interval_width'){
       tt = long %>% filter(method != 'glmFreq_epi', metric == 'interval_width')
-      max_lim = round(1.3*max(tt$value, na.rm = T))
-      p1 = p1 + ylim(c(0, max_lim))
+      if(is.null(max_intW_lim)){
+        max_intW_lim = round(1.3*max(tt$value, na.rm = T))
+      }
+      p1 = p1 + ylim(c(0, max_intW_lim))
     }
     
     plot_list[[i]] = p1
@@ -1978,7 +2056,7 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   })
   
   # make list of values to return
-  res_lst = list(df_list = df_lst, betas = betas, V = V)
+  res_lst = list(df_list = df_lst, betas = betas, V = V, rho = rho, alpha = alpha, tau = tau, b0_mean = b0_mean, b1_mean = b1_mean)
   return(res_lst)
 }
 

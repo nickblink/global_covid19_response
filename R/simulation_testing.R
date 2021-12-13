@@ -212,6 +212,105 @@ bb = sapply(imputed_list, function(xx) mean(xx$y_pred_freqGLMepi_0.975 - xx$y_pr
 # ah and looking at the model coefficients the Bayesian model with different betas now almost exactly reflects the periodic model
 
 #
+#### MAR p = 0.2 no spatio-temporal ####
+R = 500
+
+system.time({
+  lst <- simulate_data(district_sizes = c(4), R = R)
+  
+  imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CB_intercept", "y_CB_facility")
+  rename_vec = c('glmFreq','glmFreq_epi','CARBayes_int', 'CARBayes_facility')
+  color_vec = c('red','blue','lightgreen', 'forestgreen')
+  
+  imputed_list = list()
+  res_full = res_imputed = NULL
+  for(i in 1:R){
+    df = lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss = MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.5, alpha = 0.5, tau = 3, by_facility = T)
+    
+    # # run the freqGLM_epi imputation
+    # freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'bootstrap', R_PI = 100, verbose = F) 
+    # df_miss = freqGLMepi_list$df
+    
+    # run the periodic imputation
+    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    df_miss = periodic_list$df
+    
+    #  run the CARBayes imputation with different intercepts by facility
+    CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_intercept')
+    df_miss = CAR_list2$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_intercept', colnames(df_miss))
+    
+    #  run the CARBayes imputation with different coeffs by facility
+    CAR_list3 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
+    df_miss = CAR_list3$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_facility', colnames(df_miss))
+    
+    imputed_list[[i]] = df_miss
+  }
+  
+  # pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
+  # 
+  # p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 50, rename_vec = rename_vec)
+  # 
+  # p2 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+})
+# 4 hours for 500 iterations
+
+
+# save(imputed_list, file = 'results/simulation_noST_MARp2_R500_res_12092021.RData')
+
+#### MNAR p = 0.2 no spatio-temporal ####
+R = 500
+
+system.time({
+  lst <- simulate_data(district_sizes = c(4), R = R)
+  
+  imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CB_intercept", "y_CB_facility")
+  rename_vec = c('glmFreq','glmFreq_epi','CARBayes_int', 'CARBayes_facility')
+  color_vec = c('red','blue','lightgreen', 'forestgreen')
+  
+  imputed_list = list()
+  res_full = res_imputed = NULL
+  for(i in 1:R){
+    df = lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss = MNAR_sim(df, p = 0.2, direction = 'upper', gamma = 1, by_facility = T)
+    
+    # # run the freqGLM_epi imputation
+    # freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'bootstrap', R_PI = 100, verbose = F) 
+    # df_miss = freqGLMepi_list$df
+    
+    # run the periodic imputation
+    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    df_miss = periodic_list$df
+    
+    #  run the CARBayes imputation with different intercepts by facility
+    CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_intercept')
+    df_miss = CAR_list2$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_intercept', colnames(df_miss))
+    
+    #  run the CARBayes imputation with different coeffs by facility
+    CAR_list3 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
+    df_miss = CAR_list3$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_facility', colnames(df_miss))
+    
+    imputed_list[[i]] = df_miss
+  }
+  
+  # pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
+  # 
+  # p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = F, min_missing = 50, rename_vec = rename_vec)
+  # 
+  # p2 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+})
+# 4 hours for 500 iterations
+
+#save(imputed_list, file = 'results/simulation_noST_MNARp2_R500_res_12092021.RData')
+
 #### MCAR p = 0.2 spatio-temporal ####
 
 R = 500
@@ -265,7 +364,7 @@ p2 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_v
 #
 #### MAR p = 0.2 spatio-temporal ####
 
-R = 5
+R = 500
 system.time({
 lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = R, rho = 0.5, alpha = 0.5, tau = 0.5)
 
@@ -284,20 +383,27 @@ imputed_list = lapply(1:R, function(i){
   periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
   df_miss = periodic_list$df
   
-  # run the CARBayes imputation
-  CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
-  df_miss = CAR_list$facility_df
+  #  run the CARBayes imputation with different intercepts by facility
+  CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_intercept')
+  df_miss = CAR_list2$facility_df
+  colnames(df_miss) = gsub('CARBayes_ST', 'CB_intercept', colnames(df_miss))
+  
+  #  run the CARBayes imputation with different coeffs by facility
+  CAR_list3 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
+  df_miss = CAR_list3$facility_df
+  colnames(df_miss) = gsub('CARBayes_ST', 'CB_facility', colnames(df_miss))
+  
   
   df_miss
 })
 
-p1 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = F, min_missing = 50)
+#p1 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = F, min_missing = 50)
 
-p2 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = T, min_missing = 50)
+# p2 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = T, min_missing = 50)
 
-}) # 38m for R = 500
+}) # 65m for R = 500
 
-# save(imputed_list, p1, p2, file = 'results/simulation_MARp2_R500_res.RData')
+save(imputed_list, p1, p2, file = 'results/simulation_ST_MARp2_R500_res.RData')
 
 #### MNAR p = 0.2 spatio-temporal ####
 
@@ -320,19 +426,25 @@ system.time({
     periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
     
-    # run the CARBayes imputation
-    CAR_list = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T)
-    df_miss = CAR_list$facility_df
+    #  run the CARBayes imputation with different intercepts by facility
+    CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_intercept')
+    df_miss = CAR_list2$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_intercept', colnames(df_miss))
+    
+    #  run the CARBayes imputation with different coeffs by facility
+    CAR_list3 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
+    df_miss = CAR_list3$facility_df
+    colnames(df_miss) = gsub('CARBayes_ST', 'CB_facility', colnames(df_miss))
     
     df_miss
   })
   
-  p1 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = F, min_missing = 50)
-  
-  p2 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = T, min_missing = 50)
-}) # 151 minutes
+  # p1 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = F, min_missing = 50)
+  # 
+  # p2 <- plot_metrics_by_point(imputed_list, rename_vec = c('glmFreq','CARBayes'), imputed_only = T, min_missing = 50)
+}) # 4.4 hours
 
-# save(imputed_list, p1, p2, file = 'results/simulation_MNARp2_R2000_res.RData')
+# save(imputed_list, p1, p2, file = 'results/simulation_ST_MNARp2_R2000_res.RData')
 
 ######## GRAVEYARD #########
 #### MCAR p = 0.1 ####
@@ -530,4 +642,67 @@ plot(df1$date, df1$y, type = 'l', xlab = 'date', ylab = 'y', main = '15% missing
 #lines(df1$date, df1$y_pred_harmonic, col = 'red')
 plot(df1$date, df2$y, type = 'l', xlab = 'date', ylab = 'y', main = '40% missing')
 
+
+
+#### Making plots for 245 Report ####
+
+
+load('results/simulation_noST_MCARp2_R500_res_07092021.RData')
+
+# creating one simulated data set example
+ggplot(data = imputed_list[[1]], aes(date, y)) + 
+  geom_line(aes(y = y_true), color = 'red') + 
+  geom_line() +
+  facet_wrap(~facility) +
+  theme_bw() +
+  ggtitle('One Simulated Set of Data: Model (1), MCAR 20%')
+
+ggsave('figures/BST 245 Project Figures/One_simulation_example_NoST_MCAR20.png')
+
+load('results/simulation_ST_MNARp2_R2000_res.RData')
+
+ggplot(data = imputed_list[[1]], aes(date, y)) + 
+  geom_line(aes(y = y_true), color = 'red') + 
+  geom_line() +
+  facet_wrap(~facility) +
+  theme_bw() +
+  ggtitle('One Simulated Set of Data: CARBayes, MNAR 20%')
+
+ggsave('figures/BST 245 Project Figures/One_simulation_example_ST_MNAR20.png')
+
+imp_vec = c("y_pred_harmonic", "y_CB_facility")
+rename_vec = c('Model (1)','CARBayes')
+color_vec = c('red','blue')
+
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+
+# No ST MCAR
+load('results/simulation_noST_MCARp2_R500_res_07092021.RData')
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+ggsave('figures/BST 245 Project Figures/MCAR_noST_results_12112021.png')
+
+# No ST MAR
+load('results/simulation_noST_MARp2_R500_res_12092021.RData')
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+ggsave('figures/BST 245 Project Figures/MAR_noST_results_12112021.png')
+
+# No ST MNAR
+load('results/simulation_noST_MNARp2_R500_res_12092021.RData')
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+ggsave('figures/BST 245 Project Figures/MNAR_noST_results_12112021.png')
+
+# ST MCAR
+load('results/simulation_ST_MCARp2_R500_res_07112021.RData')
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+ggsave('figures/BST 245 Project Figures/MCAR_ST_results_12112021.png')
+
+# ST MAR
+load('results/simulation_ST_MARp2_R500_res.RData')
+# Fix naming!!
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+
+# ST MNAR
+load('results/simulation_ST_MNARp2_R2000_res.RData')
+# Fix naming!!
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
 
