@@ -1419,6 +1419,28 @@ plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, im
 ggsave('figures/BST 235 Project Figures/Imputation_resutls_ST_12132021.png')
 
 
+load('results/simulation_ST_MCARp2_R500_freqEpi_sb_12142021.RData')
+
+imp_vec = c("y_pred_harmonic", "y_pred_freqEpi_exp",  "y_pred_freqEpi_nnls")
+rename_vec = c('Basic Model','FreqEpi Model Original', 'FreqEpi Model nnls')
+color_vec = c('red','blue', 'purple')
+
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 0, rename_vec = rename_vec, max_intW_lim = 1e3)
+p1
+
+ggsave('figures/BST 235 Project Figures/imputation_results_ST_12142021.png')
+
+load('results/simulation_noST_MCARp2_R500_freqEpi_sb_12142021.RData')
+
+imp_vec = c("y_pred_harmonic", "y_pred_freqEpi_exp",  "y_pred_freqEpi_nnls")
+rename_vec = c('Basic Model','FreqEpi Model Original', 'FreqEpi Model nnls')
+color_vec = c('red','blue', 'purple')
+
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 0, rename_vec = rename_vec, max_intW_lim = 1e3)
+p1
+
+ggsave('figures/BST 235 Project Figures/imputation_results_noST_12142021.png')
+
 
 #
 #### Testing the fits of other packages ####
