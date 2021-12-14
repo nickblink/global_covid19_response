@@ -700,9 +700,10 @@ ggsave('figures/BST 245 Project Figures/MCAR_ST_results_12112021.png')
 load('results/simulation_ST_MARp2_R500_res.RData')
 # Fix naming!!
 plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
+ggsave('figures/BST 245 Project Figures/MAR_ST_results_12142021.png')
 
 # ST MNAR
 load('results/simulation_ST_MNARp2_R2000_res.RData')
 # Fix naming!!
 plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec)
-
+ggsave('figures/BST 245 Project Figures/MNAR_ST_results_12142021.png')

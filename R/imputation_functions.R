@@ -861,6 +861,63 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
   return(params)
 }
 
+### the NNLS freqGLMepi model (so lambda and phi are constrained rather than exponentiated)
+fit_freqGLMepi_nnls <- function(df, num_inits = 10, verbose = T, target_col = 'y_imp', init = NULL, BFGS = NULL){
+  t0 = Sys.time()
+  
+  # set up initialization
+  if(is.null(init)){
+    init = c(0.1, 0.1, rep(0,8))
+  }
+  
+  parnames = c('By.AR1', 'By.neighbors', 'Bintercept', 'Byear', 'Bcos1', 'Bsin1', 'Bcos2', 'Bsin2', 'Bcos3', 'Bsin3')
+  names(init) = parnames
+  
+  init_OG = init
+  
+  # params = nlminb(start = init, objective = ll.wrapper, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10)), upper = c(1, 1, rep(10, 10)))
+  
+  tryCatch({
+    params = nlminb(start = init, objective = ll.wrapper.exp, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10)), upper = c(1, 1, rep(10, 10)))
+  }, error = function(e){
+    browser()
+  })
+  
+  # try different initialization values to compare convergence
+  if(num_inits > 1){
+    for(i in 2:num_inits){
+      # init = rnorm(10,0,10*i/num_inits)
+      
+      init = init_OG + c(0.01*i, 0.01*i, rnorm(8,0,5*i/num_inits))
+      
+      # nelder-mead
+      tryCatch({
+        params2 = nlminb(start = init, objective = ll.wrapper.exp, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10)), upper = c(1, 1, rep(10, 10)))
+      }, error = function(e){
+        browser()
+      })
+      
+      if(params2$objective < params$objective & params2$convergence == 0){
+        if(verbose){print('using another initialization')}
+        params = params2
+      }
+    }
+  }
+  
+  # for error checking
+  if(params$convergence != 0){
+    if(verbose){print('didnt converge for one iteration')}
+    #browser()
+  }
+  
+  if(verbose){
+    print(sprintf('freqGLMepi fit in %s seconds', Sys.time() - t0))
+  }
+  
+  names(params$par) = parnames
+  return(params)
+}
+
 ### Given data with missing values, fits the freqGLMepi model on all data points
 #   df: data
 #   max_iter: number of iterations of imputation
@@ -870,10 +927,19 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap','stationary_bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, smart_boot_init = T){
+freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap','stationary_bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, smart_boot_init = T, nnls = F){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
+  }
+  
+  # set fitting function to be regular (exponentiated spatial and temporal parameters) or non-negative least squares 
+  if(nnls){
+    fit_function <- fit_freqGLMepi_nnls
+    model_function <- model.mean.exp
+  }else{
+    fit_function <- fit_freqGLMepi
+    model_function <- model.mean
   }
   
   y_pred_list = list()
@@ -925,10 +991,10 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         tt <- df %>% filter(facility == xx)
         
         # fit the model
-        params = fit_freqGLMepi(tt, verbose = verbose, init = optim_init[[xx]])
+        params = fit_function(tt, verbose = verbose, init = optim_init[[xx]])
         
         # update y_pred
-        tt$y_pred_freqGLMepi = model.mean(tt, params$par)
+        tt$y_pred_freqGLMepi = model_function(tt, params$par)
         
         return(list(df = tt, params = params))
       })
@@ -947,10 +1013,10 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
       df = do.call('rbind', lapply(tmp, '[[', 1)) %>% arrange(facility, date)
     }else{
       # fit the model
-      parmat = fit_freqGLMepi(df)$par
+      parmat = fit_function(df)$par
       
       # update y_pred 
-      df$y_pred_freqGLMepi = model.mean(df, parmat)
+      df$y_pred_freqGLMepi = model_function(df, parmat)
       
     }
     
@@ -1030,7 +1096,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         
         # sample coefficients and get the mean
         coef_boot <- MASS::mvrnorm(1,coef_hat,coef_vcov)
-        pred_boot <- model.mean(tt, coef_boot)
+        pred_boot <- model_function(tt, coef_boot)
         
         pred_boot[which(is.na(pred_boot))] <- 1
         x = rpois(n = nrow(tt), pred_boot)
@@ -1040,18 +1106,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         error = function(e){
           return(-1)
         })
-      # sapply(1:R_PI, function(r){
-      #   
-      #   # sample coefficients and get the mean
-      #   coef_boot <- MASS::mvrnorm(1,coef_hat,coef_vcov)
-      #   pred_boot <- model.mean(tt, coef_boot)
-      #   
-      #   pred_boot[which(is.na(pred_boot))] <- 1
-      #   x = rpois(n = nrow(tt), pred_boot)
-      #   
-      #   return(x)
-      #   
-      # }) -> sim.boot
+
       if(length(sim.boot) == 1 | any(is.na(sim.boot))){
         return(NULL)
       }
@@ -1088,10 +1143,10 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         tt_boot = sample_n(tt, size = nrow(tt), replace = T)
         
         # fit the model
-        params = fit_freqGLMepi(tt_boot, BFGS = F, num_inits = 1, verbose = verbose)
+        params = fit_function(tt_boot, BFGS = F, num_inits = 1, verbose = verbose)
         
         # update y_pred sampled from the full data frame tt
-        x = suppressWarnings(rpois(n = nrow(tt), model.mean(tt, params$par)))
+        x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
         
         # test for outliers and then re-fit params (sometimes convergence can lead to crazy results)
         if(refit_boot_outliers){
@@ -1102,8 +1157,8 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
               print(sort(x))
               print('rerunning fitting')
             }
-            params = fit_freqGLMepi(tt_boot, BFGS = F, num_inits = 10^(fit_iter), verbose = verbose)
-            x = suppressWarnings(rpois(n = nrow(tt), model.mean(tt, params$par)))
+            params = fit_function(tt_boot, BFGS = F, num_inits = 10^(fit_iter), verbose = verbose)
+            x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
             
             fit_iter = fit_iter + 1
           }
@@ -1134,13 +1189,6 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
     df <- do.call('rbind',lapply(tmp,'[[',1))
   }else if(prediction_intervals == 'stationary_bootstrap'){
     
-    # # function wrapper to fit the model
-    # fit_function = function(xx){
-    #   res = fit_freqGLMepi(xx, BFGS = F, num_inits = 1, verbose = verbose)
-    #   return(res$par)
-    # }
-    # 
-    
     tmp <- lapply(1:length(uni_group), function(i) {
       # subset data
       tt <- df %>% filter(facility == uni_group[i])
@@ -1150,19 +1198,19 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
         # start the initialization at the values from the main model
         predict_function <- function(xx){
           # fit model on bootstrapped data set
-          params = fit_freqGLMepi(xx, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])
+          params = fit_function(xx, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])
           
           # predict model on original data set
-          x = suppressWarnings(rpois(n = nrow(tt), model.mean(tt, params$par)))
+          x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
           return(x)
         }
       }else{
         predict_function <- function(xx){
           # fit model on bootstrapped data set
-          params = fit_freqGLMepi(xx, BFGS = F, num_inits = 1, verbose = verbose)
+          params = fit_function(xx, BFGS = F, num_inits = 1, verbose = verbose)
           
           # predict model on original data set
-          x = suppressWarnings(rpois(n = nrow(tt), model.mean(tt, params$par)))
+          x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
           return(x)
         }
       }

@@ -298,9 +298,7 @@ for(i in 1:100){
   #print(freqGLMepi_list$params)
 }
 
-HERE AT 312pm on 10/01
-
-TRY THIS WITH LOWER LAMBDA AND PHI VALUES? THAT MIGHT MAKE IT CONVERGE BETTER
+# TRY THIS WITH LOWER LAMBDA AND PHI VALUES? THAT MIGHT MAKE IT CONVERGE BETTER
 
 # save(res_lst, res, file = 'results/freqGLM_epi_noMISS_true_inits_100yrs_testFit_results_10012021.RData')
 
@@ -1305,9 +1303,104 @@ rename_vec = c('Basic Model','FreqEpi Model')
 color_vec = c('red','blue')
 
 p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 50, rename_vec = rename_vec, use_point_est = T)
+p1
 
-#save(freqEPI_res_lst, imputed_list, file = 'results/simulation_ST_MCARp2_R500_freqEpi_sb_12122021.RData')
+# save(freqEPI_res_lst, imputed_list, file = 'results/simulation_ST_MCARp2_R500_freqEpi_sb_12122021.RData')
 
+
+#### Running block bootstrap nnls and regular on MCAR no ST ####
+R = 500
+
+system.time({
+  lst <- simulate_data(district_sizes = c(4), R = R)
+  
+  # initializae results
+  freqEPI_res_lst = list()
+  freqEPI_nnls_lst = list()
+  imputed_list = list()
+  for(i in 1:R){
+    df = lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
+    
+    # run the freqGLM_epi imputation exponentiated
+    freqGLMepi_list.1 = freqGLMepi_imputation(df_miss, prediction_intervals = 'stationary_bootstrap', R_PI = 100, scale_by_num_neighbors = T, blocksize = 6, smart_boot_init = T) 
+    df_miss = freqGLMepi_list.1$df
+    colnames(df_miss) = gsub('freqGLMepi', 'freqEpi_exp', colnames(df_miss))
+    
+    # run the freqGLM_epi imputation with nnls
+    freqGLMepi_list.2 = freqGLMepi_imputation(df_miss, prediction_intervals = 'stationary_bootstrap', R_PI = 100, scale_by_num_neighbors = T, blocksize = 6, smart_boot_init = T, nnls = T) 
+    df_miss = freqGLMepi_list.2$df
+    colnames(df_miss) = gsub('freqGLMepi', 'freqEpi_nnls', colnames(df_miss))
+    
+    # run the periodic imputation
+    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    df_miss = periodic_list$df
+    
+    freqEPI_res_lst[[i]] <- freqGLMepi_list.1
+    freqEPI_nnls_lst[[i]] <- freqGLMepi_list.2 
+    imputed_list[[i]] <- df_miss
+  }
+})# 4 hours
+
+imp_vec = c("y_pred_harmonic", "y_pred_freqEpi_exp",  "y_pred_freqEpi_nnls")
+rename_vec = c('Basic Model','FreqEpi Model Original', 'FreqEpi Model nnls')
+color_vec = c('red','blue', 'purple')
+
+plot_facility_fits(df_miss, imp_vec, rename_vec, color_vec)
+
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 0, rename_vec = rename_vec, max_intW_lim = 1e3)
+p1
+
+#save(p1, freqEPI_res_lst, freqEPI_nnls_lst, imputed_list, file = 'results/simulation_noST_MCARp2_R500_freqEpi_sb_12142021.RData')
+
+#### Running block bootstrap nnls and regular on MCAR ST ####
+R = 500
+
+system.time({
+  lst <- simulate_data_freqGLM_epi(district_sizes = 4, R = R, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10)
+  
+  # initializae results
+  freqEPI_res_lst = list()
+  freqEPI_nnls_lst = list()
+  imputed_list = list()
+  for(i in 1:R){
+    df = lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
+    
+    # run the freqGLM_epi imputation exponentiated
+    freqGLMepi_list.1 = freqGLMepi_imputation(df_miss, prediction_intervals = 'stationary_bootstrap', R_PI = 100, scale_by_num_neighbors = T, blocksize = 6, smart_boot_init = T) 
+    df_miss = freqGLMepi_list.1$df
+    colnames(df_miss) = gsub('freqGLMepi', 'freqEpi_exp', colnames(df_miss))
+    
+    # run the freqGLM_epi imputation with nnls
+    freqGLMepi_list.2 = freqGLMepi_imputation(df_miss, prediction_intervals = 'stationary_bootstrap', R_PI = 100, scale_by_num_neighbors = T, blocksize = 6, smart_boot_init = T, nnls = T) 
+    df_miss = freqGLMepi_list.2$df
+    colnames(df_miss) = gsub('freqGLMepi', 'freqEpi_nnls', colnames(df_miss))
+    
+    # run the periodic imputation
+    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    df_miss = periodic_list$df
+    
+    freqEPI_res_lst[[i]] <- freqGLMepi_list.1
+    freqEPI_nnls_lst[[i]] <- freqGLMepi_list.2 
+    imputed_list[[i]] <- df_miss
+  }
+})# 4 hours
+
+imp_vec = c("y_pred_harmonic", "y_pred_freqEpi_exp",  "y_pred_freqEpi_nnls")
+rename_vec = c('Basic Model','FreqEpi Model Original', 'FreqEpi Model nnls')
+color_vec = c('red','blue', 'purple')
+
+plot_facility_fits(df_miss, imp_vec, rename_vec, color_vec)
+
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 0, rename_vec = rename_vec, max_intW_lim = 1e3)
+p1
+
+# save(p1, freqEPI_res_lst, freqEPI_nnls_lst, imputed_list, file = 'results/simulation_ST_MCARp2_R500_freqEpi_sb_12142021.RData')
 
 #### Plots for 235 Presentation ####
 load('results/simulation_ST_MCARp2_R500_freqEpi_sb_12122021.RData')
