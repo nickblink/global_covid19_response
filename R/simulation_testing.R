@@ -85,7 +85,7 @@ lambda = phi = -2
 
 #### MCAR p = 0.2 freqGLM_epi ####
 
-R = 250
+R = 500
 
 system.time({
   lst <- simulate_data_freqGLM_epi(district_sizes = c(4), R = R)
@@ -103,7 +103,7 @@ system.time({
     df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
     
     # run the freqGLM_epi imputation
-    freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'bootstrap', R_PI = 100, verbose = F) 
+    freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'stationary_bootstrap', R_PI = 100, verbose = F, smart_boot_init = T, nnls = T) 
     df_miss = freqGLMepi_list$df
     
     # run the periodic imputation
@@ -129,7 +129,7 @@ system.time({
   
   p2 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, imputed_only = T, min_missing = 25, rename_vec = rename_vec, rm_ARna = T)
 })
-# started at 448pm on 9/7
+# roughly 4 hours
 
 # just for testing
 tt = sapply(imputed_list, function(xx) mean(xx$y_CB_facility_0.975 - xx$y_CB_facility_0.025, na.rm = T))
@@ -141,7 +141,7 @@ aa = sapply(imputed_list, function(xx) mean(xx$y_pred_harmonic_0.975 - xx$y_pred
 bb = sapply(imputed_list, function(xx) mean(xx$y_pred_freqGLMepi_0.975 - xx$y_pred_freqGLMepi_0.025, na.rm = T))
 
 lambda = phi = -2
-# save(imputed_list, lambda, phi, pfit, p1, p2, file = 'results/simulation_epi_MCARp2_R250_res_09092021.RData')
+#save(imputed_list, lambda, phi, pfit, p1, p2, file = 'results/simulation_epi_MCARp2_R500_res_07142022.RData')
 
 
 # ah and looking at the model coefficients the Bayesian model with different betas now almost exactly reflects the periodic model

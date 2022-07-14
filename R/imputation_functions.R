@@ -1217,7 +1217,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
 
       
       # run the stationary bootstrap
-      sim.boot <- tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
+      sim.boot <- boot::tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
       
       # get the quantiles and store them
       fitted_quants = t(apply(sim.boot, 2, function(xx){
