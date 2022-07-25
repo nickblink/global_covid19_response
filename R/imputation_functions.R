@@ -1719,6 +1719,10 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       }
       
       # full dataset
+      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) median(y_missing[ii,], na.rm = T))
+      tmp$y_true <- sapply(1:nrow(y_true), function(ii) median(y_true[ii,], na.rm = T))
+      tmp$median <- sapply(1:nrow(median), function(ii) median(median[ii,]))
+      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_true[,ii]}))
       tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])}))
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
@@ -1758,8 +1762,11 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
         outcome = median
       }
       
-      #bias2 = rowMeans(sapply(1:ncol(median), function(ii) {point_est[,ii] - y_missing[,ii]}), na.rm = T)
       # full dataset
+      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) median(y_missing[ii,], na.rm = T))
+      tmp$y_true <- sapply(1:nrow(y_true), function(ii) median(y_true[ii,], na.rm = T))
+      tmp$median <- sapply(1:nrow(median), function(ii) median(median[ii,]))
+      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_missing[,ii]}), na.rm = T)
       tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])}), na.rm = T)
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])/y_missing[,ii]}), na.rm = T)
