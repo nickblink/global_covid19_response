@@ -1707,7 +1707,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       
       point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
       lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-      upper_0975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
+      upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
       lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
       median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
@@ -1729,10 +1729,14 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
       
       tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_25[,ii] & y_true[,ii] < upper_75[,ii])))
-      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_025[,ii] & y_true[,ii] < upper_0975[,ii])))
+      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_025[,ii] & y_true[,ii] < upper_975[,ii])))
+      
+      tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
+      tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
       
       # measure of how wide the 95% prediction intervals are
-      tmp$interval_width = rowMeans(upper_0975 - lower_025) 
+      tmp$interval_width = rowMeans(upper_975 - lower_025) 
+      tmp$prop_interval_width = rowMeans((upper_975 - lower_025)/y_true)
       tmp$point_sd = apply(outcome, 1, sd)
       
       # update the results
@@ -1751,7 +1755,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       
       point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
       lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-      upper_0975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
+      upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
       lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
       median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
@@ -1773,7 +1777,10 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_missing[,ii])^2}), na.rm = T))
       
       tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_25[,ii] & y_missing[,ii] < upper_75[,ii])), na.rm = T)
-      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_025[,ii] & y_missing[,ii] < upper_0975[,ii])), na.rm = T)
+      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_025[,ii] & y_missing[,ii] < upper_975[,ii])), na.rm = T)
+      
+      tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
+      tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
       
       # get the interval width and standard deviation only at points that are missing
       tmp$interval_width = rowMeans(do.call('cbind', lapply(imputed_list, function(xx){
@@ -1782,6 +1789,16 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
         interval
       })), na.rm = T)
       
+      tmp$prop_interval_width = rowMeans(do.call('cbind', lapply(imputed_list, function(xx){
+        interval = xx[,paste0(method, '_0.975')] - xx[,paste0(method, '_0.025')];
+        interval[!is.na(xx[,'y'])] = NA
+        interval/xx$y_true
+      })), na.rm = T)
+      
+      # if(method == "y_CB_facility"){
+      #   browser()
+      # }
+ 
       tmp$point_sd = apply(do.call('cbind', lapply(imputed_list, function(xx){
         median = xx[,paste0(method, '_0.5')];
         median[!is.na(xx[,'y'])] = NA
