@@ -1815,7 +1815,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width')){
   
   if(is.null(outcomes)){
     outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
@@ -1846,6 +1846,9 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
   
   # make a factor so the ordering in the plots stays
   long$method=  factor(long$method, levels = rename_vec)
+  
+  long = long %>% 
+    filter(metric %in% metric_list)
   
   plot_list = list()
   # plot each metric

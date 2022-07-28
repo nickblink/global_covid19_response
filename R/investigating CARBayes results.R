@@ -64,5 +64,31 @@ ggplot(data = df %>% filter(method != 'CARBayes_int')) +
 # and a given model
 # plot the metric over time for each facility
 # use facets!
+ggplot(data = df %>% filter(method != 'CARBayes_int')) +
+  geom_line(aes(x = date, y = bias, color = method)) + 
+  geom_hline(yintercept = 0) + 
+  facet_wrap(~facility) +
+  ggtitle('bias (imputed points only)')
 
+ggplot(data = df %>% filter(method != 'CARBayes_int')) +
+  geom_line(aes(x = date, y = RMSE, color = method)) + 
+  facet_wrap(~facility) +
+  ggtitle('RMSE (imputed points only)')
+
+ggplot(data = df %>% filter(method != 'CARBayes_int')) +
+  geom_line(aes(x = date, y = interval_width, color = method)) + 
+  facet_wrap(~facility) +
+  ggtitle('interval width (imputed points only)')
+
+ggplot(data = df %>% filter(method != 'CARBayes_int')) +
+  geom_line(aes(x = date, y = prop_interval_width, color = method)) + 
+  facet_wrap(~facility) +
+  ggtitle('proportional interval width (imputed points only)')
+
+
+ggplot(data = df %>% filter(method != 'CARBayes_int')) +
+  geom_line(aes(x = date, y = coverage95, color = method)) + 
+  geom_hline(yintercept = 0.95) + 
+  facet_wrap(~facility) +
+  ggtitle('coverage95 (imputed points only)')
 
