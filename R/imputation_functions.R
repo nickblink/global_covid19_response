@@ -1491,7 +1491,7 @@ plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, 
 }
 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
-plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL){
+plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -1531,6 +1531,7 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
       # ordering the method to be consistent and for the labeling
       df_f$method = factor(df_f$method, levels = imp_names)
       
+      
       # make the plot!
       p1 <- ggplot() +
         geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
@@ -1543,6 +1544,15 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
         ylab('y') +
         theme_bw() +
         theme(text = element_text(size = 10))
+      
+      if(plot_missing_points){
+        tmp2 <- tmp %>%
+          filter(is.na(y)) %>%
+          select(date)
+        
+        p1 <- p1 + 
+          geom_point(data = tmp2, aes(x = date, y = 0),  color = 'red', size = 3)
+      }
       
       # store the legend for later
       legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
@@ -1693,6 +1703,10 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
   }))
   # ^above, an NA means the value was not missing, and a number means the value was missing
   
+  # numeric missing matrix
+  missing_mat <- apply(y_missing, 2, function(xx) 1 - as.numeric(is.na(xx)))
+  missing_mat_NA <- missing_mat; missing_mat_NA[missing_mat_NA == 0] <- NA
+  
   # get the number of times each data point was missing across simulations
   num_missing = apply(y_missing, 1, function(xx) sum(!is.na(xx)))
   
@@ -1719,9 +1733,9 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       }
       
       # full dataset
-      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) median(y_missing[ii,], na.rm = T))
-      tmp$y_true <- sapply(1:nrow(y_true), function(ii) median(y_true[ii,], na.rm = T))
-      tmp$median <- sapply(1:nrow(median), function(ii) median(median[ii,]))
+      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
+      tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
+      tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,]))
       tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_true[,ii]}))
       tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])}))
@@ -1743,9 +1757,9 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       df = rbind(df, tmp)
     }
     
+  # imputed only here
   }else{
     df = NULL
-    # imputed only here
     
     for(method in imp_vec){
       
@@ -1760,17 +1774,25 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
       median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
       
+      # make points only for missing data set
+      point_est <- point_est*missing_mat_NA
+      median <- median*missing_mat_NA
+      lower_025 <- lower_025*missing_mat_NA
+      lower_25 <- lower_25*missing_mat_NA
+      upper_75 <- upper_75*missing_mat_NA
+      upper_975 <- upper_975*missing_mat_NA
+      
       if(use_point_est){
         outcome = point_est
       }else{
         outcome = median
       }
       
-      # full dataset
-      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) median(y_missing[ii,], na.rm = T))
-      tmp$y_true <- sapply(1:nrow(y_true), function(ii) median(y_true[ii,], na.rm = T))
-      tmp$median <- sapply(1:nrow(median), function(ii) median(median[ii,]))
-      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
+      # missing data set
+      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
+      tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
+      tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,], na.rm = T))
+      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,], na.rm = T))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_missing[,ii]}), na.rm = T)
       tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])}), na.rm = T)
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])/y_missing[,ii]}), na.rm = T)
