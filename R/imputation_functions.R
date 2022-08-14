@@ -1217,7 +1217,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
 
       
       # run the stationary bootstrap
-      sim.boot <- tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
+      sim.boot <- boot::tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
       
       # get the quantiles and store them
       fitted_quants = t(apply(sim.boot, 2, function(xx){
@@ -1491,7 +1491,7 @@ plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, 
 }
 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
-plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL){
+plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -1531,6 +1531,7 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
       # ordering the method to be consistent and for the labeling
       df_f$method = factor(df_f$method, levels = imp_names)
       
+      
       # make the plot!
       p1 <- ggplot() +
         geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
@@ -1543,6 +1544,15 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
         ylab('y') +
         theme_bw() +
         theme(text = element_text(size = 10))
+      
+      if(plot_missing_points){
+        tmp2 <- tmp %>%
+          filter(is.na(y)) %>%
+          select(date)
+        
+        p1 <- p1 + 
+          geom_point(data = tmp2, aes(x = date, y = 0),  color = 'red', size = 3)
+      }
       
       # store the legend for later
       legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
@@ -1693,6 +1703,10 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
   }))
   # ^above, an NA means the value was not missing, and a number means the value was missing
   
+  # numeric missing matrix
+  missing_mat <- apply(y_missing, 2, function(xx) 1 - as.numeric(is.na(xx)))
+  missing_mat_NA <- missing_mat; missing_mat_NA[missing_mat_NA == 0] <- NA
+  
   # get the number of times each data point was missing across simulations
   num_missing = apply(y_missing, 1, function(xx) sum(!is.na(xx)))
   
@@ -1707,7 +1721,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       
       point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
       lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-      upper_0975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
+      upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
       lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
       median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
@@ -1719,25 +1733,33 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       }
       
       # full dataset
+      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
+      tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
+      tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,]))
+      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_true[,ii]}))
       tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])}))
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
       
       tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_25[,ii] & y_true[,ii] < upper_75[,ii])))
-      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_025[,ii] & y_true[,ii] < upper_0975[,ii])))
+      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_025[,ii] & y_true[,ii] < upper_975[,ii])))
+      
+      tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
+      tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
       
       # measure of how wide the 95% prediction intervals are
-      tmp$interval_width = rowMeans(upper_0975 - lower_025) 
+      tmp$interval_width = rowMeans(upper_975 - lower_025) 
+      tmp$prop_interval_width = rowMeans((upper_975 - lower_025)/y_true)
       tmp$point_sd = apply(outcome, 1, sd)
       
       # update the results
       df = rbind(df, tmp)
     }
     
+  # imputed only here
   }else{
     df = NULL
-    # imputed only here
     
     for(method in imp_vec){
       
@@ -1747,10 +1769,18 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
       
       point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
       lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-      upper_0975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
+      upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
       lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
       median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
+      
+      # make points only for missing data set
+      point_est <- point_est*missing_mat_NA
+      median <- median*missing_mat_NA
+      lower_025 <- lower_025*missing_mat_NA
+      lower_25 <- lower_25*missing_mat_NA
+      upper_75 <- upper_75*missing_mat_NA
+      upper_975 <- upper_975*missing_mat_NA
       
       if(use_point_est){
         outcome = point_est
@@ -1758,15 +1788,21 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
         outcome = median
       }
       
-      #bias2 = rowMeans(sapply(1:ncol(median), function(ii) {point_est[,ii] - y_missing[,ii]}), na.rm = T)
-      # full dataset
+      # missing data set
+      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
+      tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
+      tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,], na.rm = T))
+      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,], na.rm = T))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_missing[,ii]}), na.rm = T)
       tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])}), na.rm = T)
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])/y_missing[,ii]}), na.rm = T)
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_missing[,ii])^2}), na.rm = T))
       
       tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_25[,ii] & y_missing[,ii] < upper_75[,ii])), na.rm = T)
-      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_025[,ii] & y_missing[,ii] < upper_0975[,ii])), na.rm = T)
+      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_025[,ii] & y_missing[,ii] < upper_975[,ii])), na.rm = T)
+      
+      tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
+      tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
       
       # get the interval width and standard deviation only at points that are missing
       tmp$interval_width = rowMeans(do.call('cbind', lapply(imputed_list, function(xx){
@@ -1775,6 +1811,16 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
         interval
       })), na.rm = T)
       
+      tmp$prop_interval_width = rowMeans(do.call('cbind', lapply(imputed_list, function(xx){
+        interval = xx[,paste0(method, '_0.975')] - xx[,paste0(method, '_0.025')];
+        interval[!is.na(xx[,'y'])] = NA
+        interval/xx$y_true
+      })), na.rm = T)
+      
+      # if(method == "y_CB_facility"){
+      #   browser()
+      # }
+ 
       tmp$point_sd = apply(do.call('cbind', lapply(imputed_list, function(xx){
         median = xx[,paste0(method, '_0.5')];
         median[!is.na(xx[,'y'])] = NA
@@ -1791,7 +1837,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width')){
   
   if(is.null(outcomes)){
     outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
@@ -1822,6 +1868,9 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', '
   
   # make a factor so the ordering in the plots stays
   long$method=  factor(long$method, levels = rename_vec)
+  
+  long = long %>% 
+    filter(metric %in% metric_list)
   
   plot_list = list()
   # plot each metric
