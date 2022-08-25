@@ -5,8 +5,12 @@ library(dplyr)
 library(cowplot)
 library(CARBayesST)
 library(spdep)
+library(rstudioapi)
 
-setwd('C:/Users/nickl/Documents/global_covid19_response/')
+current_path <- getActiveDocumentContext()$path
+setwd(dirname(current_path))
+setwd('..')
+
 source('R/imputation_functions.R')
 
 #
@@ -289,9 +293,10 @@ df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
 
 CAR_list1 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 500, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
 
-folder <- 'C:/Users/nickl/Documents/CARBayesST_personal/R'
+folder <- '../CARBayesST_personal/R'
 
 for(f in list.files(folder, full.names = T)){
+  print(f)
   source(f)
 }
 CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 500, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
