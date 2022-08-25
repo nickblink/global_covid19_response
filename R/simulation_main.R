@@ -9,8 +9,8 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(cowplot)
-library(doRNG)
-library(doParallel)
+#library(doRNG)
+#library(doParallel)
 
 params <- commangArgs(trailingOnly = TRUE)
 
@@ -29,7 +29,9 @@ job_name <- 'test'
 # set up the output folder
 tmp_data_path <- 'data/tmp_data/'
 output_path <- paste0(tmp_data_path, job_name)
-dir.create(output_path)
+if(!file.exists(output_path)){
+  dir.create(output_path)
+}
 
 #### MCAR p = 0.2 freqGLM_epi - 20 years ####
 lst <- res <- simulate_data_freqGLM_epi(district_sizes = 4, R = R, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
@@ -38,7 +40,7 @@ if(job_id == 1){
   save(lst, file = 'simulated_data.RData')
 }
 
-registerDoParallel(cores = 4)
+# registerDoParallel(cores = 4)
 
 one_run <- function(lst, i){
   df = lst$df_list[[i]]

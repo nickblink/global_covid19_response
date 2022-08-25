@@ -76,6 +76,61 @@ hist(county_miss$denom_miss, main = 'county denom missing', xlab = 'proportion m
 hist(district_miss$denom_miss, main = 'district denom')
 hist(facility_miss$denom_miss, main = 'facility denom')
 
+##### Analyzing non-missing vs. missing datasets #####
+
+facility_miss = D %>%
+  filter(date < '2020-01-01') %>%
+  group_by(facility) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            ari_miss_count = sum(is.na(indicator_count_ari_total)))
+
+district_miss = D %>% 
+  filter(date < '2020-01-01') %>%
+  group_by(district) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            n = length(unique(facility)))
+
+
+dist_miss <- district_miss %>% 
+  filter(ari_miss > 0)
+
+dist_comp <- district_miss %>% 
+  filter(ari_miss == 0)
+
+mean(dist_comp$n)
+
+mean(dist_miss$n)
+
+D_miss <- D %>%
+  filter(date < '2020-01-01') %>%
+  filter(district %in% dist_miss$district)
+
+D_comp <- D %>%
+  filter(date < '2020-01-01') %>%
+  filter(district %in% dist_comp$district)
+
+mean(D_miss$indicator_count_ari_total, na.rm = T)
+mean(D_comp$indicator_count_ari_total)
+
+fac_miss = facility_miss %>%
+  filter(ari_miss > 0)
+
+fac_comp = facility_miss %>%
+  filter(ari_miss == 0)
+
+fac_miss <- D %>%
+  filter(date < '2020-01-01') %>%
+  filter(facility %in% fac_miss$facility)
+
+fac_comp <- D %>%
+  filter(date < '2020-01-01') %>%
+  filter(facility %in% fac_comp$facility)
+
+mean(fac_miss$indicator_count_ari_total, na.rm = T)
+mean(fac_comp$indicator_count_ari_total)
+
 ##### Missingness by year and season #####
 D = D %>%
   mutate(month = month(date),
@@ -987,3 +1042,23 @@ p2 <- ggplot(tt, aes(x = group, y = denom_miss_avg)) +
   ggtitle('denominator missingness')
 
 cowplot::plot_grid(p1, p2)
+
+##### Plotting different facilites with ~ 20% missing
+load('results/simulation_epi_MCARp2_R500_res_07142022.RData')
+
+df <- imputed_list[[1]] %>%
+  filter(facility == 'A1')
+df$y2 <- df$y_pred_freqGLMepi
+df$y2[!is.na(df$y)] <- NA
+
+plot(df$y_true, type = 'l')
+plot(df$y, type = 'l')
+plot(df$y_true, type = 'l')
+
+plot(df$y, type = 'l')
+points(df$y2, col = 'red')
+
+
+
+
+
