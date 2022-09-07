@@ -32,6 +32,7 @@ fit.site.specific.denom.pi <- function(data, # data frame with site_name, indica
   
   # create data frame
   if (counts_only==TRUE){
+    browser()
     data %>% 
       dplyr::rename(site=site_var,indicator=indicator_var,date=date_var) %>%
       filter(site==site_name) %>%

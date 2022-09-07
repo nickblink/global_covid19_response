@@ -108,6 +108,59 @@ date_facility_check <- function(imputed_list){
   }
 }
 
+fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities = NULL, family = 'nb'){
+  # use all facilities if not provided
+  if(is.null(facilities)){
+    facilities <- unique(data$facility)
+  }
+  
+  data <- add_periodic_cov(data)
+  data$y <- as.data.frame(data)[,outcome]
+
+  formula_col = as.formula(sprintf("y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"))
+  
+  print(sprintf('fitting models for %s family', family))
+  if(family %in% c('nb','NB','negative binomial')){
+    tmp <- lapply(facilities, function(xx) {
+      tt <- data %>% filter(facility == xx)
+      
+      # run the model
+      mod_col <- tryCatch({MASS::glm.nb(formula_col, data = tt)},
+                          error = function(e){
+                            NA
+                          })
+      
+      return(mod_col)
+    })
+  }else{
+    stop('havent coded for other families')
+  }
+  
+  # combine the results
+  df = do.call('rbind', lapply(tmp, function(xx) {
+    if(is.na(xx)){
+      return(rep(NA, 8))
+    }else{
+      if(!xx$converged){
+        return(rep(NA, 8))
+      }else{
+        return(xx$coefficients)
+      }
+    }
+  }))
+    
+  df <- as.data.frame(df) %>%
+    mutate(facility = facilities)
+  
+  facility_miss = as.data.frame(data) %>% 
+    group_by(facility) %>%
+    summarize(num_missing = sum(is.na(y)))
+  
+  df <- merge(facility_miss, df) %>%
+    arrange(num_missing)
+  
+  return(df)
+}
 #
 ##### Imputation Functions #####
 
@@ -2000,14 +2053,24 @@ initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = 
   return(df)
 }
 
-sample_betas = function(facilities, b0_mean = 7, b1_mean = -0.2, b1_sd = 0.2){
+sample_real_betas <- function(facilities, file = 'results/all_facility_betas_filtered_09052022.csv'){
+  tmp <- read.csv(file)
+  
+  ind <- sample(nrow(tmp), length(facilities))
+  betas <- tmp[ind,3:10]
+  rownames(betas) = facilities
+  colnames(betas) = c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3')
+  return(betas)
+}
+
+sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.26){
   betas = matrix(0, nrow = length(facilities), ncol = 8)
   
   betas[,1] = rnorm(b0_mean, 1, n = nrow(betas))
   betas[,2] = rnorm(b1_mean, b1_sd, n = nrow(betas))
   
   for(j in 3:8){
-    betas[,j] = rnorm(0, 0.2, n = nrow(betas))
+    betas[,j] = rnorm(0, 0.15, n = nrow(betas))
   }
   
   rownames(betas) = facilities

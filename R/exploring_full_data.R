@@ -4,23 +4,40 @@ library(ggplot2)
 library(gtools)
 
 setwd('C:/Users/nickl/Documents/global_covid19_response/')
-
+source('R/imputation_functions.R')
 D = readRDS('data/liberia_cleaned_NL.rds')
 
-add_periodic_cov <- function(df, period = 12){
-  df = df %>%
-    dplyr::mutate(year = year(date) - min(year(date)) + 1,
-                  month = month(date),
-                  cos1 = cos(2*1*pi*month/period),
-                  sin1 = sin(2*1*pi*month/period),
-                  cos2 = cos(2*2*pi*month/period),
-                  sin2 = sin(2*2*pi*month/period),
-                  cos3 = cos(2*3*pi*month/period),
-                  sin3 = sin(2*3*pi*month/period))
-  return(df)
-}
+##### Fitting all facilities WF/freqGLM #####
 
-#
+# fitting the mean model
+res <- fit_WF_model(D)
+
+colMeans(abs(res[,-1]), na.rm = T)
+colMeans(res[,-1], na.rm = T)
+
+res2 <- res %>%
+  na.omit()
+
+colMeans(abs(res2[,-1]), na.rm = T)
+colMeans(res2[,-1], na.rm = T)
+
+res3 <- res2 %>%
+  filter(num_missing < 20)
+
+colMeans(abs(res3[,-1]), na.rm = T)
+colMeans(res3[,-1], na.rm = T)
+
+res4 <- res3 %>% 
+  filter(`(Intercept)` > 0)
+
+colMeans(abs(res4[,-1]), na.rm = T)
+colMeans(res4[,-1], na.rm = T)
+
+apply(res4[,-1], 2, sd)
+
+write.csv(res4, file = 'results/all_facility_betas_filtered_09052022.csv', row.names = F)
+
+tt <- read.csv('results/all_facility_betas_filtered_09052022.csv')
 ##### Counts of basic things #####
 
 length(unique(D$county)) # 15
