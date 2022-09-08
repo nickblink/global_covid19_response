@@ -282,7 +282,7 @@ for(j in 1:ncol(beta)){
 
 
 #### Investigating MCMC properties ####
-# source('R/personal_CARBayes_fxn.R')
+source('R/personal_CARBayes_fxn.R')
 
 lst <- simulate_data_spatiotemporal(district_sizes = c(4), R = 5, rho = 0.5, alpha = 0.3, tau = 0.5)
 
@@ -299,6 +299,10 @@ for(f in list.files(folder, full.names = T)){
   print(f)
   source(f)
 }
+setwd('../CARBayesST_personal/src')
+Rcpp::sourceCpp('CARBayesST.cpp')
+Rcpp::sourceCpp('RcppExports.cpp')
+
 CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 500, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
 
 ## DOESNT WORK. WHY?
