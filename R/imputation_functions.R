@@ -165,12 +165,12 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 ##### Imputation Functions #####
 
 # OG imputation method
-periodic_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
+WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
   # check if this method has already been run
-  if(any(grepl('y_pred_harmonic', colnames(df)))){
-    print('previous harmonic predictions found. Removing them')
-    df[,grep('y_pred_harmonic', colnames(df))] <- NULL
+  if(any(grepl('y_pred_WF', colnames(df)))){
+    print('previous WF predictions found. Removing them')
+    df[,grep('y_pred_WF', colnames(df))] <- NULL
   }
   
   # prep the data with the harmonic functions
@@ -189,7 +189,7 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(get(group) == xx)
       mod_col <- glm(formula_col, data = tt, family=quasipoisson)
-      tt[,paste0(col, '_pred_harmonic')] = predict(mod_col, tt, type = 'response')
+      tt[,paste0(col, '_pred_WF')] = predict(mod_col, tt, type = 'response')
       return(tt)
     })
     
@@ -203,14 +203,14 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
       tt <- df %>% filter(get(group) == xx)
       #mod_col <- MASS::glm.nb(formula_col, data = tt, control = glm.control(maxit=200,trace = 3))
       
-      tt[,paste0(col, '_pred_harmonic')] <- tryCatch({
+      tt[,paste0(col, '_pred_WF')] <- tryCatch({
         mod_col <- MASS::glm.nb(formula_col, data = tt)
         predict(mod_col, tt, type = 'response')
       }, error = function(e){
         print(sprintf('glm.nb failed for %s', xx))
         rep(NA, nrow(tt))
       })
-      #tt[,paste0(col, '_pred_harmonic')] = predict(mod_col, tt, type = 'response')
+      #tt[,paste0(col, '_pred_WF')] = predict(mod_col, tt, type = 'response')
       return(tt)
     })
     
@@ -219,7 +219,7 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(get(group) == xx)
       mod_col <- glm(formula_col, data = tt, family=poisson)
-      tt[,paste0(col, '_pred_harmonic')] = predict(mod_col, tt, type = 'response')
+      tt[,paste0(col, '_pred_WF')] = predict(mod_col, tt, type = 'response')
       
       if(R_PI > 0){
         # extract information from model fit
@@ -247,7 +247,7 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
           quantile(xx, probs = quant_probs)
         }))
         fitted_quants = as.data.frame(fitted_quants)
-        colnames(fitted_quants) = paste0(paste0(col, '_pred_harmonic_'), quant_probs)
+        colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
         
         tt = cbind(tt, fitted_quants)
         
@@ -268,7 +268,7 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
       quantile(xx, probs = quant_probs)
     }))
     county_quants = as.data.frame(county_quants)
-    colnames(county_quants) = paste0(paste0(col, '_pred_harmonic_'), quant_probs)
+    colnames(county_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
     county_quants$date = tmp[[1]][[1]]$date
 
   }
@@ -277,8 +277,27 @@ periodic_imputation <- function(df, col, group = 'facility', family = 'NB', peri
   return(res_lst)
 }
 
+# Run Weinberger-Fulcher (WF) model using all observed data with no missingness as a baseline comparison.
+WF_baseline <- function(df, train_end_date = '2019-12-01', col = "y", family = 'poisson', R_PI = 100){
+  # replace missing points with their true values
+  tmp <- df
+  tmp$y <- tmp$y_true
+  tmp$y[tmp$date > train_end_date] <- NA
+  
+  res <- WF_imputation(tmp, col = col, family = family, R_PI = R_PI)
+  
+  # store the results and return the original y values
+  tmp <- res$df
+  tmp$y <- df$y
+  
+  # rename columns of the results
+  colnames(tmp) <- gsub('y_pred_WF', 'y_pred_baseline_WF', colnames(tmp)) 
+  
+  return(tmp)
+}
+
 # Bayes imputation method
-bayes_periodic_imputation <- function(df, df_OG = NULL, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
+bayes_WF_imputation <- function(df, df_OG = NULL, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period) %>% as.data.frame()
   
@@ -296,11 +315,11 @@ bayes_periodic_imputation <- function(df, df_OG = NULL, col, group = 'facility',
     if(!is.null(df_OG)){
       # setting the prior to use the un-imputed matrix models
       df_prior = add_periodic_cov(df_OG, period = period) %>% as.data.frame()
-      pred_col_name = paste0(col, '_pred_bayes_harmonic_ideal')
+      pred_col_name = paste0(col, '_pred_bayes_WF_ideal')
     }else{
       # setting the prior to use the imputed matrix models
       df_prior = df
-      pred_col_name = paste0(col, '_pred_bayes_harmonic_miss')
+      pred_col_name = paste0(col, '_pred_bayes_WF_miss')
     }
     
     # get the max value
@@ -384,7 +403,7 @@ bayes_periodic_imputation <- function(df, df_OG = NULL, col, group = 'facility',
         tmp = tt; tmp[is.na(tmp)] = 1e6
         
         # predict the median output from a posterior draw
-        tt[, paste0(col, '_pred_bayes_harmonic')] = apply(posterior_predict(mod_bayes, tmp, type = 'response'), 2, median)
+        tt[, paste0(col, '_pred_bayes_WF')] = apply(posterior_predict(mod_bayes, tmp, type = 'response'), 2, median)
         
         return(tt)
       })
@@ -544,7 +563,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     # run two imputations
     df_imp <- tryCatch({
-      periodic_imputation(df_miss, col = col, family = harmonic_family, group = group)
+      WF_imputation(df_miss, col = col, family = harmonic_family, group = group)
     }, error = function(e){
       print(sprintf('error for periodic with p = %s', p))
       browser()
@@ -552,7 +571,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     if(!is.na(bayes_harmonic_family)){
       df_imp <- tryCatch({
-        bayes_periodic_imputation(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group)
+        bayes_WF_imputation(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group)
       }, error = function(e){
         print(sprintf('error for bayes periodic with p = %s', p))
         browser()
@@ -562,7 +581,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     if(bayes_beta_prior){
       df_imp <- tryCatch({
-        bayes_periodic_imputation(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
+        bayes_WF_imputation(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
       }, error = function(e){
         print(sprintf('error for bayes periodic beta prior with p = %s', p))
         browser()
@@ -571,7 +590,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     if(bayes_beta_prior){
       df_imp <- tryCatch({
-        bayes_periodic_imputation(df_imp, df_OG = df, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
+        bayes_WF_imputation(df_imp, df_OG = df, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
       }, error = function(e){
         print(sprintf('error for bayes periodic beta prior with p = %s', p))
         browser()
@@ -1741,7 +1760,7 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 }
 
 # calculate the metrics for individual data points across simulated imputations
-calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmonic", "y_CARBayes_ST"), imputed_only = T, rm_ARna = F, use_point_est = F){
+calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), imputed_only = T, rm_ARna = F, use_point_est = F){
   
   #y_true = imputed_list[[1]]$y_true
   
@@ -1897,7 +1916,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_harmoni
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_harmonic', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width')){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width')){
   
   if(is.null(outcomes)){
     outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
@@ -2080,9 +2099,9 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.26
   return(betas)
 }
 
-simulate_data <- function(district_sizes, R = 1){
+simulate_data <- function(district_sizes, R = 1, empirical_betas = F, ...){
   # set up data frame
-  df = initialize_df(district_sizes)
+  df = initialize_df(district_sizes, ...)
   
   # make periodic covariates
   df = add_periodic_cov(df)
@@ -2092,7 +2111,11 @@ simulate_data <- function(district_sizes, R = 1){
   
   # set random seed and sample betas
   set.seed(10)
-  betas = sample_betas(facilities)
+  if(empirical_betas){
+    betas = sample_real_betas(facilities)
+  }else{
+    betas = sample_betas(facilities)  
+  }
   
   # initialize list of data frames
   df_lst = list()
@@ -2374,8 +2397,17 @@ make_precision_mat <- function(df, rho){
   return(Q)
 }
 
-MCAR_sim <- function(df, p, by_facility = F){
+MCAR_sim <- function(df, p, by_facility = F, max_missing_date = '2019-12-01'){
+  # save the true y value
   df$y_true = df$y
+  
+  # split the data into a test/hold-out set and the training set
+  df_test <- df %>%
+    filter(date > max_missing_date)
+  df <- df %>%
+    filter(date <= max_missing_date)
+
+  # delete y values to add in missingness
   if(by_facility){
     num_impute = round(p*nrow(df)/length(unique(df$facility)))
     df = do.call('rbind', lapply(unique(df$facility), function(xx){
@@ -2387,6 +2419,9 @@ MCAR_sim <- function(df, p, by_facility = F){
     num_impute = round(p*nrow(df))
     df$y[sample(nrow(df), num_impute)] <- NA
   }
+  
+  # combine the hold-out/non-missing data with the training data with missingness
+  df <- rbind(df, df_test)
   
   return(df)
 }

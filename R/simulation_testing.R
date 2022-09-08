@@ -1,5 +1,7 @@
 ### Now doing this as an R script rather than Rmd because it's easier to work with.
-setwd('C:/Users/nickl/Documents/global_covid19_response/')
+current_path <- rstudioapi::getActiveDocumentContext()$path
+setwd(dirname(current_path))
+setwd('../')
 source('R/imputation_functions.R')
 library(MASS)
 library(CARBayesST)
@@ -8,6 +10,70 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 library(cowplot)
+
+#### MCAR p = 0.2 no ST testing DGP ####
+R = 5
+
+# using randomly sampled betas
+lst <- simulate_data(district_sizes = c(4), R = R)
+df <- lst$df_list[[1]]
+ggplot(df) +
+  geom_line(aes(x = date, y = y)) +
+  facet_wrap(vars(facility))
+
+# Using betas from fits on real data
+lst <- simulate_data(district_sizes = c(4), R = R, empirical_betas = T)
+df <- lst$df_list[[1]]
+ggplot(df) +
+  geom_line(aes(x = date, y = y)) +
+  facet_wrap(vars(facility))
+
+# setting a later end date
+lst <- simulate_data(district_sizes = c(2,2), R = R, empirical_betas = T, end_date = '2020-12-01')
+df <- lst$df_list[[1]]
+# simulation function!
+df_miss = MCAR_sim(df, p = 0.2, by_facility = T, max_missing_date = '2019-12-01')
+
+## 7 different approaches. 
+# WF full data
+# WF CCA
+# Bayes CCA
+# FreqGLM_epi CCA
+# Bayes + WF
+# FreqGLM_epi + WF
+# MICE + WF
+
+res <- WF_baseline(df_miss)
+
+# run the periodic imputation
+periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+df_miss = periodic_list$df
+
+system.time({
+  lst <- simulate_data(district_sizes = c(4), R = R)
+  
+  imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CB_intercept", "y_CB_facility")
+  rename_vec = c('glmFreq','glmFreq_epi','CARBayes_int', 'CARBayes_facility')
+  color_vec = c('red','blue','lightgreen', 'forestgreen')
+  
+  imputed_list = list()
+  res_full = res_imputed = NULL
+  for(i in 1:R){
+    df = lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
+    
+    # run the freqGLM_epi imputation
+    freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'bootstrap', R_PI = 100, verbose = F) 
+    df_miss = freqGLMepi_list$df
+    
+
+    
+   
+
+
+
 
 #### MCAR p = 0.2 spatio-temporal ####
 
@@ -33,7 +99,7 @@ system.time({
     df_miss = freqGLMepi_list$df
     
     # run the periodic imputation
-    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
     
     #  run the CARBayes imputation with different intercepts by facility
@@ -85,7 +151,7 @@ system.time({
     df_miss = freqGLMepi_list$df
     
     # run the periodic imputation
-    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
     
     #  run the CARBayes imputation with different intercepts by facility
@@ -159,7 +225,7 @@ system.time({
     df_miss = freqGLMepi_list$df
     
     # run the periodic imputation
-    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
     
     #  run the CARBayes imputation with different intercepts by facility
@@ -224,7 +290,7 @@ system.time({
     df_miss = freqGLMepi_list$df
     
     # run the periodic imputation
-    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
     
     #  run the CARBayes imputation with different intercepts by facility
@@ -287,7 +353,7 @@ system.time({
     # df_miss = freqGLMepi_list$df
     
     # run the periodic imputation
-    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
     
     #  run the CARBayes imputation with different intercepts by facility
@@ -337,7 +403,7 @@ system.time({
     # df_miss = freqGLMepi_list$df
     
     # run the periodic imputation
-    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
     
     #  run the CARBayes imputation with different intercepts by facility
@@ -381,7 +447,7 @@ imputed_list = lapply(1:R, function(i){
   df_miss = MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.5, alpha = 0.5, tau = 3, by_facility = T)
   
   # run the periodic imputation
-  periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+  periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
   df_miss = periodic_list$df
   
   #  run the CARBayes imputation with different intercepts by facility
@@ -424,7 +490,7 @@ system.time({
     df_miss = MNAR_sim(df, p = 0.2, direction = 'upper', gamma = 1, by_facility = T)
     
     # run the periodic imputation
-    periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+    periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
     
     #  run the CARBayes imputation with different intercepts by facility
@@ -456,7 +522,7 @@ df <- simulate_data(district_sizes = c(2,3,4,5,7))
 df_miss = MCAR_sim(df, p = 0.1, by_facility = T)
 
 # run the periodic imputation
-periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
 df_miss = periodic_list$df
 
 # run the CARBayes imputation
@@ -490,7 +556,7 @@ df <- simulate_data(district_sizes = c(2,3,4,5,7))
 df_miss = MCAR_sim(df, p = 0.5, by_facility = T)
 
 # run the periodic imputation
-periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
 df_miss = periodic_list$df
 
 # run the CARBayes imputation
@@ -517,7 +583,7 @@ res6 <- calculate_metrics(county_miss, imp_vec,imputed_only = F, median_estimate
 df_miss = MNAR_sim(df, p = 0.2, direction = 'upper', alpha = 1, by_facility = T)
 
 # run the periodic imputation
-periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
 df_miss = periodic_list$df
 
 # run the CARBayes imputation
@@ -635,7 +701,7 @@ df1 = MCAR_sim(df, p = 0.15, by_facility = T)
 df2 = MCAR_sim(df, p = 0.4, by_facility = T)
 
 # run the periodic imputation
-periodic_list = periodic_imputation(df1, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
+periodic_list = WF_imputation(df1, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
 df1 = periodic_list$df
 
 par(mfrow = c(1,2))
