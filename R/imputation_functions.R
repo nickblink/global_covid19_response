@@ -164,6 +164,24 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 #
 ##### Imputation Functions #####
 
+# run a complete case analysis for any method using a cutoff date (train end date) and then predicting on all dates beyond that (and the missing data points before that date)
+WF_CCA <- function(df, train_end_date = '2019-12-01', ...){
+  # replace values in the test set with missing ones
+  tmp <- df
+  tmp$y[tmp$date > train_end_date] <- NA
+  
+  res <- WF_imputation(tmp, ...)
+
+  # store the results and return the original y values
+  tmp <- res$df
+  tmp$y <- df$y
+  
+  # rename columns of the results
+  colnames(tmp) <- gsub('y_pred_WF', 'y_pred_CCA_WF', colnames(tmp)) 
+  
+  return(tmp)
+}
+
 # OG imputation method
 WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
@@ -1570,7 +1588,7 @@ plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, 
 }
 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
-plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T){
+plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01'){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -1633,11 +1651,15 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
           geom_point(data = tmp2, aes(x = date, y = 0),  color = 'red', size = 3)
       }
       
+      if(!is.null(vertical_line)){
+        p1 <- p1 + geom_vline(xintercept = as.Date(vertical_line))
+      }
+      
       # store the legend for later
       legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
       
       # remove the legend position on this plot
-      p1 = p1 + theme(legend.position = 'none') 
+      p1 <- p1 + theme(legend.position = 'none') 
       
       # store the plot for this facility in the list
       plot_list[[iter]] = p1
@@ -1760,9 +1782,14 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 }
 
 # calculate the metrics for individual data points across simulated imputations
-calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), imputed_only = T, rm_ARna = F, use_point_est = F){
+calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F){
   
-  #y_true = imputed_list[[1]]$y_true
+  # filter to only be greater than the specified date
+  if(!is.null(min_date)){
+    imputed_list <- lapply(imputed_list, function(xx){
+      xx <- xx %>% filter(date >= min_date)
+    })
+  }
   
   # removing the starting points with NA AR1 values, since these
   if(rm_ARna){
@@ -1788,7 +1815,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
   
   # get the number of times each data point was missing across simulations
   num_missing = apply(y_missing, 1, function(xx) sum(!is.na(xx)))
-  
+
   if(!imputed_only){
     df = NULL
     # imputed only here
@@ -1916,14 +1943,19 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, outcomes = NULL, min_missing = 5, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width')){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width')){
   
-  if(is.null(outcomes)){
-    outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
+  if(!is.null(min_date)){
+    imputed_only = F
+    print('setting imputed only to false because of the minimum date specification')
   }
+  # 
+  # if(is.null(outcomes)){
+  #   outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
+  # }
   
   # get the metrics from each simulation run
-  res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = imputed_only, rm_ARna = rm_ARna, use_point_est = use_point_est)
+  res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = min_date, imputed_only = imputed_only, rm_ARna = rm_ARna, use_point_est = use_point_est)
 
   if(all(res$num_missing < min_missing) & imputed_only){
     stop('all points are not missing enough (check min_missing)')

@@ -11,7 +11,126 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-#### MCAR p = 0.2 no ST testing DGP ####
+#### 9/12/2022 WF Baseline and CCA Approaches ####
+
+R = 500
+
+system.time({
+  lst <- simulate_data(district_sizes = c(4), R = R, end_date = '2020-12-01')
+  
+  # imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CB_intercept", "y_CB_facility")
+  # rename_vec = c('glmFreq','glmFreq_epi','CARBayes_int', 'CARBayes_facility')
+  # color_vec = c('red','blue','lightgreen', 'forestgreen')
+  
+  imputed_list = list()
+  res_full = res_imputed = NULL
+  for(i in 1:R){
+    df <- lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss <- MCAR_sim(df, p = 0.2, by_facility = T)
+    
+    # run the WF baseline (complete data) imputation
+    df_miss <- WF_baseline(df_miss, R_PI = 100)
+    
+    # run the WF complete case analysis model
+    df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 100)
+    
+    imputed_list[[i]] = df_miss
+  }
+  
+})
+# 47s for R = 10
+
+imp_vec = c("y_pred_CCA_WF", "y_pred_baseline_WF")
+rename_vec = c('WF CCA','WF baseline')
+color_vec = c('red','blue')
+
+pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
+
+p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', 
+                            min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','MAPE','coverage95','interval_width'))
+
+# Look at facility A3. 
+# Fix plotting to only be for three metrics
+
+#### Implementing the CCA Approaches ####
+lst <- simulate_data(district_sizes = c(4), R = 5, empirical_betas = T, end_date = '2020-12-01')
+df <- lst$df_list[[1]]
+# simulation function!
+df_miss = MCAR_sim(df, p = 0.2, by_facility = T, max_missing_date = '2019-12-01')
+
+## 7 different approaches. 
+# WF full data
+# WF CCA
+# Bayes CCA
+# FreqGLM_epi CCA
+# Bayes + WF
+# FreqGLM_epi + WF
+# MICE + WF
+
+df_miss <- WF_baseline(df_miss)
+
+df_miss <- WF_CCA(df_miss, train_end_date = '2019-12-01', col = "y", family = 'poisson', R_PI = 100)
+
+CARBayes_CCA <- function(df,R_posterior, train_end_date = '2019-12-01', ...){
+  max_date <- max(df$date)
+  facilities <- unique(df$facility)
+  
+  # make a train set to fit on
+  train <- df %>%
+    filter(date <= train_end_date)
+  
+  res <- CARBayes_imputation(train, ...)
+  
+  # pull out parameter values
+  betas <- as.data.frame(res$model_chain$samples$beta)
+  colnames(betas) <- setdiff(gsub('\\(|\\)', '', row.names(res$model_chain$summary.results)), c('tau2', 'rho.S','rho.T'))
+  
+  # want to convert betas into a matrix with the rownames as the facility and the columns 
+  # "intercept" "year"      "cos1"      "sin1"      "cos2" "sin2"      "cos3"      "sin3"  (so in our case 4 x 8 matrix)
+  # At least I want to do this for each beta row
+  beta_mat <- matrix(NA, nrow = length(facilities), ncol = 8) 
+  rownames(beta_mat) <- facilities
+  colnames(beta_mat) <- c("Intercept", "year",      "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")
+  
+  HERE TOO TIRED
+  
+  tmp <- lapply(1:nrow(betas), function(ii) {
+   
+    for(fac in facilites){
+      
+    }
+  })
+  
+  phi <- res$model_chain$samples$phi
+  rho <- res$model_chain$samples$rho
+  tau2 <- res$model_chain$samples$tau2
+  
+  browser()
+  
+  
+  for(i in 1:R_posterior){
+    # pull the parameter values for beta and the spatial ones
+    
+    # simulate values in the test period
+  }
+
+  # sample forward through 2020
+  
+  # store the results and return the original y values
+  tmp <- res$df
+  tmp$y <- df$y
+  
+  # rename columns of the results
+  colnames(tmp) <- gsub('y_pred_WF', 'y_pred_CCA_WF', colnames(tmp)) 
+  
+  return(tmp)
+}
+
+CARBayes_CCA(df_miss, R_posterior = 500,  col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
+
+#### Comparing betas from simulated and real data ####
 R = 5
 
 # using randomly sampled betas
@@ -33,48 +152,7 @@ lst <- simulate_data(district_sizes = c(2,2), R = R, empirical_betas = T, end_da
 df <- lst$df_list[[1]]
 # simulation function!
 df_miss = MCAR_sim(df, p = 0.2, by_facility = T, max_missing_date = '2019-12-01')
-
-## 7 different approaches. 
-# WF full data
-# WF CCA
-# Bayes CCA
-# FreqGLM_epi CCA
-# Bayes + WF
-# FreqGLM_epi + WF
-# MICE + WF
-
-res <- WF_baseline(df_miss)
-
-# run the periodic imputation
-periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
-df_miss = periodic_list$df
-
-system.time({
-  lst <- simulate_data(district_sizes = c(4), R = R)
   
-  imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CB_intercept", "y_CB_facility")
-  rename_vec = c('glmFreq','glmFreq_epi','CARBayes_int', 'CARBayes_facility')
-  color_vec = c('red','blue','lightgreen', 'forestgreen')
-  
-  imputed_list = list()
-  res_full = res_imputed = NULL
-  for(i in 1:R){
-    df = lst$df_list[[i]]
-    
-    # simulation function!
-    df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
-    
-    # run the freqGLM_epi imputation
-    freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'bootstrap', R_PI = 100, verbose = F) 
-    df_miss = freqGLMepi_list$df
-    
-
-    
-   
-
-
-
-
 #### MCAR p = 0.2 spatio-temporal ####
 
 R = 500
