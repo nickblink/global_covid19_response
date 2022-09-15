@@ -13,7 +13,7 @@ library(cowplot)
 
 #### 9/12/2022 WF Baseline and CCA Approaches ####
 
-R = 500
+R = 5
 
 system.time({
   lst <- simulate_data(district_sizes = c(4), R = R, end_date = '2020-12-01')
@@ -28,7 +28,9 @@ system.time({
     df <- lst$df_list[[i]]
     
     # simulation function!
-    df_miss <- MCAR_sim(df, p = 0.2, by_facility = T)
+    df_miss <- MCAR_sim(df, p = 0.7, by_facility = T, max_missing_date = '2019-12-01')
+    
+    # So this below is the problem. It jumbles everything
     
     # run the WF baseline (complete data) imputation
     df_miss <- WF_baseline(df_miss, R_PI = 100)
@@ -46,16 +48,17 @@ imp_vec = c("y_pred_CCA_WF", "y_pred_baseline_WF")
 rename_vec = c('WF CCA','WF baseline')
 color_vec = c('red','blue')
 
-pfit = plot_facility_fits(imputed_list[[1]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
+plot_facility_fits(imputed_list[[2]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
 
-p1 <- plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', 
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', 
                             min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','MAPE','coverage95','interval_width'))
 
 # Look at facility A3. 
-# Fix plotting to only be for three metrics
+
+df <- imputed_list[[1]]
 
 #### Implementing the CCA Approaches ####
-lst <- simulate_data(district_sizes = c(4), R = 5, empirical_betas = T, end_date = '2020-12-01')
+lst <- simulate_data(district_sizes = c(4), R = 5, empirical_betas = F, end_date = '2020-12-01')
 df <- lst$df_list[[1]]
 # simulation function!
 df_miss = MCAR_sim(df, p = 0.2, by_facility = T, max_missing_date = '2019-12-01')
@@ -73,7 +76,7 @@ df_miss <- WF_baseline(df_miss)
 
 df_miss <- WF_CCA(df_miss, train_end_date = '2019-12-01', col = "y", family = 'poisson', R_PI = 100)
 
-CARBayes_CCA <- function(df,R_posterior, train_end_date = '2019-12-01', ...){
+CARBayes_CCA <- function(df, R_posterior, train_end_date = '2019-12-01', ...){
   max_date <- max(df$date)
   facilities <- unique(df$facility)
   
@@ -92,9 +95,25 @@ CARBayes_CCA <- function(df,R_posterior, train_end_date = '2019-12-01', ...){
   # At least I want to do this for each beta row
   beta_mat <- matrix(NA, nrow = length(facilities), ncol = 8) 
   rownames(beta_mat) <- facilities
-  colnames(beta_mat) <- c("Intercept", "year",      "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")
+  colnames(beta_mat) <- c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")
   
-  HERE TOO TIRED
+  # grouping the betas into their separate facility values
+  
+  fac_beta_list <- list()
+  beta_ref <- betas[,c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
+  for(f in facilities){
+    # if this is the reference facility (likely A1 in my simulations)
+    if(sum(grepl(f, names(betas))) == 0){
+      beta_f <- beta_ref
+    }else{
+      cols <- paste0('facility', f, c("",":year", ":cos1", ":sin1", ":cos2", ":sin2", ":cos3", ":sin3"))
+      beta_f <- betas[,cols] + beta_ref 
+      colnames(beta_f) <- c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")
+    }
+    fac_beta_list[[f]] <- beta_f
+  }
+  
+  browser()
   
   tmp <- lapply(1:nrow(betas), function(ii) {
    

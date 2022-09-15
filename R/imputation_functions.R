@@ -164,25 +164,7 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 #
 ##### Imputation Functions #####
 
-# run a complete case analysis for any method using a cutoff date (train end date) and then predicting on all dates beyond that (and the missing data points before that date)
-WF_CCA <- function(df, train_end_date = '2019-12-01', ...){
-  # replace values in the test set with missing ones
-  tmp <- df
-  tmp$y[tmp$date > train_end_date] <- NA
-  
-  res <- WF_imputation(tmp, ...)
-
-  # store the results and return the original y values
-  tmp <- res$df
-  tmp$y <- df$y
-  
-  # rename columns of the results
-  colnames(tmp) <- gsub('y_pred_WF', 'y_pred_CCA_WF', colnames(tmp)) 
-  
-  return(tmp)
-}
-
-# OG imputation method
+# Weingberger-Fulcher imputation method
 WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
   # check if this method has already been run
@@ -237,6 +219,11 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(get(group) == xx)
       mod_col <- glm(formula_col, data = tt, family=poisson)
+      
+      # if(xx == 'A3'){
+      #   browser()
+      # }
+      
       tt[,paste0(col, '_pred_WF')] = predict(mod_col, tt, type = 'response')
       
       if(R_PI > 0){
@@ -295,6 +282,27 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
   return(res_lst)
 }
 
+# run a complete case analysis for the WF method
+WF_CCA <- function(df, train_end_date = '2019-12-01', ...){
+  # replace values in the test set with missing ones
+  tmp <- df
+  tmp$y[tmp$date > train_end_date] <- NA
+  
+  res <- WF_imputation(tmp, ...)
+  
+  # store the results and return the original y values
+  tmp <- res$df
+  tmp = merge(tmp %>% select(-y),
+              df %>% select(date, facility, y),
+              by = c('date','facility'))
+
+  
+  # rename columns of the results
+  colnames(tmp) <- gsub('y_pred_WF', 'y_pred_CCA_WF', colnames(tmp)) 
+  
+  return(tmp)
+}
+
 # Run Weinberger-Fulcher (WF) model using all observed data with no missingness as a baseline comparison.
 WF_baseline <- function(df, train_end_date = '2019-12-01', col = "y", family = 'poisson', R_PI = 100){
   # replace missing points with their true values
@@ -306,7 +314,10 @@ WF_baseline <- function(df, train_end_date = '2019-12-01', col = "y", family = '
   
   # store the results and return the original y values
   tmp <- res$df
-  tmp$y <- df$y
+  tmp = merge(tmp %>% select(-y),
+               df %>% select(date, facility, y),
+               by = c('date','facility'))
+
   
   # rename columns of the results
   colnames(tmp) <- gsub('y_pred_WF', 'y_pred_baseline_WF', colnames(tmp)) 
