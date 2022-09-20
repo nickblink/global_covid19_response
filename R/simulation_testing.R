@@ -57,7 +57,7 @@ plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, mi
 
 df <- imputed_list[[1]]
 
-#### Implementing the CCA Approaches ####
+#### Writing the CAR CCA ####
 lst <- simulate_data(district_sizes = c(4), R = 5, empirical_betas = F, end_date = '2020-12-01')
 df <- lst$df_list[[1]]
 # simulation function!
@@ -76,9 +76,14 @@ df_miss <- WF_baseline(df_miss)
 
 df_miss <- WF_CCA(df_miss, train_end_date = '2019-12-01', col = "y", family = 'poisson', R_PI = 100)
 
-CARBayes_CCA <- function(df, R_posterior, train_end_date = '2019-12-01', ...){
+CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), ...){
   max_date <- max(df$date)
   facilities <- unique(df$facility)
+  dates = df %>% 
+    filter(date > train_end_date) %>%
+    select(date) %>%
+    unique() %>%
+    .$date
   
   # make a train set to fit on
   train <- df %>%
@@ -90,15 +95,18 @@ CARBayes_CCA <- function(df, R_posterior, train_end_date = '2019-12-01', ...){
   betas <- as.data.frame(res$model_chain$samples$beta)
   colnames(betas) <- setdiff(gsub('\\(|\\)', '', row.names(res$model_chain$summary.results)), c('tau2', 'rho.S','rho.T'))
   
-  # want to convert betas into a matrix with the rownames as the facility and the columns 
-  # "intercept" "year"      "cos1"      "sin1"      "cos2" "sin2"      "cos3"      "sin3"  (so in our case 4 x 8 matrix)
-  # At least I want to do this for each beta row
-  beta_mat <- matrix(NA, nrow = length(facilities), ncol = 8) 
-  rownames(beta_mat) <- facilities
-  colnames(beta_mat) <- c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")
+  phi <- res$model_chain$samples$phi
+  rho <- res$model_chain$samples$rho
+  tau2 <- res$model_chain$samples$tau2
   
-  # grouping the betas into their separate facility values
+  # set the R_posterior
+  if(is.null(R_posterior)){
+    R_posterior = nrow(betas)
+  }else if(R_posterior > nrow(betas)){
+    stop('cant sample more posterior predictions than the original model fit returns')
+  }
   
+  ### group the betas into their separate facility values
   fac_beta_list <- list()
   beta_ref <- betas[,c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
   for(f in facilities){
@@ -113,36 +121,106 @@ CARBayes_CCA <- function(df, R_posterior, train_end_date = '2019-12-01', ...){
     fac_beta_list[[f]] <- beta_f
   }
   
-  browser()
-  
-  tmp <- lapply(1:nrow(betas), function(ii) {
-   
-    for(fac in facilites){
-      
+  # pull the fixed effects for the simulation
+  fixed_effects <- lapply(facilities, function(f){
+    tmp = df %>% 
+      filter(facility == f,
+             date > train_end_date)
+    
+    # keep the 1 for intercepts
+    X = tmp %>% 
+      mutate(Intercept = 1) %>%
+      dplyr::select(Intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+    
+    rownames(X) = tmp$date
+    
+    # check that the ordering is correct
+    if(!identical(names(X), names(fac_beta_list[[f]]))){
+      browser()
     }
+    
+    betas <- as.matrix(fac_beta_list[[f]])
+    
+    # (# posterior fits x # params) x (# params x # of data points)
+    mean_sims <- betas%*%t(X)
+    return(mean_sims)
+  })
+  names(fixed_effects) <- facilities
+  
+  # make the "W2" matrix only once for repeated use
+  W2 <- make_district_W2_matrix(df)
+  
+  # make the spatio-temporal precision matrices
+  covar_mats <- lapply(1:R_posterior, function(ii){
+    Q = make_precision_mat(df, rho = rho[ii,'rho.S'], W2)
+    
+    tryCatch({
+      V = tau2[ii]*solve(Q)
+    }, error = function(e){
+      print(e)
+      print('havent dealt with non-invertible precision matrices yet')
+      browser()
+    })
+    return(V)
   })
   
-  phi <- res$model_chain$samples$phi
-  rho <- res$model_chain$samples$rho
-  tau2 <- res$model_chain$samples$tau2
   
+  # make R sampled sets of data
+  phi_lst = lapply(1:R_posterior, function(i){
+    ### get the spatio-temporal random effects
+    # initialize phi
+    phi = matrix(0, nrow = length(dates), ncol = length(facilities))
+    colnames(phi) = facilities
+    
+    # first time step
+    phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, ncol(phi)), Sigma = covar_mats[[i]])
+    
+    # cycle through other time steps, using auto-correlated priors
+    for(i in 2:length(dates)){
+      phi[i,] = MASS::mvrnorm(n = 1, mu = rho[i, 'rho.T']*phi[i-1,], Sigma = covar_mats[[i]])
+    }
+    
+    # convert to matching format
+    phi = as.data.frame(phi)
+    phi$date = dates
+    phi_df = tidyr::gather(phi, facility, phi, setdiff(colnames(phi), c('facility','date')))
+    
+    return(phi_df)
+  })
+  
+  # rearrange phi_lst to match the format of fixed effects
+  phi_by_fac <- lapply(facilities, function(f){
+    sapply(phi_lst, function(xx){
+      xx %>% 
+        filter(facility == f) %>%
+        arrange(date) %>%
+        pull(phi)
+    })
+  })
+  names(phi_by_fac) <- facilities
+  
+  print('fitting a poisson model for posterior prediction')
+  predicted_vals <- lapply(facilities, function(f){
+    # get mean fits
+    res <- t(fixed_effects[[f]]) + phi_by_fac[[f]]
+    
+    # get poisson sampled fits
+    tt <- apply(res, 2, function(xx){
+      rpois(12, xx)
+    })
+  })
+  
+  fitted_quants = sapply(facilities, function(f){
+    t(apply(predicted_vals[[f]], 1, function(xx){
+    quantile(xx, probs = quant_probs)
+  }))})
   browser()
   
-  
-  for(i in 1:R_posterior){
-    # pull the parameter values for beta and the spatial ones
-    
-    # simulate values in the test period
-  }
+  # simulate the phi's
 
+  # simulate values in the test period
+  
   # sample forward through 2020
-  
-  # store the results and return the original y values
-  tmp <- res$df
-  tmp$y <- df$y
-  
-  # rename columns of the results
-  colnames(tmp) <- gsub('y_pred_WF', 'y_pred_CCA_WF', colnames(tmp)) 
   
   return(tmp)
 }

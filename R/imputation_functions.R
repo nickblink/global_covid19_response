@@ -2394,12 +2394,8 @@ simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = 
   return(res_lst)
 }
 
-make_precision_mat <- function(df, rho){
-  # check the rho value
-  if(rho < 0 | rho >= 1){
-    stop('please input a rho in [0,1)')
-  }
-  
+# The "W2" matrix, as I am calling it, is diag(W1) - W. Aka the negative adjacency matrix with the total number of neighbors for each facility on the diagonal
+make_district_W2_matrix <- function(df){
   # create the list of matching facilities
   D2 = df %>% dplyr::select(district, facility) %>% distinct()
   pairs = full_join(D2, D2, by = 'district') %>%
@@ -2433,7 +2429,24 @@ make_precision_mat <- function(df, rho){
     W2[i,i] = pairs %>% filter(facility.x == f1) %>% nrow()
     # print(sprintf('%s: NUM neighbors = %s', f1, W2[i,i]))
   }
-    
+  
+  return(W2)
+}
+
+make_precision_mat <- function(df, rho, W2 = NULL){
+  # check the rho value
+  if(rho < 0 | rho >= 1){
+    stop('please input a rho in [0,1)')
+  }
+  
+  # get unique facilities
+  facilities = unique(df$facility) %>% sort()
+  
+  # create the <W2 = diag(W1) - W> matrix
+  if(is.null(W2)){
+    W2 <- make_district_W2_matrix(df)
+  }
+  
   # make the final Q matrix
   Q = rho*W2 + (1-rho)*diag(rep(1, length(facilities)))
   
