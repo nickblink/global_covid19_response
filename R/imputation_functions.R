@@ -464,7 +464,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T){
+CARBayes_imputation <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T){
   
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -572,6 +572,191 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'data.frame', mod
     lst = list(facility_df = df, county_df = df_county, model_chain = chain1)
     return(lst)
   }
+}
+
+### Run the complete case analysis using the CARBayes imputation function.
+# df: data frame with facilities, dates, and outcomes
+# R_posterior: A specified number of posterior simulations to run (if you want it to be smaller than the number of returned posterior samples from CARBayes)
+# train_end_date: cutoff date for the training data to fit the model
+# predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
+# col: outcome column
+# quant_probs: quantiles to be returned from prediction samples
+CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), ...){
+  max_date <- max(df$date)
+  facilities <- unique(df$facility)
+  if(is.null(predict_start_date)){
+    dates = df %>% 
+      filter(date > train_end_date) %>%
+      select(date) %>%
+      unique() %>%
+      .$date
+    predict_start_date = min(dates)
+  }else{
+    dates = df %>% 
+      filter(date >= predict_start_date) %>%
+      select(date) %>%
+      unique() %>%
+      .$date
+  }
+  
+  # make a train set to fit on
+  train <- df %>%
+    filter(date <= train_end_date)
+  
+  res <- CARBayes_imputation(train, col, ...)
+  
+  # pull out parameter values
+  betas <- as.data.frame(res$model_chain$samples$beta)
+  colnames(betas) <- setdiff(gsub('\\(|\\)', '', row.names(res$model_chain$summary.results)), c('tau2', 'rho.S','rho.T'))
+  
+  phi <- res$model_chain$samples$phi
+  rho <- res$model_chain$samples$rho
+  tau2 <- res$model_chain$samples$tau2
+  
+  # set the R_posterior
+  if(is.null(R_posterior)){
+    R_posterior = nrow(betas)
+  }else if(R_posterior > nrow(betas)){
+    stop('cant sample more posterior predictions than the original model fit returns')
+  }
+  
+  ### group the betas into their separate facility values
+  fac_beta_list <- list()
+  beta_ref <- betas[,c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
+  for(f in facilities){
+    # if this is the reference facility (likely A1 in my simulations)
+    if(sum(grepl(f, names(betas))) == 0){
+      beta_f <- beta_ref
+    }else{
+      cols <- paste0('facility', f, c("",":year", ":cos1", ":sin1", ":cos2", ":sin2", ":cos3", ":sin3"))
+      beta_f <- betas[,cols] + beta_ref 
+      colnames(beta_f) <- c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")
+    }
+    fac_beta_list[[f]] <- beta_f
+  }
+  
+  # pull the fixed effects for the simulation
+  fixed_effects <- lapply(facilities, function(f){
+    tmp = df %>% 
+      filter(facility == f,
+             date >= predict_start_date) %>%
+      arrange(date)
+    
+    # keep the 1 for intercepts
+    X = tmp %>% 
+      mutate(Intercept = 1) %>%
+      dplyr::select(Intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+    
+    rownames(X) = tmp$date
+    
+    # check that the ordering is correct
+    if(!identical(names(X), names(fac_beta_list[[f]]))){
+      browser()
+    }
+    
+    betas <- as.matrix(fac_beta_list[[f]])
+    
+    # (# posterior fits x # params) x (# params x # of data points)
+    mean_sims <- betas%*%t(X)
+    return(mean_sims)
+  })
+  names(fixed_effects) <- facilities
+  
+  # make the "W2" matrix only once for repeated use
+  W2 <- make_district_W2_matrix(df)
+  
+  # make the spatio-temporal precision matrices
+  covar_mats <- lapply(1:R_posterior, function(ii){
+    Q = make_precision_mat(df, rho = rho[ii,'rho.S'], W2)
+    
+    tryCatch({
+      V = tau2[ii]*solve(Q)
+    }, error = function(e){
+      print(e)
+      print('havent dealt with non-invertible precision matrices yet')
+      browser()
+    })
+    return(V)
+  })
+  
+  
+  # make R sampled sets of data
+  phi_lst = lapply(1:R_posterior, function(i){
+    ### get the spatio-temporal random effects
+    # initialize phi
+    phi = matrix(0, nrow = length(dates), ncol = length(facilities))
+    colnames(phi) = facilities
+    
+    # first time step
+    phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, ncol(phi)), Sigma = covar_mats[[i]])
+    
+    # cycle through other time steps, using auto-correlated priors
+    for(i in 2:length(dates)){
+      phi[i,] = MASS::mvrnorm(n = 1, mu = rho[i, 'rho.T']*phi[i-1,], Sigma = covar_mats[[i]])
+    }
+    
+    # convert to matching format
+    phi = as.data.frame(phi)
+    phi$date = dates
+    phi_df = tidyr::gather(phi, facility, phi, setdiff(colnames(phi), c('facility','date')))
+    
+    return(phi_df)
+  })
+  
+  # rearrange phi_lst to match the format of fixed effects
+  phi_by_fac <- lapply(facilities, function(f){
+    sapply(phi_lst, function(xx){
+      xx %>% 
+        filter(facility == f) %>%
+        arrange(date) %>%
+        pull(phi)
+    })
+  })
+  names(phi_by_fac) <- facilities
+  
+  # get mean predictions at each point
+  mean_pred <- lapply(facilities, function(f){
+    # get mean fits
+    res <- t(fixed_effects[[f]]) + phi_by_fac[[f]]
+    
+    # make sure dimensions line up
+    if(nrow(res) != length(dates)){
+      browser()
+    }
+    return(res)
+  })
+  names(mean_pred) <- facilities
+  
+  # predict new points using the fixed effects, phi values and poisson distribution
+  print('fitting a poisson model for posterior prediction')
+  predicted_vals <- lapply(facilities, function(f){
+    # get mean fits
+    res <- mean_pred[[f]]
+    
+    # get poisson sampled values from mean
+    tt <- apply(res, 2, function(xx){
+      rpois(length(dates), exp(xx))
+    })
+  })
+  names(predicted_vals) <- facilities
+  
+  # get the quantiles of the predictions across the simulations
+  fitted_quants = do.call('rbind', lapply(facilities, function(f){
+    res <- as.data.frame(t(apply(predicted_vals[[f]], 1, function(xx){
+      quantile(xx, probs = quant_probs)
+    })))
+    colnames(res) <- paste0(paste0(col, '_pred_CCA_CAR_'), quant_probs)
+    res$facility = f
+    res$date = dates
+    return(res)
+  }))
+  
+  fitted_quants$y_pred_CCA_CAR <- fitted_quants$y_pred_CCA_CAR_0.5
+  
+  # merge the results together
+  df <- merge(df, fitted_quants, by = c('date', 'facility'), all = T)
+  
+  return(df)
 }
 
 impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff_cor = NULL, harmonic_family = 'NB', bayes_harmonic_family = 'NB', cutoff_method = 'number', group = 'facility', bayes_iterations = 500, bayes_beta_prior = T){
@@ -1639,6 +1824,9 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
       # ordering the method to be consistent and for the labeling
       df_f$method = factor(df_f$method, levels = imp_names)
       
+      # get the ymax value
+      ymax <- min(1.1*max(tmp[,c(12:ncol(tmp))], na.rm = T), 
+                  2*max(tmp$y_true))
       
       # make the plot!
       p1 <- ggplot() +
@@ -1647,7 +1835,7 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
         geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1) +
         scale_color_manual(values = c(color_vec)) + 
         scale_fill_manual(values = c(color_vec)) + 
-        ylim(c(0,1.5*max(tmp$y_true))) + 
+        ylim(c(0,ymax)) +
         ggtitle(sprintf('facility %s', f)) + 
         ylab('y') +
         theme_bw() +

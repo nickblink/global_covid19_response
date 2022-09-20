@@ -11,16 +11,22 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-#### 9/12/2022 WF Baseline and CCA Approaches ####
 
-R = 5
+## 7 different approaches. 
+# WF full data
+# WF CCA
+# Bayes CCA
+# FreqGLM_epi CCA
+# Bayes + WF
+# FreqGLM_epi + WF
+# MICE + WF
+
+#### 9/12/2022 WF Baseline, WF CCA, and cAR CCA Approaches ####
+
+R = 2
 
 system.time({
   lst <- simulate_data(district_sizes = c(4), R = R, end_date = '2020-12-01')
-  
-  # imp_vec = c("y_pred_harmonic", "y_pred_freqGLMepi", "y_CB_intercept", "y_CB_facility")
-  # rename_vec = c('glmFreq','glmFreq_epi','CARBayes_int', 'CARBayes_facility')
-  # color_vec = c('red','blue','lightgreen', 'forestgreen')
   
   imputed_list = list()
   res_full = res_imputed = NULL
@@ -28,25 +34,25 @@ system.time({
     df <- lst$df_list[[i]]
     
     # simulation function!
-    df_miss <- MCAR_sim(df, p = 0.7, by_facility = T, max_missing_date = '2019-12-01')
-    
-    # So this below is the problem. It jumbles everything
-    
+    df_miss <- MCAR_sim(df, p = 0.2, by_facility = T, max_missing_date = '2019-12-01')
+
     # run the WF baseline (complete data) imputation
     df_miss <- WF_baseline(df_miss, R_PI = 100)
     
     # run the WF complete case analysis model
     df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 100)
     
+    # run the CAR complete case analysis model
+    df_miss <- CARBayes_CCA(df_miss, burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+    
     imputed_list[[i]] = df_miss
   }
-  
 })
-# 47s for R = 10
+# 40s for R = 2 (on laptop, but still...)
 
-imp_vec = c("y_pred_CCA_WF", "y_pred_baseline_WF")
-rename_vec = c('WF CCA','WF baseline')
-color_vec = c('red','blue')
+imp_vec = c("y_pred_CCA_WF", "y_pred_baseline_WF", "y_pred_CCA_CAR")
+rename_vec = c('WF CCA','WF baseline', 'CAR CCA')
+color_vec = c('red','blue', 'green')
 
 plot_facility_fits(imputed_list[[2]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
 
@@ -63,169 +69,12 @@ df <- lst$df_list[[1]]
 # simulation function!
 df_miss = MCAR_sim(df, p = 0.2, by_facility = T, max_missing_date = '2019-12-01')
 
-## 7 different approaches. 
-# WF full data
-# WF CCA
-# Bayes CCA
-# FreqGLM_epi CCA
-# Bayes + WF
-# FreqGLM_epi + WF
-# MICE + WF
-
 df_miss <- WF_baseline(df_miss)
 
 df_miss <- WF_CCA(df_miss, train_end_date = '2019-12-01', col = "y", family = 'poisson', R_PI = 100)
 
-CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), ...){
-  max_date <- max(df$date)
-  facilities <- unique(df$facility)
-  dates = df %>% 
-    filter(date > train_end_date) %>%
-    select(date) %>%
-    unique() %>%
-    .$date
-  
-  # make a train set to fit on
-  train <- df %>%
-    filter(date <= train_end_date)
-  
-  res <- CARBayes_imputation(train, ...)
-  
-  # pull out parameter values
-  betas <- as.data.frame(res$model_chain$samples$beta)
-  colnames(betas) <- setdiff(gsub('\\(|\\)', '', row.names(res$model_chain$summary.results)), c('tau2', 'rho.S','rho.T'))
-  
-  phi <- res$model_chain$samples$phi
-  rho <- res$model_chain$samples$rho
-  tau2 <- res$model_chain$samples$tau2
-  
-  # set the R_posterior
-  if(is.null(R_posterior)){
-    R_posterior = nrow(betas)
-  }else if(R_posterior > nrow(betas)){
-    stop('cant sample more posterior predictions than the original model fit returns')
-  }
-  
-  ### group the betas into their separate facility values
-  fac_beta_list <- list()
-  beta_ref <- betas[,c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
-  for(f in facilities){
-    # if this is the reference facility (likely A1 in my simulations)
-    if(sum(grepl(f, names(betas))) == 0){
-      beta_f <- beta_ref
-    }else{
-      cols <- paste0('facility', f, c("",":year", ":cos1", ":sin1", ":cos2", ":sin2", ":cos3", ":sin3"))
-      beta_f <- betas[,cols] + beta_ref 
-      colnames(beta_f) <- c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")
-    }
-    fac_beta_list[[f]] <- beta_f
-  }
-  
-  # pull the fixed effects for the simulation
-  fixed_effects <- lapply(facilities, function(f){
-    tmp = df %>% 
-      filter(facility == f,
-             date > train_end_date)
-    
-    # keep the 1 for intercepts
-    X = tmp %>% 
-      mutate(Intercept = 1) %>%
-      dplyr::select(Intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
-    
-    rownames(X) = tmp$date
-    
-    # check that the ordering is correct
-    if(!identical(names(X), names(fac_beta_list[[f]]))){
-      browser()
-    }
-    
-    betas <- as.matrix(fac_beta_list[[f]])
-    
-    # (# posterior fits x # params) x (# params x # of data points)
-    mean_sims <- betas%*%t(X)
-    return(mean_sims)
-  })
-  names(fixed_effects) <- facilities
-  
-  # make the "W2" matrix only once for repeated use
-  W2 <- make_district_W2_matrix(df)
-  
-  # make the spatio-temporal precision matrices
-  covar_mats <- lapply(1:R_posterior, function(ii){
-    Q = make_precision_mat(df, rho = rho[ii,'rho.S'], W2)
-    
-    tryCatch({
-      V = tau2[ii]*solve(Q)
-    }, error = function(e){
-      print(e)
-      print('havent dealt with non-invertible precision matrices yet')
-      browser()
-    })
-    return(V)
-  })
-  
-  
-  # make R sampled sets of data
-  phi_lst = lapply(1:R_posterior, function(i){
-    ### get the spatio-temporal random effects
-    # initialize phi
-    phi = matrix(0, nrow = length(dates), ncol = length(facilities))
-    colnames(phi) = facilities
-    
-    # first time step
-    phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, ncol(phi)), Sigma = covar_mats[[i]])
-    
-    # cycle through other time steps, using auto-correlated priors
-    for(i in 2:length(dates)){
-      phi[i,] = MASS::mvrnorm(n = 1, mu = rho[i, 'rho.T']*phi[i-1,], Sigma = covar_mats[[i]])
-    }
-    
-    # convert to matching format
-    phi = as.data.frame(phi)
-    phi$date = dates
-    phi_df = tidyr::gather(phi, facility, phi, setdiff(colnames(phi), c('facility','date')))
-    
-    return(phi_df)
-  })
-  
-  # rearrange phi_lst to match the format of fixed effects
-  phi_by_fac <- lapply(facilities, function(f){
-    sapply(phi_lst, function(xx){
-      xx %>% 
-        filter(facility == f) %>%
-        arrange(date) %>%
-        pull(phi)
-    })
-  })
-  names(phi_by_fac) <- facilities
-  
-  print('fitting a poisson model for posterior prediction')
-  predicted_vals <- lapply(facilities, function(f){
-    # get mean fits
-    res <- t(fixed_effects[[f]]) + phi_by_fac[[f]]
-    
-    # get poisson sampled fits
-    tt <- apply(res, 2, function(xx){
-      rpois(12, xx)
-    })
-  })
-  
-  fitted_quants = sapply(facilities, function(f){
-    t(apply(predicted_vals[[f]], 1, function(xx){
-    quantile(xx, probs = quant_probs)
-  }))})
-  browser()
-  
-  # simulate the phi's
+df_miss <- CARBayes_CCA(df_miss, R_posterior = 500,  col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
 
-  # simulate values in the test period
-  
-  # sample forward through 2020
-  
-  return(tmp)
-}
-
-CARBayes_CCA(df_miss, R_posterior = 500,  col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
 
 #### Comparing betas from simulated and real data ####
 R = 5
