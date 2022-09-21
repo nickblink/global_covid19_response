@@ -21,9 +21,81 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### 9/20/2022 NEW District sizes WF Baseline, WF CCA, and cAR CCA Approaches ####
+
+R = 200
+
+system.time({
+  lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
+  
+  imputed_list = list()
+  res_full = res_imputed = NULL
+  for(i in 1:R){
+    df <- lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss <- MCAR_sim(df, p = 0.2, by_facility = T, max_missing_date = '2019-12-01')
+    
+    # run the WF baseline (complete data) imputation
+    df_miss <- WF_baseline(df_miss, R_PI = 100)
+    
+    # run the WF complete case analysis model
+    df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 100)
+    
+    # run the CAR complete case analysis model
+    df_miss <- CARBayes_CCA(df_miss, burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+    
+    imputed_list[[i]] = df_miss
+  }
+})
+# 10hrs 40m for R = 200
+
+imp_vec = c("y_pred_CCA_WF", "y_pred_baseline_WF", "y_pred_CCA_CAR")
+rename_vec = c('WF CCA','WF baseline', 'CAR CCA')
+color_vec = c('red','blue', 'green')
+
+plot_facility_fits(imputed_list[[2]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
+
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', 
+                      min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','RMSE','coverage95','interval_width'))
+
+res <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = '2020-01-01', imputed_only = F, rm_ARna = F, use_point_est = F) %>%
+  arrange(coverage95)
+
+View(res)
+
+ggplot(res, aes(x = y_true, y = bias)) +
+  geom_point() +
+  ggtitle('outcome values vs. bias') + 
+  xlab('mean(y) across simulations')
+
+ggplot(res, aes(x = y_true, y = RMSE)) +
+  geom_point() +
+  ggtitle('outcome values vs. RMSE') + 
+  xlab('mean(y) across simulations')
+
+ggplot(res, aes(x = y_true, y = MAPE)) +
+  geom_point() +
+  ggtitle('outcome values vs. MAPE') + 
+  xlab('mean(y) across simulations')
+
+ggplot(res, aes(x = y_true, y = coverage95)) +
+  geom_point() +
+  ggtitle('outcome values vs. coverage95') + 
+  xlab('mean(y) across simulations') +
+  geom_hline(yintercept = 0.95, col = 'red')
+
+ggplot(res, aes(x = y_true, y = interval_width)) +
+  geom_point() +
+  ggtitle('outcome values vs. interval_width') + 
+  xlab('mean(y) across simulations')
+
+
+# save(imputed_list, file = 'results/simulation_noST_MCARp2_R500_09212022.RData')
+
 #### 9/12/2022 WF Baseline, WF CCA, and cAR CCA Approaches ####
 
-R = 2
+R = 5
 
 system.time({
   lst <- simulate_data(district_sizes = c(4), R = R, end_date = '2020-12-01')
@@ -48,7 +120,7 @@ system.time({
     imputed_list[[i]] = df_miss
   }
 })
-# 40s for R = 2 (on laptop, but still...)
+# 109s for R = 5
 
 imp_vec = c("y_pred_CCA_WF", "y_pred_baseline_WF", "y_pred_CCA_CAR")
 rename_vec = c('WF CCA','WF baseline', 'CAR CCA')
@@ -62,18 +134,6 @@ plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, mi
 # Look at facility A3. 
 
 df <- imputed_list[[1]]
-
-#### Writing the CAR CCA ####
-lst <- simulate_data(district_sizes = c(4), R = 5, empirical_betas = F, end_date = '2020-12-01')
-df <- lst$df_list[[1]]
-# simulation function!
-df_miss = MCAR_sim(df, p = 0.2, by_facility = T, max_missing_date = '2019-12-01')
-
-df_miss <- WF_baseline(df_miss)
-
-df_miss <- WF_CCA(df_miss, train_end_date = '2019-12-01', col = "y", family = 'poisson', R_PI = 100)
-
-df_miss <- CARBayes_CCA(df_miss, R_posterior = 500,  col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
 
 
 #### Comparing betas from simulated and real data ####
