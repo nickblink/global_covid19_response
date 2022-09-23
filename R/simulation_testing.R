@@ -60,7 +60,8 @@ plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, mi
                       min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','RMSE','coverage95','interval_width'))
 
 res <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = '2020-01-01', imputed_only = F, rm_ARna = F, use_point_est = F) %>%
-  arrange(coverage95)
+  arrange(coverage95) %>%
+  filter(method == 'y_pred_baseline_WF')
 
 View(res)
 
@@ -81,7 +82,7 @@ ggplot(res, aes(x = y_true, y = MAPE)) +
 
 ggplot(res, aes(x = y_true, y = coverage95)) +
   geom_point() +
-  ggtitle('outcome values vs. coverage95') + 
+  ggtitle('true outcome values vs. WF baseline coverage95') + 
   xlab('mean(y) across simulations') +
   geom_hline(yintercept = 0.95, col = 'red')
 
@@ -91,7 +92,7 @@ ggplot(res, aes(x = y_true, y = interval_width)) +
   xlab('mean(y) across simulations')
 
 
-# save(imputed_list, file = 'results/simulation_noST_MCARp2_R500_09212022.RData')
+# save(imputed_list, file = 'results/simulation_noST_MCARp2_R200_09212022.RData')
 
 #### 9/12/2022 WF Baseline, WF CCA, and cAR CCA Approaches ####
 
