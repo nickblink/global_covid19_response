@@ -8,6 +8,65 @@ library(ggplot2)
 library(cowplot)
 
 ##### Helper Functions #####
+# make the adjacency matrix according to all facilities in a district being neighbors
+make_district_adjacency <- function(df, scale_by_num_neighbors = F){
+  
+  # get the adjacency matrix
+  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  W = full_join(D2, D2, by = 'district') %>%
+    filter(facility.x != facility.y) %>%
+    dplyr::select(-district) %>%
+    igraph::graph_from_data_frame() %>%
+    igraph::as_adjacency_matrix() %>%
+    as.matrix()
+  
+  # scale the neighbor sum by the number of neighbors
+  if(scale_by_num_neighbors){
+    W = apply(W, 2, function(xx) xx/sum(xx))
+  }
+  
+  return(W)
+}
+
+# The "W2" matrix, as I am calling it, is diag(W1) - W. Aka the negative adjacency matrix with the total number of neighbors for each facility on the diagonal
+make_district_W2_matrix <- function(df){
+  # create the list of matching facilities
+  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  pairs = full_join(D2, D2, by = 'district') %>%
+    filter(facility.x != facility.y) %>%
+    dplyr::select(-district)
+  
+  # get unique facilities
+  facilities = unique(df$facility) %>% sort()
+  
+  # initialize the W2 matrix (note that what I am calling W here is what the original paper calls diag(W1) - W)
+  W2 = matrix(0, nrow = length(facilities), ncol = length(facilities))
+  colnames(W2) = facilities
+  rownames(W2) = facilities
+  
+  for(i in 1:length(facilities)){
+    f1 = facilities[i]
+    
+    # get the pairs with this facility
+    tmp = pairs %>% filter(facility.x == f1)
+    
+    if(nrow(tmp) == 0){
+      print('havent done single-district facilities yet')
+      browser()
+    }else{
+      # put -1 where there are pairs of facilities
+      matid = match(tmp$facility.y, facilities)
+      W2[i,matid] = -1
+    }
+    
+    # get the number of neighbors this facility has
+    W2[i,i] = pairs %>% filter(facility.x == f1) %>% nrow()
+    # print(sprintf('%s: NUM neighbors = %s', f1, W2[i,i]))
+  }
+  
+  return(W2)
+}
+
 # function to add periodic terms
 add_periodic_cov <- function(df, period = 12){
   df = df %>%
@@ -41,9 +100,9 @@ add_autoregressive <- function(df, target_col = 'y', num.terms = 1){
 }
 
 # compute the sum of the values at all the neighbors to a given facility
-add_neighbors <- function(df, target_col = 'y', lag = 0, scale_by_num_neighbors = F){
-  if(lag > 0){
-    stop('havent implemented lags for neighbor calculation')
+add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors = F){
+  if(lag == 0){
+    print('WARNING: not doing a lag of 1 on the neighbors, so not using the same model as in the papers')
   }
   
   # remove the neighbor column
@@ -52,26 +111,15 @@ add_neighbors <- function(df, target_col = 'y', lag = 0, scale_by_num_neighbors 
   }
   
   # get the adjacency matrix
-  D2 = df %>% dplyr::select(district, facility) %>% distinct()
-  W = full_join(D2, D2, by = 'district') %>%
-    filter(facility.x != facility.y) %>%
-    dplyr::select(-district) %>%
-    igraph::graph_from_data_frame() %>%
-    igraph::as_adjacency_matrix() %>%
-    as.matrix()
-  
-  # scale the neighbor sum by the number of neighbors
-  if(scale_by_num_neighbors){
-    W = apply(W, 2, function(xx) xx/sum(xx))
-  }
-  
+  W <- make_district_adjacency(df, scale_by_num_neighbors)
+
   # get the counts for each facility 
   y.counts <- df %>% 
     dplyr::select(date, facility, UQ(target_col)) %>%
     tidyr::spread(facility,get(target_col)) %>% 
     arrange(date)
   
-
+  # check that the column names match
   if(!identical(colnames(W), colnames(y.counts)[-1])){
     # if the colnames do match but are in the wrong order, reorder them
     if(length(setdiff(colnames(W), colnames(y.counts)[-1])) == 0 &
@@ -88,6 +136,15 @@ add_neighbors <- function(df, target_col = 'y', lag = 0, scale_by_num_neighbors 
     ind = which(colnames(W) != colnames(y.counts)[-1])
   }
   
+  # shift y.counts by lag
+  if(lag > 0){
+    tmp <- y.counts
+    tmp[1:lag,-1] <- NA
+    tmp[(lag+1):nrow(tmp),-1] <- y.counts[1:(nrow(y.counts) - lag),-1]
+    y.counts <- tmp
+  }
+  
+  # merge back into original data frame
   df = cbind(y.counts[,'date',drop = F], as.data.frame(as.matrix(y.counts[,-1])%*%W)) %>% 
     tidyr::gather(facility, y.neighbors, -date) %>%
     merge(df, by = c('date','facility'))
@@ -1216,11 +1273,15 @@ fit_freqGLMepi_nnls <- function(df, num_inits = 10, verbose = T, target_col = 'y
 #   max_iter: number of iterations of imputation
 #   tol: tolerance of the converage of imputed values
 #   individual_facility_models: fit each facility separately
-#   prediction_intervals: whether to do prediction intervals and how to do them
+#   prediction_intervals: whether to do prediction intervals and how to do them. Options are c('none','parametric_bootstrap','bootstrap','stationary_bootstrap')
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals= c('none','parametric_bootstrap','bootstrap','stationary_bootstrap'), R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, smart_boot_init = T, nnls = F){
+freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals = 'stationary_bootstrap', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, smart_boot_init = T, nnls = T){
+  
+  if(prediction_intervals %in% c('parametric_bootstrap','bootstrap')){
+    print(sprintf('WARNING: Not recommended to use %s prediction intervals', prediction_intervals))
+  }
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -1244,7 +1305,6 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   # the unique facility groups
   uni_group = unique(df$facility)
   
-  #browser()
   # run the individual model for each group.
   tmp <- lapply(uni_group, function(xx) {
     tt <- df %>% filter(facility == xx)
@@ -1403,7 +1463,7 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
       if(length(sim.boot) == 1 | any(is.na(sim.boot))){
         return(NULL)
       }
-      #browser()
+    
       # get the quantiles and store them
       fitted_quants = t(apply(sim.boot, 1, function(xx){
         quantile(xx, probs = quant_probs)
@@ -1507,7 +1567,6 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
           return(x)
         }
       }
-
       
       # run the stationary bootstrap
       sim.boot <- boot::tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
@@ -1534,6 +1593,234 @@ freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facili
   
   # prep data to return
   return_lst = list(df = df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs, num_errors = num_errors, vcov_list = vcov_list)
+  return(return_lst)
+}
+
+### Given data with missing values, fits the freqGLMepi model on all data points
+#   df: data
+#   max_iter: number of iterations of imputation
+#   tol: tolerance of the converage of imputed values
+#   individual_facility_models: fit each facility separately
+
+#   R_PI: number of bootstrap iterations if doing so
+#   quant_probs: the quantiles of the bootstrap to store in the data frame
+#   verbose: printing updates
+freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
+  # check that we have the right columns
+  if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
+    stop('make sure the data has y (with NAs) and y_true')
+  }
+  
+  # split the hold out set and train set
+  df_test <- df %>%
+    filter(date > train_end_date)
+  df_test$y_imp <- NA
+  df <- df %>%
+    filter(date <= train_end_date)
+  
+  # get the adjacency matrix
+  W <- make_district_adjacency(df, scale_by_num_neighbors)
+  
+  # set fitting function to be regular (exponentiated spatial and temporal parameters) or non-negative least squares 
+  if(nnls){
+    fit_function <- fit_freqGLMepi_nnls
+    model_function <- model.mean.exp
+  }else{
+    fit_function <- fit_freqGLMepi
+    model_function <- model.mean
+  }
+  
+  y_pred_list = list()
+  
+  ### Do initial filling of y
+  # setting up the formula
+  formula_col = as.formula(sprintf("y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"))
+  
+  # the unique facility groups
+  uni_group = unique(df$facility)
+  
+  # run the individual model for each group.
+  tmp <- lapply(uni_group, function(xx) {
+    tt <- df %>% filter(facility == xx)
+    
+    # run the model
+    mod_col <- MASS::glm.nb(formula_col, data = tt)
+    
+    # update predictions
+    tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
+    
+    return(tt)
+  })
+  
+  # combine into one data frame
+  df = do.call('rbind',tmp)
+  
+  # filling in missing values by randomly sampling mean prediction from Poisson
+  df$y_imp = df$y
+  na.ind = which(is.na(df$y))
+  df$y_imp[na.ind] <- rpois(n = length(na.ind), df$y_pred_freqGLMepi[na.ind])
+  
+  # add the neighbors and auto-regressive
+  df = add_autoregressive(df, 'y_imp') %>%
+    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors)
+  
+  ### Run freqGLM_epidemic model iteratively
+  iter = 1
+  y_pred_list[[1]] = df$y_pred_freqGLMepi
+  prop_diffs = c(1)
+  while(prop_diffs[length(prop_diffs)] > tol & iter <= max_iter){
+    iter = iter + 1
+    
+    if(individual_facility_models){
+      # run the individual model for each group.
+      tmp <- lapply(uni_group, function(xx) {
+        # subset data
+        tt <- df %>% filter(facility == xx)
+        
+        # fit the model
+        params = fit_function(tt, verbose = verbose, init = optim_init[[xx]])
+        
+        # update y_pred
+        tt$y_pred_freqGLMepi = model_function(tt, params$par)
+        
+        return(list(df = tt, params = params))
+      })
+      
+      # get matrix of the parameter estimates
+      parmat = sapply(tmp, function(xx) xx[[2]]$par)
+      
+      # naming the parameter columns and rows
+      rownames(parmat) = names(tmp[[1]]$params$par)
+      colnames(parmat) = uni_group
+      
+      # get the convergence of each facility
+      convergence = sapply(tmp, function(xx) (xx[[2]]$convergence == 0))
+      
+      # combine into one data frame
+      df = do.call('rbind', lapply(tmp, '[[', 1)) %>% arrange(facility, date)
+    }else{
+      # fit the model
+      parmat = fit_function(df)$par
+      
+      # update y_pred 
+      df$y_pred_freqGLMepi = model_function(df, parmat)
+      
+    }
+    
+    # store the predictions for this iteration
+    y_pred_list[[iter]] = df$y_pred_freqGLMepi
+    
+    if(length(na.ind) == 0){
+      if(verbose){print('only running one iteration because there is no missingness')}
+      break
+    }
+    
+    # update y_imp
+    na.ind.2 = intersect(na.ind, which(!is.na(df$y_pred_freqGLMepi)))
+    df$y_imp[na.ind.2] <- rpois(n = length(na.ind.2), df$y_pred_freqGLMepi[na.ind.2])
+    
+    # compare y_imps
+    prop_diffs = c(prop_diffs, mean(abs(y_pred_list[[iter]][na.ind] - y_pred_list[[iter-1]][na.ind])/y_pred_list[[iter-1]][na.ind], na.rm = T))
+    
+    # update the neighbors and auto-regressive
+    df = add_autoregressive(df, 'y_imp') %>%
+      add_neighbors(., 'y_imp')
+    
+    # update
+    if(iter %% 10 == 0 & verbose){
+      print(iter)
+      if(individual_facility_models){
+        print(parmat)
+      }else{
+        print(params$par)
+      }
+      
+    }
+  }
+  
+  if(prop_diffs[length(prop_diffs)] < tol){
+    print(sprintf('convergence reached in %s iterations', iter))
+  }
+    
+  ### run the stationary bootstrap
+  param_boots <- lapply(1:length(uni_group), function(i) {
+    # subset data
+    tt <- df %>% filter(facility == uni_group[i])
+    tt_test <- df_test %>% filter(facility == uni_group[i])
+    
+    predict_function <- function(xx){
+      # fit model on bootstrapped data set
+      # start the initialization at the values from the main model
+      params = fit_function(xx, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])
+      
+      # predict model on original training data set
+      x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
+      
+      return(params$par)
+    }
+
+    # run the stationary bootstrap and return the parameters from each fit
+    sim_boot <- boot::tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
+    
+    # match the parameter names
+    colnames(sim_boot) <- names(fit_function(tt, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])$par)
+    
+    #output.sim <- apply(sim.boot, 1, function(xx) <- predict_freqEpi(df, df_test, xx, nnls, W))
+    
+    # # get the quantiles and store them
+    # fitted_quants = t(apply(sim.boot, 2, function(xx){
+    #   quantile(xx, probs = quant_probs, na.rm = T)
+    # }))
+    # fitted_quants = as.data.frame(fitted_quants)
+    # colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
+    # 
+    # # combine the final results and return
+    # tt = cbind(tt, fitted_quants)
+    # tmp_lst = list(tt, sim.boot)
+    # return(tmp_lst)
+    return(sim_boot)
+  })
+  
+  # combine the data sets and split by facility
+  df_combined <- rbind(df[,colnames(df_test)], df_test) %>%
+    add_autoregressive(., 'y_imp') %>%
+    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors)
+  df_combined$y_pred <- NA
+  
+  # df_list <- lapply(uni_group, function(xx){
+  #   df_combined %>% filter(facility == xx) %>%
+  #     arrange(date)
+  # })
+  # # combine 
+  # ind_max <- max(which(df_combine$date <= train_end_date)) + 1
+  
+  for(i in 1:nrow(param_boots[[1]]){
+    # resetting the data frame
+    df_tmp <- df_combined
+    
+    # do all the baseline predictions (+ 1)
+    for(f in uni_group){
+      tt <- df_tmp %>% filter(facility == f, date <= train_end_date)
+      
+      x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, param_boots[1,]))) 
+    }
+    # combine back into data-frame
+    # update the neighbors and auto-regressive terms
+    
+    # cycle through remaining time points
+      # split up data frame
+      # predict on one new data point
+      # combine all facility data frames back to one
+      # update the neighbors and auto-regressive terms
+  }
+  
+  browser()
+  
+  # combining the final data frame
+  df <- do.call('rbind',lapply(tmp,'[[',1))
+  
+  # prep data to return
+  return_lst = list(df = df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
   return(return_lst)
 }
 
@@ -2580,45 +2867,6 @@ simulate_data_freqGLM_epi <- function(district_sizes, R = 1, lambda = -2, phi = 
   # return it!
   res_lst = list(df_list = df_lst, betas = betas, lambda = lambda, phi = phi, params = params_true)
   return(res_lst)
-}
-
-# The "W2" matrix, as I am calling it, is diag(W1) - W. Aka the negative adjacency matrix with the total number of neighbors for each facility on the diagonal
-make_district_W2_matrix <- function(df){
-  # create the list of matching facilities
-  D2 = df %>% dplyr::select(district, facility) %>% distinct()
-  pairs = full_join(D2, D2, by = 'district') %>%
-    filter(facility.x != facility.y) %>%
-    dplyr::select(-district)
-  
-  # get unique facilities
-  facilities = unique(df$facility) %>% sort()
-  
-  # initialize the W2 matrix (note that what I am calling W here is what the original paper calls diag(W1) - W)
-  W2 = matrix(0, nrow = length(facilities), ncol = length(facilities))
-  colnames(W2) = facilities
-  rownames(W2) = facilities
-  
-  for(i in 1:length(facilities)){
-    f1 = facilities[i]
-    
-    # get the pairs with this facility
-    tmp = pairs %>% filter(facility.x == f1)
-    
-    if(nrow(tmp) == 0){
-      print('havent done single-district facilities yet')
-      browser()
-    }else{
-      # put -1 where there are pairs of facilities
-      matid = match(tmp$facility.y, facilities)
-      W2[i,matid] = -1
-    }
-    
-    # get the number of neighbors this facility has
-    W2[i,i] = pairs %>% filter(facility.x == f1) %>% nrow()
-    # print(sprintf('%s: NUM neighbors = %s', f1, W2[i,i]))
-  }
-  
-  return(W2)
 }
 
 make_precision_mat <- function(df, rho, W2 = NULL){

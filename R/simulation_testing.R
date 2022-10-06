@@ -21,6 +21,17 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### 10/06/2022: Testing freqGLM_epi auto-regressive formulation ####
+lst <- simulate_data(district_sizes = c(4), R = 1, end_date = '2020-12-01')
+
+df = lst$df_list[[1]]
+
+# simulation function!
+df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
+
+# run the freqGLM_epi imputation
+freqGLMepi_list = freqGLMepi_CCA(df_miss, R_PI = 100, verbose = F)
+
 #### 9/20/2022 NEW District sizes WF Baseline, WF CCA, and cAR CCA Approaches ####
 
 R = 200
@@ -374,6 +385,7 @@ system.time({
     freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'bootstrap', R_PI = 100, verbose = F) 
     df_miss = freqGLMepi_list$df
     
+    print('here')
     # run the periodic imputation
     periodic_list = WF_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
     df_miss = periodic_list$df
