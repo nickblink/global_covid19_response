@@ -100,7 +100,7 @@ add_autoregressive <- function(df, target_col = 'y', num.terms = 1){
 }
 
 # compute the sum of the values at all the neighbors to a given facility
-add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors = F){
+add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors = F, W = NULL){
   if(lag == 0){
     print('WARNING: not doing a lag of 1 on the neighbors, so not using the same model as in the papers')
   }
@@ -111,7 +111,9 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   }
   
   # get the adjacency matrix
-  W <- make_district_adjacency(df, scale_by_num_neighbors)
+  if(is.null(W)){
+    W <- make_district_adjacency(df, scale_by_num_neighbors)
+  }
 
   # get the counts for each facility 
   y.counts <- df %>% 
@@ -1611,6 +1613,9 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     stop('make sure the data has y (with NAs) and y_true')
   }
   
+  # convert to proper format
+  train_end_date <- as.Date(train_end_date)
+  
   # split the hold out set and train set
   df_test <- df %>%
     filter(date > train_end_date)
@@ -1662,7 +1667,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   
   # add the neighbors and auto-regressive
   df = add_autoregressive(df, 'y_imp') %>%
-    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors)
+    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors, W = W)
   
   ### Run freqGLM_epidemic model iteratively
   iter = 1
@@ -1721,10 +1726,10 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     
     # compare y_imps
     prop_diffs = c(prop_diffs, mean(abs(y_pred_list[[iter]][na.ind] - y_pred_list[[iter-1]][na.ind])/y_pred_list[[iter-1]][na.ind], na.rm = T))
-    
+
     # update the neighbors and auto-regressive
     df = add_autoregressive(df, 'y_imp') %>%
-      add_neighbors(., 'y_imp')
+      add_neighbors(., 'y_imp', W = W)
     
     # update
     if(iter %% 10 == 0 & verbose){
@@ -1780,47 +1785,74 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     # return(tmp_lst)
     return(sim_boot)
   })
+  names(param_boots) <- uni_group
   
   # combine the data sets and split by facility
   df_combined <- rbind(df[,colnames(df_test)], df_test) %>%
     add_autoregressive(., 'y_imp') %>%
-    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors)
+    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors, W = W) %>%
+    arrange(date)
   df_combined$y_pred <- NA
   
-  # df_list <- lapply(uni_group, function(xx){
-  #   df_combined %>% filter(facility == xx) %>%
-  #     arrange(date)
-  # })
-  # # combine 
-  # ind_max <- max(which(df_combine$date <= train_end_date)) + 1
-  
-  for(i in 1:nrow(param_boots[[1]]){
+  # cycle through all the bootstrap iterations
+  pred_boots <- lapply(1:nrow(param_boots[[1]]), function(i) {
     # resetting the data frame
-    df_tmp <- df_combined
+    df_tmp <- df_combined 
     
     # do all the baseline predictions (+ 1)
     for(f in uni_group){
-      tt <- df_tmp %>% filter(facility == f, date <= train_end_date)
+      tt <- df_tmp %>% filter(facility == f, date <= (train_end_date + 31))
       
-      x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, param_boots[1,]))) 
+      y = suppressWarnings(rpois(n = nrow(tt), model_function(tt, param_boots[[f]][1,]))) 
+      
+      # put the results back into the data frame
+      df_tmp$y_pred[df_tmp$facility == f][1:length(y)] <- y
     }
-    # combine back into data-frame
+    
     # update the neighbors and auto-regressive terms
+    df_tmp <- add_autoregressive(df_tmp, 'y_pred') %>%
+      add_neighbors(., 'y_pred', scale_by_num_neighbors = scale_by_num_neighbors, W = W)
+    
+    # get remaining time points
+    time_points <- unique(df_tmp$date[is.na(df_tmp$y_pred) & df_tmp$date > train_end_date]) 
     
     # cycle through remaining time points
-      # split up data frame
-      # predict on one new data point
-      # combine all facility data frames back to one
+    for(t in time_points){
+      for(f in uni_group){
+        tt <- df_tmp %>% filter(facility == f, date == t)
+        
+        y = suppressWarnings(rpois(n = nrow(tt), model_function(tt, param_boots[[f]][i,]))) 
+        
+        # put the results back into the data frame
+        df_tmp$y_pred[df_tmp$facility == f & df_tmp$date == t] <- y
+      }
+      
       # update the neighbors and auto-regressive terms
-  }
+      df_tmp <- add_autoregressive(df_tmp, 'y_pred') %>%
+        add_neighbors(., 'y_pred', scale_by_num_neighbors = scale_by_num_neighbors, W = W)
+    }
+    
+    return(df_tmp$y_pred)
+  })
   
-  browser()
+  # combine into a data frame
+  pred_boots <- do.call('cbind', pred_boots)
   
-  # combining the final data frame
-  df <- do.call('rbind',lapply(tmp,'[[',1))
+  # get the quantiles and store them
+  fitted_quants = t(apply(pred_boots, 1, function(xx){
+    quantile(xx, probs = quant_probs, na.rm = T)
+  }))
+  fitted_quants = as.data.frame(fitted_quants)
+  colnames(fitted_quants) = paste0(paste0('y_pred_CCA_freqGLMepi_'), quant_probs)
+
+  # combine the final results and return
+  df_combined = cbind(df_combined, fitted_quants)
   
+  # set the prediction to the median
+  df_combined$y_pred_CCA_freqGLMepi <- df_combined$y_pred_CCA_freqGLMepi_0.5
+
   # prep data to return
-  return_lst = list(df = df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
+  return_lst = list(df = df_combined, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
   return(return_lst)
 }
 
@@ -2334,8 +2366,8 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
       
-      tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_25[,ii] & y_true[,ii] < upper_75[,ii])))
-      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] > lower_025[,ii] & y_true[,ii] < upper_975[,ii])))
+      tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_25[,ii] & y_true[,ii] <= upper_75[,ii])))
+      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_025[,ii] & y_true[,ii] <= upper_975[,ii])))
       
       tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
       tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
@@ -2390,8 +2422,8 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])/y_missing[,ii]}), na.rm = T)
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_missing[,ii])^2}), na.rm = T))
       
-      tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_25[,ii] & y_missing[,ii] < upper_75[,ii])), na.rm = T)
-      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] > lower_025[,ii] & y_missing[,ii] < upper_975[,ii])), na.rm = T)
+      tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] >= lower_25[,ii] & y_missing[,ii] <= upper_75[,ii])), na.rm = T)
+      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] >= lower_025[,ii] & y_missing[,ii] <= upper_975[,ii])), na.rm = T)
       
       tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
       tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
@@ -2408,11 +2440,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
         interval[!is.na(xx[,'y'])] = NA
         interval/xx$y_true
       })), na.rm = T)
-      
-      # if(method == "y_CB_facility"){
-      #   browser()
-      # }
- 
+
       tmp$point_sd = apply(do.call('cbind', lapply(imputed_list, function(xx){
         median = xx[,paste0(method, '_0.5')];
         median[!is.na(xx[,'y'])] = NA
@@ -2429,16 +2457,12 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width')){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width'), dotted_line = T){
   
   if(!is.null(min_date)){
     imputed_only = F
     print('setting imputed only to false because of the minimum date specification')
   }
-  # 
-  # if(is.null(outcomes)){
-  #   outcomes = c("bias", "absolute_bias", "MAPE", "RMSE", "coverage50", "coverage95", "interval_width", "point_sd")
-  # }
   
   # get the metrics from each simulation run
   res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = min_date, imputed_only = imputed_only, rm_ARna = rm_ARna, use_point_est = use_point_est)
@@ -2510,6 +2534,10 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
         max_intW_lim = round(1.3*max(tt$value, na.rm = T))
       }
       p1 = p1 + ylim(c(0, max_intW_lim))
+    }
+    
+    if(dotted_line){
+      p1 <- p1 + geom_vline(xintercept = 1.5, linetype = 'dotted')
     }
     
     plot_list[[i]] = p1
@@ -2768,7 +2796,6 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   return(res_lst)
 }
 
-
 #### Function to simulate data under the freqGLM_epi framework
 ##
 ## district_sizes = number of facilities in the districtss
@@ -2963,11 +2990,17 @@ MNAR_sim <- function(df, p, direction = NULL, gamma = 1.5, by_facility = T){
   return(df)
 }
 
-MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau = 1, by_facility = T){
+MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau = 1, by_facility = T, max_missing_date = '2019-12-01'){
   # make phi for df
   # for all, or for each facility,
   # sample according to expit(phi)
   df$y_true = df$y
+  
+  # split the data into a test/hold-out set and the training set
+  df_test <- df %>%
+    filter(date > max_missing_date)
+  df <- df %>%
+    filter(date <= max_missing_date)
   
   # get all facility names
   facilities = unique(df$facility) %>% sort()
@@ -3024,6 +3057,9 @@ MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau = 1, by_fa
     num_impute = round(p*nrow(df))
     df$y[sample(nrow(df), num_impute, prob = df$prob.sample)] <- NA
   }
+  
+  # combine the hold-out/non-missing data with the training data with missingness
+  df <- rbind(df[,colnames(df_test)], df_test)
   
   return(df)
 }
