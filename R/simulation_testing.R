@@ -25,6 +25,61 @@ library(cowplot)
 
 R = 100
 
+results_file <- 'results/simulation_noST_MNARp2_R200_10162022.RData'
+
+system.time({
+  lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
+  
+  imputed_list = list()
+  res_full = res_imputed = NULL
+  for(i in 1:R){
+    df <- lst$df_list[[i]]
+    
+    # simulation function!
+    df_miss <- MCAR_sim(df, p = 0.2, by_facility = T)
+    
+    # run the freqGLM_epi complete case analysis
+    freqGLMepi_list = freqGLMepi_CCA(df_miss, R_PI = 100, verbose = F)
+    df_miss <- freqGLMepi_list$df
+    
+    # run the WF baseline (complete data) imputation
+    df_miss <- WF_baseline(df_miss, R_PI = 100)
+    
+    # run the WF complete case analysis model
+    df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 100)
+    
+    # run the CAR complete case analysis model
+    df_miss <- CARBayes_CCA(df_miss, burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+    
+    imputed_list[[i]] = df_miss
+    
+    if(i %% 5 == 0){
+      print(sprintf('saving results for i = %s',  i))
+      save(imputed_list, i, file = results_file)
+    }
+  }
+}) # 15 hrs R = 100
+
+# save(imputed_list, file = results_file)
+
+imp_vec = c("y_pred_baseline_WF", "y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi")
+rename_vec = c('WF full data', 'WF CCA', 'CAR CCA', 'freqEpi CCA')
+color_vec = c('red', 'blue', 'green', 'orange')
+
+plot_facility_fits(imputed_list[[2]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
+
+plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', 
+                      min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','RMSE','coverage95','interval_width'))
+
+res <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = '2020-01-01', imputed_only = F, rm_ARna = F, use_point_est = F) %>%
+  arrange(coverage95) %>%
+  filter(method == 'y_pred_baseline_WF')
+
+
+#### 10/16/2022: WF Baseline, WF CCA, Epi CCAm and CAR CCA with MCAR ####
+
+R = 100
+
 results_file <- 'results/simulation_noST_MCARp2_R200_10162022.RData'
 
 system.time({
