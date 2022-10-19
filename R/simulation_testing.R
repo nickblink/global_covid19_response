@@ -25,6 +25,8 @@ library(cowplot)
 
 R = 100
 
+results_file <- 'results/simulation_noST_MCARp2_R200_10162022.RData'
+
 system.time({
   lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
   
@@ -50,10 +52,15 @@ system.time({
     df_miss <- CARBayes_CCA(df_miss, burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
     
     imputed_list[[i]] = df_miss
+    
+    if(i %% 5 == 0){
+      print(sprintf('saving results for i = %s',  i))
+      save(imputed_list, i, file = results_file)
+    }
   }
-}) # Started at 9am on 10/17
+}) # 15 hrs R = 100
 
-# save(imputed_list, file = 'results/simulation_noST_MARp2_R200_10162022.RData')
+# save(imputed_list, file = results_file)
 
 imp_vec = c("y_pred_baseline_WF", "y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi")
 rename_vec = c('WF full data', 'WF CCA', 'CAR CCA', 'freqEpi CCA')
@@ -133,7 +140,6 @@ plot_missingness <- function(df_miss){
   heatmap(tmp2, keep.dendro = F, Rowv = NA, )
   
   gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = F, Colv = F, xlab = 'facilities', trace = 'none', key = F)
-  # not much
 }
 
 lst <- simulate_data(district_sizes = c(4, 6, 10), R = 1, end_date = '2019-12-01')
