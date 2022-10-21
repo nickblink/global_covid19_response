@@ -2333,7 +2333,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
   
   # get the number of times each data point was missing across simulations
   num_missing = apply(y_missing, 1, function(xx) sum(!is.na(xx)))
-
+  
   if(!imputed_only){
     df = NULL
     # imputed only here
@@ -2457,7 +2457,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width'), dotted_line = T){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width'), dotted_line = T, res = NULL){
   
   if(!is.null(min_date)){
     imputed_only = F
@@ -2465,7 +2465,9 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
   }
   
   # get the metrics from each simulation run
-  res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = min_date, imputed_only = imputed_only, rm_ARna = rm_ARna, use_point_est = use_point_est)
+  if(is.null(res)){
+    res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = min_date, imputed_only = imputed_only, rm_ARna = rm_ARna, use_point_est = use_point_est)
+  }
 
   if(all(res$num_missing < min_missing) & imputed_only){
     stop('all points are not missing enough (check min_missing)')
@@ -2945,8 +2947,15 @@ MCAR_sim <- function(df, p, by_facility = F, max_missing_date = '2019-12-01'){
   return(df)
 }
 
-MNAR_sim <- function(df, p, direction = NULL, gamma = 1.5, by_facility = T){
+MNAR_sim <- function(df, p, direction = NULL, gamma = 1.5, by_facility = T, max_missing_date = '2019-12-01'){
   df$y_true = df$y
+  
+  # split the data into a test/hold-out set and the training set
+  df_test <- df %>%
+    filter(date > max_missing_date)
+  df <- df %>%
+    filter(date <= max_missing_date)
+  
   if(by_facility){
     # get the number of points to impute
     num_impute = round(p*nrow(df)/length(unique(df$facility)))
@@ -2986,6 +2995,8 @@ MNAR_sim <- function(df, p, direction = NULL, gamma = 1.5, by_facility = T){
     #num_impute = round(p*nrow(df))
     #df$y[sample(nrow(df), num_impute)] <- NA
   }
+  
+  df <- rbind(df[,colnames(df_test)], df_test)
   
   return(df)
 }

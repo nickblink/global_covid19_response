@@ -21,11 +21,49 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
-#### 10/16/2022: WF Baseline, WF CCA, Epi CCAm and CAR CCA with MCAR ####
+#### 10/21/2022: Comparing WF MCAR, MAR, MNAR ####
+imp_vec = c("y_pred_baseline_WF", "y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi")
+rename_vec = c('WF full data', 'WF CCA', 'CAR CCA', 'freqEpi CCA')
+color_vec = c('red', 'blue', 'green', 'orange')
+
+# MCAR
+load('results/simulation_noST_MCARp2_R100_10162022.RData')
+res_MCAR <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F) %>%
+  filter(method %in% c('y_pred_baseline_WF', 'y_pred_CCA_WF'))
+
+res_MCAR$method <- gsub('y_pred_CCA_WF', 'y_pred_CCA_WF_MCAR', res_MCAR$method)
+
+# MAR
+rm(imputed_list)
+load('results/simulation_noST_MARp2_R80_10162022.RData')
+res_MAR <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F) %>%
+  filter(method == 'y_pred_CCA_WF')
+
+res_MAR$method <- gsub('y_pred_CCA_WF', 'y_pred_CCA_WF_MAR', res_MAR$method)
+
+# MNAR
+rm(imputed_list)
+load('results/simulation_noST_MNARp2_R100_10202022.RData')
+res_MNAR <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F) %>%
+  filter(method == 'y_pred_CCA_WF')
+
+res_MNAR$method <- gsub('y_pred_CCA_WF', 'y_pred_CCA_WF_MNAR', res_MNAR$method)
+
+# combine and plot
+res <- rbind(res_MCAR, res_MNAR, res_MAR)
+
+imp_vec = c("y_pred_baseline_WF", "y_pred_CCA_WF_MCAR",  "y_pred_CCA_WF_MAR",  "y_pred_CCA_WF_MNAR")
+rename_vec = c('WF full data', 'WF CCA MCAR', 'WF CCA MAR', 'WF CCA MNAR')
+color_vec = c('red', 'blue', 'green', 'orange')
+
+plot_metrics_by_point(res = res, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', 
+                      min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','RMSE','coverage95','interval_width'))
+
+#### 10/20/2022: WF Baseline, WF CCA, Epi CCAm and CAR CCA with MNAR ####
 
 R = 100
 
-results_file <- 'results/simulation_noST_MNARp2_R200_10162022.RData'
+results_file <- 'results/simulation_noST_MNARp2_R100_10202022.RData'
 
 system.time({
   lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
@@ -36,7 +74,7 @@ system.time({
     df <- lst$df_list[[i]]
     
     # simulation function!
-    df_miss <- MCAR_sim(df, p = 0.2, by_facility = T)
+    df_miss <- MNAR_sim(df, p = 0.2, direction = 'upper', gamma = 1, by_facility = T)
     
     # run the freqGLM_epi complete case analysis
     freqGLMepi_list = freqGLMepi_CCA(df_miss, R_PI = 100, verbose = F)
@@ -58,7 +96,7 @@ system.time({
       save(imputed_list, i, file = results_file)
     }
   }
-}) # 15 hrs R = 100
+}) # ~15hrs
 
 # save(imputed_list, file = results_file)
 
@@ -71,10 +109,18 @@ plot_facility_fits(imputed_list[[2]], imp_vec = imp_vec, imp_names = rename_vec,
 plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', 
                       min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','RMSE','coverage95','interval_width'))
 
-res <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = '2020-01-01', imputed_only = F, rm_ARna = F, use_point_est = F) %>%
-  arrange(coverage95) %>%
-  filter(method == 'y_pred_baseline_WF')
+res <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F) %>%
+  filter(method == 'y_pred_baseline_WF') %>%
+  group_by(date) %>%
+  summarize(num_missing = sum(num_missing))
 
+# number missing points across simulations
+plot(res$date, res$num_missing, ylab = 'number of times missing', xlab = 'date', main = 'missingness from R = 100 with 20 facilities')
+
+for(i in 1:10){
+  test <- imputed_list[[i]]  %>% filter(is.na(y))
+  print(max(test$date))
+}
 
 #### 10/16/2022: WF Baseline, WF CCA, Epi CCAm and CAR CCA with MCAR ####
 
@@ -202,19 +248,19 @@ lst <- simulate_data(district_sizes = c(4, 6, 10), R = 1, end_date = '2019-12-01
 df <- lst$df_list[[1]] 
 
 # simulation function!
-df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.3, alpha = 0.3, tau = 3)
+df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0, alpha = 0, tau = 3)
 
 plot_missingness(df_miss)
 
-df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.7, alpha = 0.3, tau = 3)
+df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.9, alpha = 0, tau = 3)
 
 plot_missingness(df_miss)
 
-df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.3, alpha = 0.7, tau = 3)
+df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0, alpha = 0.9, tau = 3)
 
 plot_missingness(df_miss)
 
-df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.7, alpha = 0.7, tau = 3)
+df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.9, alpha = 0.9, tau = 3)
 
 plot_missingness(df_miss)
 
