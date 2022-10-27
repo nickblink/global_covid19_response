@@ -1,78 +1,112 @@
-### Now doing this as an R script rather than Rmd because it's easier to work with.
-#setwd('C:/Users/nickl/Documents/global_covid19_response/')
-setwd('C:/Users/nickl/Documents/github_projects/global_covid19_response')
-source('R/imputation_functions.R')
 library(MASS)
 library(CARBayesST)
 library(Matrix)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
-library(cowplot)
-#library(doRNG)
-#library(doParallel)
+#library(cowplot)
+library(doRNG)
+library(doParallel)
 
-params <- commangArgs(trailingOnly = TRUE)
+source('R/imputation_functions.R')
 
-R <- params[[1]]
-num_jobs <- params[[2]]
-job_id <- params[[3]]
+# register the cores
+registerDoParallel(cores = 10)
 
+# get the parameters (first line is for testing on my home computer)
+params <- c('0.2','mcar','20','2','1')
+params <- commandArgs(trailingOnly = TRUE)
+
+# pull parameters into proper format
+p <- as.numeric(params[[1]])
+missingness <- tolower(params[[2]])
+R <- as.integer(params[[3]])
+num_jobs <- as.integer(params[[4]])
+job_id <- as.integer(params[[5]])
+
+# check that proper missingness is input
+if(!(missingness %in% c('mcar','mar','mnar'))){
+  stop('please input a proper missingness')
+}else{
+  print(sprintf('proceeding with %s missingness', missingness))
+}
+
+# missingness parameters
+if(missingness == 'mar'){
+  rho = 0.7
+  alpha = 0.7
+  tau = 3
+}else if(missingness =='mnar'){
+  gamma = 1
+}
+
+# get sequence of simulation iterations to run
 if(job_id < num_jobs){
   seq <- (floor(R/num_jobs)*(job_id - 1) + 1):(floor(R/num_jobs)*job_id)
 }else{
   seq <- (floor(R/num_jobs)*(job_id - 1) + 1):R
 }
- 
-job_name <- 'test'
 
 # set up the output folder
-tmp_data_path <- 'data/tmp_data/'
-output_path <- paste0(tmp_data_path, job_name)
+date <- gsub('-','_', Sys.Date())
+output_path <- sprintf('results/%s_%s', missingness, date)
 if(!file.exists(output_path)){
-  dir.create(output_path)
+  dir.create(output_path, recursive = T)
+}
+results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i).RData', output_path, p, missingness, job_id, num_jobs)
+
+if(file.exists(results_file)){
+  iter = 0
+  while(file.exists(results_file)){
+    iter = iter + 1
+    results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i)(%i).RData', output_path, p, missingness, job_id, num_jobs, iter)
+  }
 }
 
-#### MCAR p = 0.2 freqGLM_epi - 20 years ####
-lst <- res <- simulate_data_freqGLM_epi(district_sizes = 4, R = R, lambda = -2, phi = -2, num_iters = 10, scale_by_num_neighbors = T, seed = 10, start_date = '2000-01-01', b1_mean = -0.1, b1_sd = 0.1)
+#### MCAR p = 0.2 no ST ####
+lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
+
+print('data made')
 
 if(job_id == 1){
-  save(lst, file = 'simulated_data.RData')
+  save(lst, file = paste0(output_path, '/simulated_data.RData'))
 }
 
-# registerDoParallel(cores = 4)
-
 one_run <- function(lst, i){
+  print(length(lst))
+  print(length(lst$df_list))
+  print(i)
   df = lst$df_list[[i]]
   
-  # simulation function!
-  df_miss = MCAR_sim(df, p = 0.2, by_facility = T)
+  # add in missingness
+  if(missingness == 'mcar'){
+    df_miss = MCAR_sim(df, p = p, by_facility = T)
+  }else if(missingness == 'mar'){
+    df_miss = MAR_spatiotemporal_sim(df, p = p, rho = rho, alpha = alpha, tau = tau)
+  }else{
+    f_miss <- MNAR_sim(df, p = p, direction = 'upper', gamma = gamma, by_facility = T)
+  }
   
-  # run the freqGLM_epi imputation
-  freqGLMepi_list = freqGLMepi_imputation(df_miss, prediction_intervals = 'bootstrap', R_PI = 100, verbose = F)
-  df_miss = freqGLMepi_list$df
-  
-  # run the periodic imputation
-  periodic_list = periodic_imputation(df_miss, col = "y", family = 'poisson', group = 'facility', R_PI = 100)
-  df_miss = periodic_list$df
-  
-  #  run the CARBayes imputation with different intercepts by facility
-  CAR_list2 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_intercept')
-  df_miss = CAR_list2$facility_df
-  colnames(df_miss) = gsub('CARBayes_ST', 'CB_intercept', colnames(df_miss))
-
-  #  run the CARBayes imputation with different coeffs by facility
-  CAR_list3 = CARBayes_imputation(df_miss, col = "y", return_type = 'all', burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed')
-  df_miss = CAR_list3$facility_df
-  colnames(df_miss) = gsub('CARBayes_ST', 'CB_facility', colnames(df_miss))
+  # run the WF baseline (complete data) imputation
+  df_miss <- WF_baseline(df_miss, R_PI = 100)
 
   return(df_miss)
 }
 
-# This might not work. %do% worked but not %dorng%. We'll see on the cluster
+
+
+# %dorng% works on the cluster. %do% works at home
 system.time({
-imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
+  imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })
 
-save(imputed_list, file = sprintf('%s/sim_results_%i.RData', output_path, job_id))
+if(missingness == 'mar'){
+  save(imputed_list, rho, alpha, tau, file = results_file)
+}else if(missingness == 'mnar'){
+  save(imputed_list, gamma, file = results_file)
+}else{
+  save(imputed_list, file = results_file)
+}
+
+
 

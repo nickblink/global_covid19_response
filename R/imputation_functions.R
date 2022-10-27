@@ -1,11 +1,11 @@
 ### The functions used for imputation in Liberia
-library(MASS)
-#library(CARBayesST)
-library(Matrix)
-library(dplyr)
-library(lubridate)
-library(ggplot2)
-library(cowplot)
+# library(MASS)
+# library(CARBayesST)
+# library(Matrix)
+# library(dplyr)
+# library(lubridate)
+# library(ggplot2)
+# library(cowplot)
 
 ##### Helper Functions #####
 # make the adjacency matrix according to all facilities in a district being neighbors
@@ -2648,6 +2648,8 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.26
 }
 
 simulate_data <- function(district_sizes, R = 1, empirical_betas = F, ...){
+  # set seed
+  set.seed(10)
   # set up data frame
   df = initialize_df(district_sizes, ...)
   
@@ -2657,8 +2659,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, ...){
   # get all facility names
   facilities = unique(df$facility)
   
-  # set random seed and sample betas
-  set.seed(10)
+  # sample betas
   if(empirical_betas){
     betas = sample_real_betas(facilities)
   }else{

@@ -1,4 +1,3 @@
-### Now doing this as an R script rather than Rmd because it's easier to work with.
 current_path <- rstudioapi::getActiveDocumentContext()$path
 setwd(dirname(current_path))
 setwd('../')
