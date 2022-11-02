@@ -20,6 +20,23 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### Creating function for combining results ####
+input_folder <- 'cluster_code/mnar_2022_11_01/'
+results_file <- 'results/simulation_noST_MNARp2_R100_11012022.Rdata'
+
+combine_results('cluster_code/mcar_2022_11_01/', 'results/TESTING_TESTING_123.RData') -> tmp
+
+tt <- c()
+ss <- c()
+vv <- c()
+for(i in 1:100){
+  tt <- c(tt, mean(tmp[[i]]$y, na.rm = T))
+  ss <- c(ss, mean(tmp[[i]]$y_true))
+  vv <- c(vv, mean(tmp[[i]]$y_pred_CCA_WF))
+}
+length(unique(vv)) # good
+
+
 #### 10/21/2022: Comparing WF MCAR, MAR, MNAR ####
 imp_vec = c("y_pred_baseline_WF", "y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi")
 rename_vec = c('WF full data', 'WF CCA', 'CAR CCA', 'freqEpi CCA')

@@ -14,15 +14,17 @@ source('R/imputation_functions.R')
 registerDoParallel(cores = 10)
 
 # get the parameters (first line is for testing on my home computer)
-params <- c('0.2','mcar','20','2','1')
-params <- commandArgs(trailingOnly = TRUE)
+inputs <- c('0.2','mar', 'noST','20','2','1')
+inputs <- commandArgs(trailingOnly = TRUE)
+print(inputs)
 
 # pull parameters into proper format
-p <- as.numeric(params[[1]])
-missingness <- tolower(params[[2]])
-R <- as.integer(params[[3]])
-num_jobs <- as.integer(params[[4]])
-job_id <- as.integer(params[[5]])
+p <- as.numeric(inputs[[1]])
+missingness <- tolower(inputs[[2]])
+DGP <- tolower(inputs[[3]])
+R <- as.integer(inputs[[4]])
+num_jobs <- as.integer(inputs[[5]])
+job_id <- as.integer(inputs[[6]])
 
 # check that proper missingness is input
 if(!(missingness %in% c('mcar','mar','mnar'))){
@@ -32,12 +34,14 @@ if(!(missingness %in% c('mcar','mar','mnar'))){
 }
 
 # missingness parameters
+params <- list()
 if(missingness == 'mar'){
-  rho = 0.7
-  alpha = 0.7
-  tau = 3
+  params[['rho']] <- 0.7
+  params[['alpha']] <- 0.7
+  params[['tau']] <- 3
 }else if(missingness =='mnar'){
   gamma = 1
+  params[['gamma']] <- gamma
 }
 
 # get sequence of simulation iterations to run
@@ -49,7 +53,7 @@ if(job_id < num_jobs){
 
 # set up the output folder
 date <- gsub('-','_', Sys.Date())
-output_path <- sprintf('results/%s_%s', missingness, date)
+output_path <- sprintf('results/%s%s_%s_%s', missingness, gsub('\\.','',p), DGP, date)
 if(!file.exists(output_path)){
   dir.create(output_path, recursive = T)
 }
@@ -64,7 +68,11 @@ if(file.exists(results_file)){
 }
 
 #### MCAR p = 0.2 no ST ####
-lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
+if(DGP == 'nost'){
+  lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
+}else{
+  stop('unrecognized data generating process')
+}
 
 print('data made')
 
@@ -73,40 +81,38 @@ if(job_id == 1){
 }
 
 one_run <- function(lst, i){
-  print(length(lst))
-  print(length(lst$df_list))
-  print(i)
+  print(sprintf('i = %i',i))
   df = lst$df_list[[i]]
   
   # add in missingness
   if(missingness == 'mcar'){
     df_miss = MCAR_sim(df, p = p, by_facility = T)
   }else if(missingness == 'mar'){
-    df_miss = MAR_spatiotemporal_sim(df, p = p, rho = rho, alpha = alpha, tau = tau)
+    df_miss = MAR_spatiotemporal_sim(df, p = p, rho = params[['rho']], alpha = params[['alpha']], tau = params[['tau']])
   }else{
-    f_miss <- MNAR_sim(df, p = p, direction = 'upper', gamma = gamma, by_facility = T)
+    df_miss <- MNAR_sim(df, p = p, direction = 'upper', gamma = gamma, by_facility = T)
   }
+  
+  # run the freqGLM_epi complete case analysis
+  freqGLMepi_list = freqGLMepi_CCA(df_miss, R_PI = 100, verbose = F)
+  df_miss <- freqGLMepi_list$df
   
   # run the WF baseline (complete data) imputation
   df_miss <- WF_baseline(df_miss, R_PI = 100)
+  
+  # run the WF complete case analysis model
+  df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 100)
+  
+  # run the CAR complete case analysis model
+  df_miss <- CARBayes_CCA(df_miss, burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
 
   return(df_miss)
 }
-
-
 
 # %dorng% works on the cluster. %do% works at home
 system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })
 
-if(missingness == 'mar'){
-  save(imputed_list, rho, alpha, tau, file = results_file)
-}else if(missingness == 'mnar'){
-  save(imputed_list, gamma, file = results_file)
-}else{
-  save(imputed_list, file = results_file)
-}
-
-
+save(imputed_list, seq, params, file = results_file)
 

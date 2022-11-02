@@ -220,6 +220,27 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
   
   return(df)
 }
+
+# combine saved results from batch runs into one file
+combine_results <- function(input_folder, results_file){
+  files <- dir(input_folder, full.names = T)
+  files <- grep('sim_results', files, value = T)
+  if(length(files) != 10){
+    stop(sprintf('There are %i results files. Is that right?', length(files)))
+  }
+  
+  load(files[1])
+  lst_full <- imputed_list
+  rm(imputed_list)
+  for(i in 2:length(files)){
+    load(files[i])
+    lst_full <- c(lst_full, imputed_list)
+  }
+  
+  save(lst_full, file = results_file)
+  
+  return(lst_full)
+}
 #
 ##### Imputation Functions #####
 
@@ -2683,7 +2704,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, ...){
       
       # error checking
       if(!identical(colnames(betas), colnames(X))){
-        browser()
+        stop(sprintf('colnames of betas not equal to X: %s, %s',paste(colnames(betas), collapse = ';'), paste(colnames(X), collapse = ';') ))
       }
       
       # make the 8x1 beta vector for this facility
