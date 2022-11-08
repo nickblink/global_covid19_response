@@ -222,7 +222,7 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 }
 
 # combine saved results from batch runs into one file
-combine_results <- function(input_folder, results_file){
+combine_results <- function(input_folder, results_file, return_lst = FALSE){
   files <- dir(input_folder, full.names = T)
   files <- grep('sim_results', files, value = T)
   if(length(files) != 10){
@@ -237,9 +237,11 @@ combine_results <- function(input_folder, results_file){
     lst_full <- c(lst_full, imputed_list)
   }
   
-  save(lst_full, file = results_file)
+  save(lst_full, params, file = results_file)
   
-  return(lst_full)
+  if(return_lst){
+    return(lst_full)
+  }
 }
 #
 ##### Imputation Functions #####
@@ -2325,6 +2327,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
   
   # filter to only be greater than the specified date
   if(!is.null(min_date)){
+    print(sprintf('only getting metrics with dates on or after %s', min_date))
     imputed_list <- lapply(imputed_list, function(xx){
       xx <- xx %>% filter(date >= min_date)
     })
@@ -2508,10 +2511,10 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
     for(i in 1:length(imp_vec)){
       long$method = gsub(imp_vec[i], rename_vec[i],long$method)
     }
+    
+    # make a factor so the ordering in the plots stays
+    long$method=  factor(long$method, levels = rename_vec)
   }
-  
-  # make a factor so the ordering in the plots stays
-  long$method=  factor(long$method, levels = rename_vec)
   
   long = long %>% 
     filter(metric %in% metric_list)

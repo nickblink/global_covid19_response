@@ -20,38 +20,35 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
-#### Creating function for combining results ####
-input_folder <- 'cluster_code/mnar_2022_11_01/'
-results_file <- 'results/simulation_noST_MNARp2_R100_11012022.Rdata'
+#### combining results ####
+combine_results(input_folder = 'results/cluster_results/mar01_nost_2022_11_02/', results_file = 'results/simulation_noST_marp1_R100_11022022.Rdata')
 
-combine_results('cluster_code/mcar_2022_11_01/', 'results/TESTING_TESTING_123.RData') -> tmp
+combine_results(input_folder = 'results/cluster_results/mar02_nost_2022_11_02/', results_file = 'results/simulation_noST_marp2_R100_11022022.Rdata')
 
-tt <- c()
-ss <- c()
-vv <- c()
-for(i in 1:100){
-  tt <- c(tt, mean(tmp[[i]]$y, na.rm = T))
-  ss <- c(ss, mean(tmp[[i]]$y_true))
-  vv <- c(vv, mean(tmp[[i]]$y_pred_CCA_WF))
-}
-length(unique(vv)) # good
+combine_results(input_folder = 'results/cluster_results/mar03_nost_2022_11_02/', results_file = 'results/simulation_noST_marp3_R100_11022022.Rdata')
+
+combine_results(input_folder = 'results/cluster_results/mar04_nost_2022_11_02/', results_file = 'results/simulation_noST_marp4_R100_11022022.Rdata')
+
+combine_results(input_folder = 'results/cluster_results/mar05_nost_2022_11_02/', results_file = 'results/simulation_noST_marp5_R100_11022022.Rdata')
+
 
 
 #### 10/21/2022: Comparing WF MCAR, MAR, MNAR ####
+res_folder <- 'C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results'
 imp_vec = c("y_pred_baseline_WF", "y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi")
 rename_vec = c('WF full data', 'WF CCA', 'CAR CCA', 'freqEpi CCA')
 color_vec = c('red', 'blue', 'green', 'orange')
 
 # MCAR
-load('results/simulation_noST_MCARp2_R100_10162022.RData')
-res_MCAR <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F) %>%
+load(sprintf('%s/simulation_noST_MCARp2_R100_10162022.RData', res_folder))
+res_MCAR <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') %>%
   filter(method %in% c('y_pred_baseline_WF', 'y_pred_CCA_WF'))
 
 res_MCAR$method <- gsub('y_pred_CCA_WF', 'y_pred_CCA_WF_MCAR', res_MCAR$method)
 
 # MAR
 rm(imputed_list)
-load('results/simulation_noST_MARp2_R80_10162022.RData')
+load(sprintf('%s/simulation_noST_MARp2_R80_10162022.RData', res_folder))
 res_MAR <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F) %>%
   filter(method == 'y_pred_CCA_WF')
 
@@ -59,7 +56,7 @@ res_MAR$method <- gsub('y_pred_CCA_WF', 'y_pred_CCA_WF_MAR', res_MAR$method)
 
 # MNAR
 rm(imputed_list)
-load('results/simulation_noST_MNARp2_R100_10202022.RData')
+load(sprintf('%s/simulation_noST_MNARp2_R100_10202022.RData', res_folder))
 res_MNAR <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F) %>%
   filter(method == 'y_pred_CCA_WF')
 
@@ -178,6 +175,8 @@ system.time({
 }) # 15 hrs R = 100
 
 # save(imputed_list, file = results_file)
+
+load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/simulation_noST_MCARp2_R100_10162022.RData')
 
 imp_vec = c("y_pred_baseline_WF", "y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi")
 rename_vec = c('WF full data', 'WF CCA', 'CAR CCA', 'freqEpi CCA')
