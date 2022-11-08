@@ -8,4 +8,4 @@
 
 export R_LIBS_USER="~/R/library"
 module load gcc/9.2.0 R/4.2.1 geos/3.10.2 udunits/2.2.28 gdal/3.5.0 jpeg/9b
-Rscript R/simulation_main.R $1 $2 $3 $4 ${SLURM_ARRAY_TASK_ID}
+Rscript R/simulation_main.R $1 $2 $3 $4 $5 ${SLURM_ARRAY_TASK_ID}
