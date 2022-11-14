@@ -2323,7 +2323,7 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 }
 
 # calculate the metrics for individual data points across simulated imputations
-calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F){
+calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F, k =NULL){
   
   # filter to only be greater than the specified date
   if(!is.null(min_date)){
@@ -2350,6 +2350,11 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
     y_true
   }))
   # ^above, an NA means the value was not missing, and a number means the value was missing
+  y_exp = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_exp']))
+  
+  y_outbreak3 <- y_exp + 3*sqrt(y_exp)
+  y_outbreak5 <- y_exp + 5*sqrt(y_exp)
+  y_outbreak10 <- y_exp + 10*sqrt(y_exp)
   
   # numeric missing matrix
   missing_mat <- apply(y_missing, 2, function(xx) 1 - as.numeric(is.na(xx)))
@@ -2395,6 +2400,10 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       
       tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
       tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
+      
+      tmp$outbreak_detection3 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak3[,ii] >= upper_975[,ii]))
+      tmp$outbreak_detection5 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak5[,ii] >= upper_975[,ii]))
+      tmp$outbreak_detection10 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak10[,ii] >= upper_975[,ii]))
       
       # measure of how wide the 95% prediction intervals are
       tmp$interval_width = rowMeans(upper_975 - lower_025) 
@@ -2481,7 +2490,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width'), dotted_line = T, res = NULL){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width'), dotted_line = T, res = NULL, outbreak_date = '2020-01-01'){
   
   if(!is.null(min_date)){
     imputed_only = F
@@ -2526,6 +2535,11 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
     m = unique(long$metric)[i]
     
     tmp2 = long %>% filter(metric == m)
+    
+    if(grepl('outbreak', m)){
+      tmp2 <- tmp2 %>% 
+        filter(date == outbreak_date)
+    }
     
     p1 <- ggplot(tmp2, aes(x = method, y = value, fill = method)) +  #, color = method)
       geom_violin(position="dodge", alpha=0.5) + 
@@ -2715,6 +2729,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, ...){
       
       # get mean prediction from linear model
       mu = as.matrix(X)%*%beta_f
+      tmp$y_exp = exp(mu)
       
       # simluate random values
       tmp$y = rpois(length(mu), exp(mu))

@@ -76,7 +76,8 @@ plot_metrics_by_point(res = res, imp_vec = imp_vec, color_vec = color_vec, min_d
 
 R = 100
 
-results_file <- 'results/simulation_noST_MNARp2_R100_10202022.RData'
+#results_file <- 'results/simulation_noST_MNARp2_R100_10202022.RData'
+results_file <- 'C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/simulation_noST_MNARp2_R100_10202022.RData'
 
 system.time({
   lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
@@ -113,6 +114,14 @@ system.time({
 
 # save(imputed_list, file = results_file)
 
+# over-writing expected with the simulated value because I wasn't storing these before. And now I am!
+imputed_list <- lapply(1:100, function(ii){
+  tmp <- imputed_list[[ii]]
+  tmp$y_exp <- tmp$y_true
+  tmp
+})
+
+
 imp_vec = c("y_pred_baseline_WF", "y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi")
 rename_vec = c('WF full data', 'WF CCA', 'CAR CCA', 'freqEpi CCA')
 color_vec = c('red', 'blue', 'green', 'orange')
@@ -120,7 +129,7 @@ color_vec = c('red', 'blue', 'green', 'orange')
 plot_facility_fits(imputed_list[[2]], imp_vec = imp_vec, imp_names = rename_vec, color_vec = color_vec)
 
 plot_metrics_by_point(imputed_list, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', 
-                      min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','RMSE','coverage95','interval_width'))
+                      min_missing = 0, rename_vec = rename_vec, metric_list = c('bias','RMSE','coverage95','interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'))
 
 res <- calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F) %>%
   filter(method == 'y_pred_baseline_WF') %>%
