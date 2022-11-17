@@ -11,10 +11,10 @@ library(doParallel)
 source('R/imputation_functions.R')
 
 # register the cores
-registerDoParallel(cores = 10)
+registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
-inputs <- c('0.2','mar', 'noST','20','2','1')
+inputs <- c('0.1','mcar', 'noST','1000','2','7')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -94,17 +94,17 @@ one_run <- function(lst, i){
   }
   
   # run the freqGLM_epi complete case analysis
-  freqGLMepi_list = freqGLMepi_CCA(df_miss, R_PI = 100, verbose = F)
+  freqGLMepi_list = freqGLMepi_CCA(df_miss, R_PI = 200, verbose = F)
   df_miss <- freqGLMepi_list$df
   
   # run the WF baseline (complete data) imputation
-  df_miss <- WF_baseline(df_miss, R_PI = 100)
+  # df_miss <- WF_baseline(df_miss, R_PI = 100)
   
   # run the WF complete case analysis model
-  df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 100)
+  df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 200)
   
   # run the CAR complete case analysis model
-  df_miss <- CARBayes_CCA(df_miss, burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+  df_miss <- CARBayes_CCA(df_miss, burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
 
   return(df_miss)
 }

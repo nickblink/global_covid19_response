@@ -222,11 +222,11 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 }
 
 # combine saved results from batch runs into one file
-combine_results <- function(input_folder, results_file, return_lst = FALSE){
+combine_results <- function(input_folder, results_file, return_lst = FALSE, ignore_size_err = F){
   files <- dir(input_folder, full.names = T)
   files <- grep('sim_results', files, value = T)
   if(length(files) != 10){
-    stop(sprintf('There are %i results files. Is that right?', length(files)))
+    warning(sprintf('There are %i results files. Is that right?', length(files)))
   }
   
   load(files[1])
@@ -237,7 +237,25 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE){
     lst_full <- c(lst_full, imputed_list)
   }
   
-  save(lst_full, params, file = results_file)
+  # checking the size of the objects - can tell if there's an error
+  if(!ignore_size_err){
+    object_sizes <- c()
+    for(i in 1:length(lst_full)){
+      obj <- object.size(lst_full[[i]])
+      object_sizes <- c(object_sizes, obj)
+      if(obj == 0){
+        stop(sprintf('object size is 0 at list value %i', i))
+      }
+    }
+    if(any(object_sizes < .5*mean(object_sizes))){
+      warning('there are object sizes less than half the mean size. That shouldnt be.')
+    }
+  }
+
+ 
+  if(!is.null(results_file)){
+    save(lst_full, params, file = results_file)
+  }
   
   if(return_lst){
     return(lst_full)

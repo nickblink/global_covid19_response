@@ -21,15 +21,15 @@ library(cowplot)
 # MICE + WF
 
 #### combining results ####
-combine_results(input_folder = 'results/cluster_results/mar01_nost_2022_11_02/', results_file = 'results/simulation_noST_marp1_R100_11022022.Rdata')
+dropbox_results <- 'C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results'
 
-combine_results(input_folder = 'results/cluster_results/mar02_nost_2022_11_02/', results_file = 'results/simulation_noST_marp2_R100_11022022.Rdata')
+res <- combine_results(input_folder = sprintf('%s/mcar01_nost_2022_11_15', dropbox_results), return_lst = T, results_file = NULL)
 
-combine_results(input_folder = 'results/cluster_results/mar03_nost_2022_11_02/', results_file = 'results/simulation_noST_marp3_R100_11022022.Rdata')
+object_sizes <- c()
+for(i in 1:1000){
+  object_sizes <- c(object_sizes, object.size(res4[[i]]))
+}
 
-combine_results(input_folder = 'results/cluster_results/mar04_nost_2022_11_02/', results_file = 'results/simulation_noST_marp4_R100_11022022.Rdata')
-
-combine_results(input_folder = 'results/cluster_results/mar05_nost_2022_11_02/', results_file = 'results/simulation_noST_marp5_R100_11022022.Rdata')
 
 
 
@@ -74,7 +74,7 @@ plot_metrics_by_point(res = res, imp_vec = imp_vec, color_vec = color_vec, min_d
 
 #### 10/20/2022: WF Baseline, WF CCA, Epi CCAm and CAR CCA with MNAR ####
 
-R = 100
+R = 1
 
 #results_file <- 'results/simulation_noST_MNARp2_R100_10202022.RData'
 results_file <- 'C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/simulation_noST_MNARp2_R100_10202022.RData'
@@ -88,14 +88,11 @@ system.time({
     df <- lst$df_list[[i]]
     
     # simulation function!
-    df_miss <- MNAR_sim(df, p = 0.2, direction = 'upper', gamma = 1, by_facility = T)
+    df_miss <- MNAR_sim(df, p = 0, direction = 'upper', gamma = 1, by_facility = T)
     
     # run the freqGLM_epi complete case analysis
     freqGLMepi_list = freqGLMepi_CCA(df_miss, R_PI = 100, verbose = F)
     df_miss <- freqGLMepi_list$df
-    
-    # run the WF baseline (complete data) imputation
-    df_miss <- WF_baseline(df_miss, R_PI = 100)
     
     # run the WF complete case analysis model
     df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 100)
