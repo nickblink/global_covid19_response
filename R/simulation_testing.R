@@ -23,15 +23,34 @@ library(cowplot)
 #### combining results ####
 dropbox_results <- 'C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results'
 
-res <- combine_results(input_folder = sprintf('%s/mcar01_nost_2022_11_15', dropbox_results), return_lst = T, results_file = NULL)
+res <- combine_results(input_folder = sprintf('%s/mcar07_nost_2022_11_17', dropbox_results), return_lst = T, results_file = NULL)
+
+for(f in grep('mcar',dir(dropbox_results), value = T)){
+  res <- combine_results(input_folder = sprintf('%s/%s', dropbox_results,f), return_lst = T, results_file = NULL)
+}
+
+for(f in grep('mnar',dir(dropbox_results), value = T)){
+  print(f)
+  res <- combine_results(input_folder = sprintf('%s/%s', dropbox_results,f), return_lst = T, results_file = NULL)
+}
+# that is unfortunate
+
+for(f in grep('mar',dir(dropbox_results), value = T)){
+  print(f)
+  res <- combine_results(input_folder = sprintf('%s/%s', dropbox_results,f), return_lst = T, results_file = NULL)
+}
 
 object_sizes <- c()
 for(i in 1:1000){
-  object_sizes <- c(object_sizes, object.size(res4[[i]]))
+  object_sizes <- c(object_sizes, object.size(res[[i]]))
 }
 
+table(object_sizes)
+# For MCAR_05, this worked fine for 16 of them, but crashed for the rest, why? It failed for 3, 6, 7, 11
+# For MCAR_05, it was a timing error for 11. Not for the others though. Weird 
+# For MCAR_07 and 08, it was an error in R. Something "infinite or missing values in 'x'". Idk this is for me to figure out another time.
 
-
+# For MCAR_07 and MCAR_08, no results
 
 #### 10/21/2022: Comparing WF MCAR, MAR, MNAR ####
 res_folder <- 'C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results'

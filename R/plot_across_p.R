@@ -11,45 +11,63 @@ library(ggplot2)
 library(cowplot)
 
 
-#### 11/07/2022: Plotting across missingness values ####
-file_MCAR <- grep('simulation_noST_MCAR.*11022022', dir('results', full.names = T), value = T)
+#### 11/21/2022: Is the seed-setting working as planned? ####
+load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mnar0_nost_2022_11_18/simulated_data.RData')
+
+lst1 <- lst
+rm(lst)
+
+load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mcar0_nost_2022_11_16/simulated_data.RData')
+lst2 <- lst
+rm(lst)
+
+identical(lst1, lst2)
+
+# YES
+
+#### 11/21/2022: Plotting across missingness values ####
+file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
 res_MCAR <- NULL
 for(file in file_MCAR){
-  p <- stringr::str_match(file, 'MCARp(.*?)_')[[2]]
+  p <- stringr::str_match(file, 'mcar(.*?)_')[[2]]
+  print(p)
   print(file)
-  load(file)
-  res <- calculate_metrics_by_point(lst_full, imp_vec =  c("y_pred_baseline_WF", "y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
-  res$method = paste0(res$method, sprintf('_MCAR_p%s', p))
+  
+  # if a directory, combine results. If already combined, load them
+  if(dir.exists(file)){
+    lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
+  }else{
+    load(file)
+  }
+  res <- calculate_metrics_by_point(lst_full, imp_vec =  c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+  res$method = paste0(res$method, sprintf('_MCAR_p%s_', p))
   res_MCAR <- rbind(res_MCAR, res)
 }
 
 ### WF MCAR
-res_WF <- res_MCAR[grep('CCA_WF|baseline_WF_MCAR_p1', res_MCAR$method),]
+res_WF <- res_MCAR[grep('CCA_WF', res_MCAR$method),]
 imp_vec <- unique(res_WF$method)
-rename_vec <- c('p=0','p=0.1','p=0.2','p=0.3','p=0.4','p=0.5')
-color_vec <-c('black','deepskyblue','deepskyblue3','deepskyblue4','blue1','blue4')
+rename_vec <- c('prop=0','prop=0.1','prop=0.2','prop=0.3','prop=0.4','prop=0.5','prop=0.6')
+color_vec <-c('black','deepskyblue','deepskyblue3','deepskyblue4','blue1','blue2', 'blue4')
 
-plot_metrics_by_point(res = res_WF, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', rename_vec = rename_vec,
-                      min_missing = 0,  metric_list = c('bias','RMSE','coverage95','interval_width'))
+plot_metrics_by_point(res = res_WF, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', rename_vec = rename_vec, min_missing = 0,  metric_list = c('bias','RMSE','coverage95','interval_width', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'))
 
 ### CAR MCAR
 res_CAR <- res_MCAR[grep('CCA_CAR', res_MCAR$method),]
 imp_vec <- unique(res_CAR$method)
-rename_vec <- c('p=0.1','p=0.2','p=0.3','p=0.4','p=0.5')
-color_vec <-c('deepskyblue','deepskyblue3','deepskyblue4','blue1','blue4')
+rename_vec <- c('prop=0','prop=0.1','prop=0.2','prop=0.3','prop=0.4','prop=0.5','prop=0.6')
+color_vec <-c('black','deepskyblue','deepskyblue3','deepskyblue4','blue1','blue2', 'blue4')
 
-plot_metrics_by_point(res = res_CAR, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', rename_vec = rename_vec,
-                      min_missing = 0,  metric_list = c('bias','RMSE','coverage95','interval_width'))
+plot_metrics_by_point(res = res_CAR, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', rename_vec = rename_vec, min_missing = 0,  metric_list = c('bias','RMSE','coverage95','interval_width', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'))
 
 ### freqEpi MCAR
 res_freq <- res_MCAR[grep('CCA_freqGLMepi', res_MCAR$method),]
 imp_vec <- unique(res_freq$method)
-rename_vec <- c('p=0.1','p=0.2','p=0.3','p=0.4','p=0.5')
-color_vec <-c('deepskyblue','deepskyblue3','deepskyblue4','blue1','blue4')
+rename_vec <- c('prop=0','prop=0.1','prop=0.2','prop=0.3','prop=0.4','prop=0.5','prop=0.6')
+color_vec <-c('black','deepskyblue','deepskyblue3','deepskyblue4','blue1','blue2', 'blue4')
 
-plot_metrics_by_point(res = res_freq, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', rename_vec = rename_vec,
-                      min_missing = 0, max_intW_lim = 80,  metric_list = c('bias','RMSE','coverage95','interval_width'))
+plot_metrics_by_point(res = res_freq, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', rename_vec = rename_vec, min_missing = 0,  metric_list = c('bias','RMSE','coverage95','interval_width', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'))
 
 #### MNAR ####
 file_MNAR <- grep('simulation_noST_mnar.*11022022', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
@@ -137,18 +155,19 @@ head(res_CAR)
 
 plot_list = list()
 i = 0
-for(metric in c('bias', 'RMSE', 'coverage95', 'interval_width')){
+for(metric in c('bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
   i = i + 1
-  tmp <- res_MAR %>%
+  tmp <- res_MCAR %>%
   group_by(method) %>% 
   summarize(median = median(get(metric)),
             lower = stats::quantile(get(metric), probs = 0.025),
             upper = stats::quantile(get(metric), probs = 0.975))
-  str_lst <- strsplit(tmp$method, 'R_p')
+  str_lst <- strsplit(tmp$method, '_p0')
   
   tmp$method = unlist(lapply(str_lst, '[[', 1))
-  tmp$p = as.numeric(unlist(lapply(str_lst, '[[', 2)))/10
-  tmp$method <- gsub('y_pred_|_MAR', '', tmp$method)
+  tmp$p = as.numeric(gsub('_','',unlist(lapply(str_lst, '[[', 2))))/10
+  tmp$p[is.na(tmp$p)] <- 0
+  tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
   
   p1 <- ggplot(tmp, aes(x = p, y = median, ymin = lower, ymax = upper, color = method)) + 
     geom_point(position = position_dodge(width = 0.1)) + 

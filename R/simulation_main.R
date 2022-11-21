@@ -14,7 +14,7 @@ source('R/imputation_functions.R')
 registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
-inputs <- c('0.1','mcar', 'noST','1000','2','7')
+inputs <- c('0.7','mnar', 'noST','1000','250','7')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -81,6 +81,8 @@ if(job_id == 1){
 }
 
 one_run <- function(lst, i){
+  set.seed(1)
+  t0 <- Sys.time()
   print(sprintf('i = %i',i))
   df = lst$df_list[[i]]
   
@@ -93,6 +95,7 @@ one_run <- function(lst, i){
     df_miss <- MNAR_sim(df, p = p, direction = 'upper', gamma = gamma, by_facility = T)
   }
   
+  print('running freqGLM_epi')
   # run the freqGLM_epi complete case analysis
   freqGLMepi_list = freqGLMepi_CCA(df_miss, R_PI = 200, verbose = F)
   df_miss <- freqGLMepi_list$df
@@ -100,13 +103,21 @@ one_run <- function(lst, i){
   # run the WF baseline (complete data) imputation
   # df_miss <- WF_baseline(df_miss, R_PI = 100)
   
+  print('running CCA')
   # run the WF complete case analysis model
   df_miss <- WF_CCA(df_miss, col = "y", family = 'poisson', R_PI = 200)
   
+  print('running CARBayes')
   # run the CAR complete case analysis model
   df_miss <- CARBayes_CCA(df_miss, burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
 
+  print(sprintf('i = %i; time = %f minutes', i, difftime(Sys.time(), t0, units = 'm')))
+  
   return(df_miss)
+}
+
+for(i in seq){
+  one_run(lst, i)
 }
 
 # %dorng% works on the cluster. %do% works at home

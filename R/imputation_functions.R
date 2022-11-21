@@ -225,9 +225,6 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 combine_results <- function(input_folder, results_file, return_lst = FALSE, ignore_size_err = F){
   files <- dir(input_folder, full.names = T)
   files <- grep('sim_results', files, value = T)
-  if(length(files) != 10){
-    warning(sprintf('There are %i results files. Is that right?', length(files)))
-  }
   
   load(files[1])
   lst_full <- imputed_list
@@ -247,11 +244,12 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
         stop(sprintf('object size is 0 at list value %i', i))
       }
     }
-    if(any(object_sizes < .5*mean(object_sizes))){
+    if(any(object_sizes < .9*mean(object_sizes))){
       warning('there are object sizes less than half the mean size. That shouldnt be.')
     }
   }
 
+  print(sprintf('num files: %i, length of list: %s', length(files), length(lst_full)))
  
   if(!is.null(results_file)){
     save(lst_full, params, file = results_file)
@@ -605,7 +603,7 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'all', model = c(
   # run CAR Bayes
   chain1 <- ST.CARar(formula = formula_col, family = "poisson",
                      data = df, W = W, burnin = burnin, n.sample = n.sample,
-                     thin = 10, AR = AR)
+                     thin = 10, AR = AR, verbose = F)
   
   df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
   
@@ -2548,9 +2546,9 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
   
   plot_list = list()
   # plot each metric
-  for(i in 1:length(unique(long$metric))){
+  for(i in 1:length(metric_list)){
     
-    m = unique(long$metric)[i]
+    m = metric_list[i]
     
     tmp2 = long %>% filter(metric == m)
     
@@ -2703,9 +2701,9 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.26
   return(betas)
 }
 
-simulate_data <- function(district_sizes, R = 1, empirical_betas = F, ...){
+simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10, ...){
   # set seed
-  set.seed(10)
+  set.seed(seed)
   # set up data frame
   df = initialize_df(district_sizes, ...)
   
