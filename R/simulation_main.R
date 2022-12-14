@@ -14,17 +14,25 @@ source('R/imputation_functions.R')
 registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
-inputs <- c('0.7','mnar', 'noST','1000','250','7')
+inputs <- c('0.7', '6', 'n0.25', 'mcar', 'noST','1000','250','test','7')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
 # pull parameters into proper format
 p <- as.numeric(inputs[[1]])
-missingness <- tolower(inputs[[2]])
-DGP <- tolower(inputs[[3]])
-R <- as.integer(inputs[[4]])
-num_jobs <- as.integer(inputs[[5]])
-job_id <- as.integer(inputs[[6]])
+b0_mean <- as.numeric(inputs[[2]])
+b1_mean <- tryCatch({as.numeric(inputs[[3]])
+}, warning = function(w){
+  if(substr(t,1,1) == 'n'){
+    return(-as.numeric(substr(t, 2, nchar(t))))
+  }
+})
+missingness <- tolower(inputs[[4]])
+DGP <- tolower(inputs[[5]])
+R <- as.integer(inputs[[6]])
+num_jobs <- as.integer(inputs[[7]])
+output_path <- tolower(inputs[[8]])
+job_id <- as.integer(inputs[[9]])
 
 # check that proper missingness is input
 if(!(missingness %in% c('mcar','mar','mnar'))){
@@ -35,6 +43,8 @@ if(!(missingness %in% c('mcar','mar','mnar'))){
 
 # missingness parameters
 params <- list()
+params[['b0_mean']] <- b0_mean
+params[['b1_mean']] <- b1_mean
 if(missingness == 'mar'){
   params[['rho']] <- 0.7
   params[['alpha']] <- 0.7
@@ -53,7 +63,12 @@ if(job_id < num_jobs){
 
 # set up the output folder
 date <- gsub('-','_', Sys.Date())
-output_path <- sprintf('results/%s%s_%s_%s', missingness, gsub('\\.','',p), DGP, date)
+if(output_path == 'na'){
+  output_path <- sprintf('results/%s%s_%s_%s', missingness, gsub('\\.','',p), DGP, date)
+}else{
+  output_path <- sprintf('results/%s', output_path)
+}
+
 if(!file.exists(output_path)){
   dir.create(output_path, recursive = T)
 }
@@ -69,7 +84,7 @@ if(file.exists(results_file)){
 
 #### MCAR p = 0.2 no ST ####
 if(DGP == 'nost'){
-  lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01')
+  lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01', b0_mean = b0_mean, b1_mean = b1_mean)
 }else{
   stop('unrecognized data generating process')
 }

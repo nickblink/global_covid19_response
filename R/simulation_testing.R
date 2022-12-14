@@ -20,6 +20,29 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### 12/14/2022: Testing different beta generation ####
+df1 <- simulate_data(district_sizes = c(4, 6, 10), R = 2, end_date = '2020-12-01', b0_mean = 4.3, b1_mean = -0.25)$df_list[[1]]
+
+df2 <- simulate_data(district_sizes = c(4, 6, 10), R = 2, end_date = '2020-12-01', b0_mean = 6, b1_mean = -0.25)$df_list[[1]]
+
+df3 <- simulate_data(district_sizes = c(4, 6, 10), R = 2, end_date = '2020-12-01', b0_mean = 8.05, b1_mean = -1)$df_list[[1]]
+
+df4 <- simulate_data(district_sizes = c(4, 6, 10), R = 2, end_date = '2020-12-01', b0_mean = 3.05, b1_mean = 0)$df_list[[1]]
+
+mean(df2$y_exp)/mean(df1$y_exp)
+
+mean(df2$y_exp)
+
+mean(df1 %>% filter(date == '2020-01-01') %>% pull(y_exp))
+
+mean(df2 %>% filter(date == '2020-01-01') %>% pull(y_exp))
+
+mean(df3 %>% filter(date == '2020-01-01') %>% pull(y_exp))
+
+mean(df4 %>% filter(date == '2020-01-01') %>% pull(y_exp))
+
+# 1, 3, and 4 have the same mean at 1/1/2020. 2 has a higher mean. So how will the outbreak detections compare? That is a good question, my friend. To test! I will compere, my friends
+
 #### combining results ####
 dropbox_results <- 'C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results'
 

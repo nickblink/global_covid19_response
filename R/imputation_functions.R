@@ -2404,6 +2404,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       # full dataset
       tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
       tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
+      tmp$y_exp <- sapply(1:nrow(y_exp), function(ii) mean(y_exp[ii,], na.rm = T))
       tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,]))
       tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_true[,ii]}))
@@ -2658,7 +2659,7 @@ simulate_imputation <- function(df, col, p = 0.1, group = NULL){
   return(df)
 }
 
-initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = '2019-12-01'){
+initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = '2019-12-01', ...){
   facilities = unlist(lapply(1:length(district_sizes), function(xx) {paste0(toupper(letters[xx]), 1:district_sizes[xx])}))
   
   dates = seq(as.Date(start_date), as.Date(end_date), by = 'month')
@@ -2684,7 +2685,7 @@ sample_real_betas <- function(facilities, file = 'results/all_facility_betas_fil
   return(betas)
 }
 
-sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.26){
+sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.26, ...){
   betas = matrix(0, nrow = length(facilities), ncol = 8)
   
   betas[,1] = rnorm(b0_mean, 1, n = nrow(betas))
@@ -2717,7 +2718,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   if(empirical_betas){
     betas = sample_real_betas(facilities)
   }else{
-    betas = sample_betas(facilities)  
+    betas = sample_betas(facilities, ...)  
   }
   
   # initialize list of data frames

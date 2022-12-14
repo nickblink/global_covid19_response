@@ -10,6 +10,68 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 12/14/2022: Analyzing Outbreak Detection ####
+file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+res_MCAR <- NULL
+for(file in file_MCAR){
+  p <- stringr::str_match(file, 'mcar(.*?)_')[[2]]
+  print(p)
+  print(file)
+  
+  # if a directory, combine results. If already combined, load them
+  if(dir.exists(file)){
+    lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
+  }else{
+    load(file)
+  }
+  res <- calculate_metrics_by_point(lst_full, imp_vec =  c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+  res$method = paste0(res$method, sprintf('_MCAR_p%s_', p))
+  res_MCAR <- rbind(res_MCAR, res)
+}
+
+### WF MCAR
+res_WF <- res_MCAR[grep('CCA_WF', res_MCAR$method),]
+imp_vec <- unique(res_WF$method)
+rename_vec <- c('prop=0','prop=0.1','prop=0.2','prop=0.3','prop=0.4','prop=0.5','prop=0.6')
+color_vec <-c('black','deepskyblue','deepskyblue3','deepskyblue4','blue1','blue2', 'blue4')
+
+test = res_WF %>% 
+  filter(date == '2020-01-01',
+         method == 'y_pred_CCA_WF_MCAR_p06_')
+
+test2 = res_WF %>% 
+  filter(method == 'y_pred_CCA_WF_MCAR_p06_')
+
+cor(test2$y_exp,
+    test2$outbreak_detection3)
+# -0.009
+
+plot(log(test2$y_exp),
+    test2$outbreak_detection3)
+# -0.12
+
+plot(test2$y_exp,
+     test2$outbreak_detection3)
+
+plot(test$y_exp,
+     test$outbreak_detection3)
+
+plot(test$y_exp,
+    log(test$outbreak_detection3))
+
+cor(test$y_exp,
+     test$outbreak_detection3)
+# -0.12
+
+cor(log(test$y_exp),
+    test$outbreak_detection3)
+
+cor(log(test$y_exp),
+    log(test$outbreak_detection3))
+
+cor(test$y_exp,
+    log(test$outbreak_detection3))
 
 #### 11/21/2022: Is the seed-setting working as planned? ####
 load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mnar0_nost_2022_11_18/simulated_data.RData')
@@ -53,6 +115,8 @@ color_vec <-c('black','deepskyblue','deepskyblue3','deepskyblue4','blue1','blue2
 
 plot_metrics_by_point(res = res_WF, imp_vec = imp_vec, color_vec = color_vec, min_date = '2020-01-01', rename_vec = rename_vec, min_missing = 0,  metric_list = c('bias','RMSE','coverage95','interval_width', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'))
 
+
+#
 ### CAR MCAR
 res_CAR <- res_MCAR[grep('CCA_CAR', res_MCAR$method),]
 imp_vec <- unique(res_CAR$method)
