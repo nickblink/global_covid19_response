@@ -11,7 +11,9 @@ library(ggplot2)
 library(cowplot)
 
 #### 12/14/2022: Analyzing Outbreak Detection ####
-file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+# file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+file_MCAR <- grep('mcar06_nost_beta6', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
 res_MCAR <- NULL
 for(file in file_MCAR){
@@ -25,7 +27,10 @@ for(file in file_MCAR){
   }else{
     load(file)
   }
-  res <- calculate_metrics_by_point(lst_full, imp_vec =  c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+  
+  HERE AT 321pm - NEED TO COMBINE THE RESULTS PROPERLY GIVEN THE NEW FORMAT
+  
+  #res <- calculate_metrics_by_point(lst_full, imp_vec =  c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
   res$method = paste0(res$method, sprintf('_MCAR_p%s_', p))
   res_MCAR <- rbind(res_MCAR, res)
 }

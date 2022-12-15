@@ -227,6 +227,7 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
   files <- grep('sim_results', files, value = T)
   
   load(files[1])
+
   lst_full <- imputed_list
   rm(imputed_list)
   for(i in 2:length(files)){
@@ -234,11 +235,18 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
     lst_full <- c(lst_full, imputed_list)
   }
   
+  df_lst <- lapply(lst_full, '[[', 1)
+  models = names(lst_full[[1]][[2]])
+  error_lst <- NULL
+  for(m in models){
+    error_lst[[m]] <- do.call('rbind',lapply(lst_full, function(tmp) tmp$errors[[m]]))
+  }
+  
   # checking the size of the objects - can tell if there's an error
   if(!ignore_size_err){
     object_sizes <- c()
-    for(i in 1:length(lst_full)){
-      obj <- object.size(lst_full[[i]])
+    for(i in 1:length(df_lst)){
+      obj <- object.size(df_lst[[i]])
       object_sizes <- c(object_sizes, obj)
       if(obj == 0){
         stop(sprintf('object size is 0 at list value %i', i))
@@ -252,11 +260,12 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
   print(sprintf('num files: %i, length of list: %s', length(files), length(lst_full)))
  
   if(!is.null(results_file)){
-    save(lst_full, params, file = results_file)
+    save(df_lst, error_lst, params, file = results_file)
   }
   
+  res_lst <- list(df_lst = df_lst, error_lst = error_lst)
   if(return_lst){
-    return(lst_full)
+    return(res_lst)
   }
 }
 #
@@ -2738,6 +2747,8 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       
       # error checking
       if(!identical(colnames(betas), colnames(X))){
+        print(colnamaes(betas))
+        print(colnames(X))
         stop(sprintf('colnames of betas not equal to X: %s, %s',paste(colnames(betas), collapse = ';'), paste(colnames(X), collapse = ';') ))
       }
       
