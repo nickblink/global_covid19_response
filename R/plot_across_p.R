@@ -10,7 +10,15 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-#### 12/14/2022: Analyzing Outbreak Detection ####
+
+#### 12/16/2022: Plotting across methods (lost work) ####
+file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+plot_all_methods(file_MCAR[1:7])
+
+
+#
+#### 12/14/2022: Analyzing Outbreak Detection results ####
 # file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
 file_MCAR <- grep('mcar06_nost_beta6', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
@@ -78,19 +86,6 @@ cor(log(test$y_exp),
 cor(test$y_exp,
     log(test$outbreak_detection3))
 
-#### 11/21/2022: Is the seed-setting working as planned? ####
-load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mnar0_nost_2022_11_18/simulated_data.RData')
-
-lst1 <- lst
-rm(lst)
-
-load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mcar0_nost_2022_11_16/simulated_data.RData')
-lst2 <- lst
-rm(lst)
-
-identical(lst1, lst2)
-
-# YES
 
 #### 11/21/2022: Plotting across missingness values ####
 file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
@@ -251,7 +246,6 @@ for(metric in c('bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detecti
 }
 
 final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = 2), legend, ncol = 1, rel_heights = c(10,1))
-
 
 
 #### 10/21/2022: Comparing WF MCAR, MAR, MNAR ####

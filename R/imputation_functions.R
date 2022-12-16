@@ -229,18 +229,25 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
   load(files[1])
 
   lst_full <- imputed_list
+
   rm(imputed_list)
   for(i in 2:length(files)){
     load(files[i])
     lst_full <- c(lst_full, imputed_list)
   }
   
-  df_lst <- lapply(lst_full, '[[', 1)
-  models = names(lst_full[[1]][[2]])
-  error_lst <- NULL
-  for(m in models){
-    error_lst[[m]] <- do.call('rbind',lapply(lst_full, function(tmp) tmp$errors[[m]]))
+  if(length(lst_full[[1]]) == 2){
+    df_lst <- lapply(lst_full, '[[', 1)
+    models = names(lst_full[[1]][[2]])
+    error_lst <- NULL
+    for(m in models){
+      error_lst[[m]] <- do.call('rbind',lapply(lst_full, function(tmp) tmp$errors[[m]]))
+    }
+  }else{
+    df_lst <- lst_full
+    error_lst <- NULL
   }
+
   
   # checking the size of the objects - can tell if there's an error
   if(!ignore_size_err){
@@ -2610,6 +2617,76 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
   }
   
   # make the final plot
+  final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = 2), legend, ncol = 1, rel_heights = c(10,1))
+  
+  return(final_plot)
+}
+
+# plot all methods against each other
+plot_all_methods <- function(files){
+  res <- NULL
+  for(file in files){
+    p <- stringr::str_match(file, 'mcar(.*?)_')[[2]]
+    print(p)
+    print(file)
+    
+    # if a directory, combine results. If already combined, load them
+    if(dir.exists(file)){
+      lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
+    }else{
+      load(file)
+    }
+    
+    tmp <- calculate_metrics_by_point(lst_full$df_lst, imp_vec =  c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+    #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
+    tmp$prop_missing = as.numeric(p)/10
+    res <- rbind(res, tmp)
+  }
+  
+  options(dplyr.summarise.inform = FALSE)
+  
+  plot_list = list()
+  i = 0
+  for(metric in c('bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
+    i = i + 1
+    
+    if(grepl('outbreak_detection', metric)){
+      tmp <- res %>%
+        filter(date == '2020-01-01') %>%
+        group_by(method, prop_missing) %>% 
+        summarize(median = median(get(metric)),
+                  lower = stats::quantile(get(metric), probs = 0.025),
+                  upper = stats::quantile(get(metric), probs = 0.975))
+    }else{
+      tmp <- res %>%
+        group_by(method, prop_missing) %>% 
+        summarize(median = median(get(metric)),
+                  lower = stats::quantile(get(metric), probs = 0.025),
+                  upper = stats::quantile(get(metric), probs = 0.975)) 
+    }
+    
+    tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
+    
+    p1 <- ggplot() + 
+      geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, , alpha = alpha_col), fill = 'gray') +
+      geom_point(data = tmp, aes(x = prop_missing, y = median, color = method), position = position_dodge(width = 0.1)) +
+      geom_errorbar(data = tmp, aes(x = prop_missing, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
+      ylab(metric) + 
+      guides(alpha = 'none') +
+      theme_bw()
+    
+    if(grepl('outbreak_detection', metric)){
+      p1 <- p1 + ylim(c(0,1))
+    }else if(metric == 'bias'){
+      p1 <- p1 + geom_hline(yintercept = 0)
+    }
+    
+    legend = get_legend(p1 + theme(legend.position = 'bottom'))
+    p1 <- p1 + theme(legend.position = 'none')
+    
+    plot_list[[i]] <- p1
+  }
+  
   final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = 2), legend, ncol = 1, rel_heights = c(10,1))
   
   return(final_plot)
