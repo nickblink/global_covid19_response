@@ -20,6 +20,78 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### 12/16/2022: Plotting across methods ####
+file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+plot_all_methods(file_MCAR[1:7])
+#### 12/14/2022: Analyzing Outbreak Detection results ####
+# file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+file_MCAR <- grep('mcar06_nost_beta6', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+res_MCAR <- NULL
+for(file in file_MCAR){
+  p <- stringr::str_match(file, 'mcar(.*?)_')[[2]]
+  print(p)
+  print(file)
+  
+  # if a directory, combine results. If already combined, load them
+  if(dir.exists(file)){
+    lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
+  }else{
+    load(file)
+  }
+  
+  HERE AT 321pm - NEED TO COMBINE THE RESULTS PROPERLY GIVEN THE NEW FORMAT
+  
+  #res <- calculate_metrics_by_point(lst_full, imp_vec =  c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+  res$method = paste0(res$method, sprintf('_MCAR_p%s_', p))
+  res_MCAR <- rbind(res_MCAR, res)
+}
+
+### WF MCAR
+res_WF <- res_MCAR[grep('CCA_WF', res_MCAR$method),]
+imp_vec <- unique(res_WF$method)
+rename_vec <- c('prop=0','prop=0.1','prop=0.2','prop=0.3','prop=0.4','prop=0.5','prop=0.6')
+color_vec <-c('black','deepskyblue','deepskyblue3','deepskyblue4','blue1','blue2', 'blue4')
+
+test = res_WF %>% 
+  filter(date == '2020-01-01',
+         method == 'y_pred_CCA_WF_MCAR_p06_')
+
+test2 = res_WF %>% 
+  filter(method == 'y_pred_CCA_WF_MCAR_p06_')
+
+cor(test2$y_exp,
+    test2$outbreak_detection3)
+# -0.009
+
+plot(log(test2$y_exp),
+     test2$outbreak_detection3)
+# -0.12
+
+plot(test2$y_exp,
+     test2$outbreak_detection3)
+
+plot(test$y_exp,
+     test$outbreak_detection3)
+
+plot(test$y_exp,
+     log(test$outbreak_detection3))
+
+cor(test$y_exp,
+    test$outbreak_detection3)
+# -0.12
+
+cor(log(test$y_exp),
+    test$outbreak_detection3)
+
+cor(log(test$y_exp),
+    log(test$outbreak_detection3))
+
+cor(test$y_exp,
+    log(test$outbreak_detection3))
+
 #### 12/14/2022: Testing different beta generation ####
 df1 <- simulate_data(district_sizes = c(4, 6, 10), R = 2, end_date = '2020-12-01', b0_mean = 4.3, b1_mean = -0.25)$df_list[[1]]
 
