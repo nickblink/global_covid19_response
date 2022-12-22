@@ -99,73 +99,61 @@ system.time({
 
 save(res_lst, file = 'C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/results_fixed_betas_12212022.RData')
 
+load('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/results_fixed_betas_12212022.RData')
 
-# 
-# simulate_data_testing2 <- function(district_sizes = 1, R = 1, empirical_betas = F, seed = 10, ...){
-#   # set seed
-#   set.seed(seed)
-#   # set up data frame
-#   df = initialize_df(district_sizes, ...)
-#   
-#   # make periodic covariates
-#   df = add_periodic_cov(df)
-#   
-#   # get all facility names
-#   facilities = unique(df$facility)
-#   
-#   betas = matrix(c(3.108460605,	-0.334426667,	-0.253100157,	0.473832506,	-0.21421039, 0.351340989,	-0.123478103,	0.342161078), nrow = 1)
-#   
-#   colnames(betas) = c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3')
-#   rownames(betas) = facilities
-#   
-#   # initialize list of data frames
-#   df_lst = list()
-#   
-#   # make n sampled sets of data
-#   # for(i in 1:R){
-#   df_lst <- lapply(1:R, function(i){ 
-#     
-#     # simulate values given the betas
-#     tmp_lst = lapply(facilities, function(xx){
-#       tmp = df %>% filter(facility == xx)
-#       
-#       # keep the 1 for intercepts
-#       X = tmp %>% 
-#         mutate(intercept = 1) %>%
-#         dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
-#       
-#       # error checking
-#       if(!identical(colnames(betas), colnames(X))){
-#         print(colnamaes(betas))
-#         print(colnames(X))
-#         stop(sprintf('colnames of betas not equal to X: %s, %s',paste(colnames(betas), collapse = ';'), paste(colnames(X), collapse = ';') ))
-#       }
-#       
-#       # make the 8x1 beta vector for this facility
-#       beta_f = t(betas[xx,,drop = F])
-#       
-#       # get mean prediction from linear model
-#       mu = as.matrix(X)%*%beta_f
-#       tmp$y_exp = exp(mu)
-#       
-#       # simluate random values
-#       tmp$y = rpois(length(mu), exp(mu))
-#       
-#       return(tmp)
-#     })
-#     
-#     # combine values into one data frame
-#     tt <- do.call('rbind', tmp_lst)
-#     
-#     tt
-#   })
-#   # make list of values to return
-#   res_lst = list(df_list = df_lst, betas = betas)
-#   return(res_lst)
-# }
-# 
-# 
-# system.time({
-#   lst <- simulate_data_testing2(district_sizes = 1, R = 1000, end_date = '2020-12-01')
-# })
-# # samesies
+# want the E[Y], outbreak levels, mean(Y), mean(Y.975 < outbreak)
+EY <- sapply(res_lst, function(tt){
+  tmp = tt %>% filter(date == '2020-01-01')
+  tmp$y_exp
+})
+
+y <- sapply(res_lst, function(tt){
+  tmp = tt %>% filter(date == '2020-01-01')
+  tmp$y
+})
+
+mean(y)
+
+y_pred <- sapply(res_lst, function(tt){
+  tmp = tt %>% filter(date == '2020-01-01')
+  tmp$y_pred_CCA_WF
+})
+
+mean(y_pred)
+
+y_pred_upper <- sapply(res_lst, function(tt){
+  tmp = tt %>% filter(date == '2020-01-01')
+  tmp$y_pred_CCA_WF_0.975
+})
+
+mean(y_pred_upper)
+
+y_pred_lower <- sapply(res_lst, function(tt){
+  tmp = tt %>% filter(date == '2020-01-01')
+  tmp$y_pred_CCA_WF_0.025
+})
+
+mean(y_pred_lower)
+
+y_exp = EY[1]
+outbreak_3 = y_exp + 3*sqrt(y_exp)
+outbreak_5 = y_exp + 5*sqrt(y_exp)
+outbreak_10 = y_exp + 10*sqrt(y_exp)
+
+mean(y_pred_upper < outbreak_3)
+mean(y_pred_upper < outbreak_5)
+mean(y_pred_upper < outbreak_10)
+
+
+res_lst <- lapply(res_lst, function(tt){
+  tt$y_true = tt$y
+  tt
+})
+
+
+imp_vec = c("y_pred_CCA_WF")
+rename_vec = c('WF CCA')
+res <- calculate_metrics_by_point(res_lst, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = as.Date('2020-01-01'))
+
+# samesies. Good
+

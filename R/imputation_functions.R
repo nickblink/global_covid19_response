@@ -2356,7 +2356,7 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 
 # calculate the metrics for individual data points across simulated imputations
 calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F, k =NULL){
-  
+
   # filter to only be greater than the specified date
   if(!is.null(min_date)){
     print(sprintf('only getting metrics with dates on or after %s', min_date))
