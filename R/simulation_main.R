@@ -5,8 +5,8 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 #library(cowplot)
-library(doRNG)
-library(doParallel)
+#library(doRNG)
+#library(doParallel)
 
 source('R/imputation_functions.R')
 

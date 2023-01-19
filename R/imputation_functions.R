@@ -793,7 +793,6 @@ CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', 
     return(V)
   })
   
-  
   # make R sampled sets of data
   phi_lst = lapply(1:R_posterior, function(i){
     ### get the spatio-temporal random effects
@@ -816,6 +815,7 @@ CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', 
     
     return(phi_df)
   })
+  warning('am I setting phi to 0 at the start of 2020?')
   
   # rearrange phi_lst to match the format of fixed effects
   phi_by_fac <- lapply(facilities, function(f){
@@ -2645,6 +2645,12 @@ plot_all_methods <- function(files){
   
   options(dplyr.summarise.inform = FALSE)
   
+  # making the length of the alphas work for odd and even numbers
+  stripes = as.factor(rep(c(0, 1), (length(unique(res$prop_missing)) + 1)/2)[1:length(unique(res$prop_missing))])
+  rects = data.frame(xstart = seq(-0.05, max(res$prop_missing) - 0.05, by = 0.1),
+                     xend = seq(0.05, max(res$prop_missing) + 0.05, by = 0.1),
+                     stripe = stripes)
+  
   plot_list = list()
   i = 0
   for(metric in c('bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
@@ -2667,8 +2673,9 @@ plot_all_methods <- function(files){
     
     tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
     
+    #browser()
     p1 <- ggplot() + 
-      geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, , alpha = alpha_col), fill = 'gray') +
+      geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
       geom_point(data = tmp, aes(x = prop_missing, y = median, color = method), position = position_dodge(width = 0.1)) +
       geom_errorbar(data = tmp, aes(x = prop_missing, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
       ylab(metric) + 

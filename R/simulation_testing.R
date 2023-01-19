@@ -21,9 +21,12 @@ library(cowplot)
 # MICE + WF
 
 #### 12/16/2022: Plotting across methods ####
-file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+file_MCAR <- grep('mcar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
-plot_all_methods(file_MCAR[1:7])
+p1 <- plot_all_methods(file_MCAR[1:7])
+
+
+
 #### 12/14/2022: Analyzing Outbreak Detection results ####
 # file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
