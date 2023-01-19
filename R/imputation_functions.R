@@ -2686,6 +2686,8 @@ plot_all_methods <- function(files){
       p1 <- p1 + ylim(c(0,1))
     }else if(metric == 'bias'){
       p1 <- p1 + geom_hline(yintercept = 0)
+    }else if(metric == 'coverage95'){
+      p1 <- p1 + geom_hline(yintercept = 0.95)
     }
     
     legend = get_legend(p1 + theme(legend.position = 'bottom'))
