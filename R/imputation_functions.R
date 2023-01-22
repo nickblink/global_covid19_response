@@ -2683,7 +2683,7 @@ plot_all_methods <- function(files){
       theme_bw()
     
     if(grepl('outbreak_detection', metric)){
-      p1 <- p1 + ylim(c(0,1))
+      p1 <- p1 + ylim(c(0.5,1))
     }else if(metric == 'bias'){
       p1 <- p1 + geom_hline(yintercept = 0)
     }else if(metric == 'coverage95'){
