@@ -5,8 +5,8 @@ library(dplyr)
 library(lubridate)
 library(ggplot2)
 #library(cowplot)
-#library(doRNG)
-#library(doParallel)
+library(doRNG)
+library(doParallel)
 
 source('R/imputation_functions.R')
 
@@ -14,6 +14,7 @@ source('R/imputation_functions.R')
 registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
+# p b0 b1 missingness ST R #jobs name_output job_id
 inputs <- c('0.6', '6', 'n0.25', 'mcar', 'noST','500','50','test','25')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
@@ -166,6 +167,9 @@ one_run <- function(lst, i){
 
 set.seed(1)
 # %dorng% works on the cluster. %do% works at home
+# system.time({
+#   imputed_list <- foreach(i=seq) %do% one_run(lst, i)
+# })
 system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })
