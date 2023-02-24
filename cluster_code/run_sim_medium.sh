@@ -1,6 +1,6 @@
 #!/bin/bash
-#SBATCH -p short
-#SBATCH -t 0-12:00
+#SBATCH -p medium
+#SBATCH -t 0-20:00
 #SBATCH -c 10
 #SBATCH --mem=100G
 #SBATCH --mail-type=END

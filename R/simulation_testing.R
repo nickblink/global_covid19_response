@@ -20,6 +20,49 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### 2/24/2023: Getting MNAR results ####
+file_MNAR <- grep('mnar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+file_MNAR <- file_MNAR[c(2,4,6,8,10,12,15)]
+
+for(i in 1:7){
+  lst_full <- combine_results(input_folder = file_MNAR[i], return_lst = T, results_file = NULL)
+  print(lst_full$error_lst)
+}
+# ok so MNAR_03 is missing a file.
+# MNAR_06 is getting infinite and missing values for WF and CARBayes. Well I can skip that one for now anyway, right?
+
+for(file in file_MNAR){
+  # p <- stringr::str_match(file, 'mnar(.*?)_')[[2]]
+  p <- c(stringr::str_match(file, 'mcar(.*?)_')[[2]],
+                 stringr::str_match(file, 'mnar(.*?)_')[[2]],
+                 stringr::str_match(file, 'mar(.*?)_')[[2]])
+  p <- p[!is.na(p)]
+  print(p)
+}
+
+
+tt <- plot_all_methods(file_MNAR[1:6])
+
+#### 2/21/2023: Checking error handling
+file_MCAR <- grep('mcar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+file <- 'C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mcar06_nost_beta43_n025_2023_02_20'
+
+lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
+
+file <- "C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mnar06_nost_beta43_n025_2023_02_20" 
+
+lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
+
+nas <- c()
+for(i in 1:320){
+  tt <- lst_full$df_lst[[i]]
+  print(ncol(tt))
+  nas <- c(nas, sum(is.na(tt)))
+}
+
+#
 #### 01/19/2023: Plotting across methods ####
 file_MCAR <- grep('mcar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 

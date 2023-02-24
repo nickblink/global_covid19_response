@@ -2626,8 +2626,12 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
 plot_all_methods <- function(files){
   res <- NULL
   for(file in files){
-    p <- stringr::str_match(file, 'mcar(.*?)_')[[2]]
-    print(p)
+    # p <- stringr::str_match(file, 'mnar(.*?)_')[[2]]
+    p <- c(stringr::str_match(file, 'mcar(.*?)_')[[2]],
+           stringr::str_match(file, 'mnar(.*?)_')[[2]],
+           stringr::str_match(file, 'mar(.*?)_')[[2]])
+    p <- p[!is.na(p)]
+    print(sprintf('p = %s', p))
     print(file)
     
     # if a directory, combine results. If already combined, load them
