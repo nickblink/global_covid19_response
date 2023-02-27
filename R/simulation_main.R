@@ -44,6 +44,9 @@ if(!(missingness %in% c('mcar','mar','mnar'))){
 
 # missingness parameters
 params <- list()
+params[['p']] <- p
+params[['missingness']] <- missingness
+params[['DGP']] <- DGP
 params[['b0_mean']] <- b0_mean
 params[['b1_mean']] <- b1_mean
 if(missingness == 'mar'){
