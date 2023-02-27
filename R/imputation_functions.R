@@ -2623,7 +2623,7 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
 }
 
 # plot all methods against each other
-plot_all_methods <- function(files){
+plot_all_methods <- function(files, fix_axis = T, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM')){
   res <- NULL
   for(file in files){
     # p <- stringr::str_match(file, 'mnar(.*?)_')[[2]]
@@ -2641,10 +2641,20 @@ plot_all_methods <- function(files){
       load(file)
     }
     
-    tmp <- calculate_metrics_by_point(lst_full$df_lst, imp_vec =  c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+    tmp <- calculate_metrics_by_point(lst_full$df_lst, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
     #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
     tmp$prop_missing = as.numeric(p)/10
     res <- rbind(res, tmp)
+  }
+  
+  # replace the names
+  if(!is.null(rename_vec)){
+    for(i in 1:length(imp_vec)){
+      res$method = gsub(imp_vec[i], rename_vec[i], res$method)
+    }
+    
+    # make a factor so the ordering in the plots stays
+    res$method =  factor(res$method, levels = rename_vec)
   }
   
   options(dplyr.summarise.inform = FALSE)
@@ -2686,12 +2696,29 @@ plot_all_methods <- function(files){
       guides(alpha = 'none') +
       theme_bw()
     
+    # fixing the axis ranges
     if(grepl('outbreak_detection', metric)){
-      p1 <- p1 + ylim(c(0.5,1))
+      if(fix_axis){
+        p1 <- p1 + ylim(c(0.5,1))
+      }
     }else if(metric == 'bias'){
       p1 <- p1 + geom_hline(yintercept = 0)
+      if(fix_axis){
+        p1 <- p1 + ylim(c(-2, 2))
+      }
+    }else if(metric == 'RMSE'){
+      if(fix_axis){
+        p1 <- p1 + ylim(c(0, 20)) 
+      }
     }else if(metric == 'coverage95'){
       p1 <- p1 + geom_hline(yintercept = 0.95)
+      if(fix_axis){
+        p1 <- p1 + ylim(c(0.8, 1))
+      }
+    }else if(metric == 'interval_width'){
+      if(fix_axis){
+        p1 <- p1 + ylim(c(0, 70))
+      }
     }
     
     legend = get_legend(p1 + theme(legend.position = 'bottom'))
