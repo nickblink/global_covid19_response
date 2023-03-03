@@ -20,14 +20,44 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### 3/3/2023: Getting, grouping, and plotting MCAR, MAR, MNAR together ####
+
+file_MCAR <- grep('mcar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+res_MCAR <- grab_results(file_MCAR[c(1:6,11)], imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF_MCAR','CAR_MCAR','freqGLM_MCAR'))
+
+file_MAR <- grep('mar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+file_MAR <- grep('02_26', file_MAR, value = T)
+
+res_MAR <- grab_results(file_MAR, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF_MAR','CAR_MAR','freqGLM_MAR'))
+
+file_MNAR <- grep('mnar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+file_MNAR <- file_MNAR[c(2,4,6,8,10,12,15)]
+
+res_MNAR <- grab_results(file_MNAR, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF_MNAR','CAR_MNAR','freqGLM_MNAR'))
+
+res_all <- rbind(res_MCAR, res_MAR, res_MNAR)
+# save(res_all, file = 'C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/res_combined_03032023.RData')
+
+res_WF <- res_all %>%
+  filter(method %in% c('WF_MCAR', 'WF_MAR', 'WF_MNAR'))
+
+plot_all_methods(res = res_WF)
+
+#
 #### 2/27/2023: Getting (past) MCAR results ####
 file_MCAR <- grep('mcar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
 file_MCAR <- file_MCAR[c(1:6,11)]
+# file_MCAR <- file_MCAR[1]
 
 tt <- plot_all_methods(file_MCAR, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'))
-ggsave(plot = tt, filename = 'figures/MCAR_02272023.png', width = 7, height = 4)
+# ggsave(plot = tt, filename = 'figures/MCAR_02272023.png', width = 7, height = 4)
 
+
+#
 #### 2/27/2023: Getting MAR results ####
 file_MAR <- grep('mar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
@@ -42,7 +72,7 @@ file_MNAR <- grep('mnar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Re
 
 file_MNAR <- file_MNAR[c(2,4,6,8,10,12,15)]
 
-tt <- plot_all_methods(file_MNAR[1:6])
+tt <- plot_all_methods(file_MNAR)
 #ggsave(plot = tt, filename = 'figures/MNAR_02272023.png', width = 7, height = 4)
 
 #

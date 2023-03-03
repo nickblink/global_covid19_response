@@ -260,7 +260,13 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
       }
     }
     if(any(object_sizes < .9*mean(object_sizes))){
-      warning('there are object sizes less than half the mean size. That shouldnt be.')
+      ind <- which(object_sizes < .9*mean(object_sizes))
+      warning(sprintf('there are %s out of %s object sizes less than half the mean size. That shouldnt be. Removing them', length(ind), length(df_lst)))
+      if(length(ind) > 0.05*length(df_lst)){
+        stop('too many files of incomplete size.')
+      }else{
+        df_lst = df_lst[-ind]
+      }
     }
   }
 
@@ -2623,8 +2629,8 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
   return(final_plot)
 }
 
-# plot all methods against each other
-plot_all_methods <- function(files, fix_axis = T, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM')){
+# 
+grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM')){
   res <- NULL
   for(file in files){
     # p <- stringr::str_match(file, 'mnar(.*?)_')[[2]]
@@ -2658,6 +2664,23 @@ plot_all_methods <- function(files, fix_axis = T, imp_vec = c("y_pred_CCA_WF", "
     res$method =  factor(res$method, levels = rename_vec)
   }
   
+  return(res)
+}
+
+# plot all methods against each other
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), ...){
+  if(is.null(res)){
+    if(!is.null(files)){
+      res <- grab_results(files, ...)
+    }else{
+      stop('need files if not providing results')
+    }
+  }
+  
+  if(length(fix_axis) == 1){
+    fix_axis = rep(fix_axis, 7)
+  }
+  
   options(dplyr.summarise.inform = FALSE)
   
   # making the length of the alphas work for odd and even numbers
@@ -2671,24 +2694,24 @@ plot_all_methods <- function(files, fix_axis = T, imp_vec = c("y_pred_CCA_WF", "
   for(metric in c('bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
     i = i + 1
     
+    # aggregate the results by the metric and quantile of plots
     if(grepl('outbreak_detection', metric)){
       tmp <- res %>%
         filter(date == '2020-01-01') %>%
         group_by(method, prop_missing) %>% 
         summarize(median = median(get(metric)),
-                  lower = stats::quantile(get(metric), probs = 0.025),
-                  upper = stats::quantile(get(metric), probs = 0.975))
+                  lower = stats::quantile(get(metric), probs = bar_quants[1]),
+                  upper = stats::quantile(get(metric), probs = bar_quants[2]))
     }else{
       tmp <- res %>%
         group_by(method, prop_missing) %>% 
         summarize(median = median(get(metric)),
-                  lower = stats::quantile(get(metric), probs = 0.025),
-                  upper = stats::quantile(get(metric), probs = 0.975)) 
+                  lower = stats::quantile(get(metric), probs = bar_quants[1]),
+                  upper = stats::quantile(get(metric), probs = bar_quants[2])) 
     }
     
     tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
     
-    #browser()
     p1 <- ggplot() + 
       geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
       geom_point(data = tmp, aes(x = prop_missing, y = median, color = method), position = position_dodge(width = 0.1)) +
@@ -2698,27 +2721,35 @@ plot_all_methods <- function(files, fix_axis = T, imp_vec = c("y_pred_CCA_WF", "
       theme_bw()
     
     # fixing the axis ranges
-    if(grepl('outbreak_detection', metric)){
-      if(fix_axis){
-        p1 <- p1 + ylim(c(0.5,1))
-      }
-    }else if(metric == 'bias'){
+    if(metric == 'bias'){
       p1 <- p1 + geom_hline(yintercept = 0)
-      if(fix_axis){
+      if(fix_axis[1]){
         p1 <- p1 + ylim(c(-2, 2))
       }
     }else if(metric == 'RMSE'){
-      if(fix_axis){
+      if(fix_axis[2]){
         p1 <- p1 + ylim(c(0, 20)) 
       }
     }else if(metric == 'coverage95'){
       p1 <- p1 + geom_hline(yintercept = 0.95)
-      if(fix_axis){
+      if(fix_axis[3]){
         p1 <- p1 + ylim(c(0.8, 1))
       }
     }else if(metric == 'interval_width'){
-      if(fix_axis){
+      if(fix_axis[4]){
         p1 <- p1 + ylim(c(0, 70))
+      }
+    }else if(metric == 'outbreak_detection3'){
+      if(fix_axis[5]){
+        p1 <- p1 + ylim(c(0.5,1))
+      }
+    }else if(metric == 'outbreak_detection5'){
+      if(fix_axis[6]){
+        p1 <- p1 + ylim(c(0.8,1))
+      }
+    }else if(metric == 'outbreak_detection10'){
+      if(fix_axis[7]){
+        p1 <- p1 + ylim(c(0.9,1))
       }
     }
     
