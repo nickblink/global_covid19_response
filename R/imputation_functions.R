@@ -2164,7 +2164,8 @@ plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, 
 }
 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
-plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01'){
+# Also can plot the raw values if no imputations are provided
+plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', ...){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -2243,7 +2244,7 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
       # store the plot for this facility in the list
       plot_list[[iter]] = p1
     }else{
-      print('plotting baseline counts because no imputation methods are provided')
+      # print('plotting baseline counts because no imputation methods are provided')
       
       p1 <- ggplot() +
         geom_line(data = tmp, aes(x = date, y = y), size = 1) + 
@@ -2253,12 +2254,16 @@ plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T
         theme_bw() +
         theme(text = element_text(size = 10))
         
+      if(!is.null(vertical_line)){
+        p1 <- p1 + geom_vline(xintercept = as.Date(vertical_line))
+      }
+      
       plot_list[[iter]] = p1
     }
     
   }
   
-  plot_grid(plot_grid(plotlist = plot_list),legend, ncol = 1, rel_heights = c(10,1))
+  cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1))
 }
 
 # calculate the desired metrics for a set of imputation methods
@@ -2430,7 +2435,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,]))
       tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_true[,ii]}))
-      tmp$relative_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
+      tmp$relative_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])/y_exp[,ii]}))
       tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])}))
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
@@ -2668,7 +2673,7 @@ grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "
 }
 
 # plot all methods against each other
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), metrics = c('bias',  'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), ...){
   if(is.null(res)){
     if(!is.null(files)){
       res <- grab_results(files, ...)
@@ -2691,7 +2696,7 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar
   
   plot_list = list()
   i = 0
-  for(metric in c('bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
+  for(metric in metrics){
     i = i + 1
     
     # aggregate the results by the metric and quantile of plots

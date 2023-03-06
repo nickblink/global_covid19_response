@@ -39,13 +39,15 @@ file_MNAR <- file_MNAR[c(2,4,6,8,10,12,15)]
 res_MNAR <- grab_results(file_MNAR, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF_MNAR','CAR_MNAR','freqGLM_MNAR'))
 
 res_all <- rbind(res_MCAR, res_MAR, res_MNAR)
+
 # save(res_all, file = 'C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/res_combined_03032023.RData')
 
 res_WF <- res_all %>%
   filter(method %in% c('WF_MCAR', 'WF_MAR', 'WF_MNAR'))
 
-plot_all_methods(res = res_WF)
+tt <- plot_all_methods(res = res_WF, fix_axis = F, metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'))
 
+ggsave(plot = tt, filename = 'figures/WF_comparison_03062023.png', width = 7, height = 4)
 #
 #### 2/27/2023: Getting (past) MCAR results ####
 file_MCAR <- grep('mcar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
