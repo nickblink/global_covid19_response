@@ -15,13 +15,13 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST R #jobs name_output job_id
-inputs <- c('0.6', '6', 'n0.25', 'mcar', 'noST','500','50','test','25')
+inputs <- c('0.6', '6/4.3', 'n0.25', 'mcar', 'noST','500','50','test','25')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
 # pull parameters into proper format
 p <- as.numeric(inputs[[1]])
-b0_mean <- as.numeric(inputs[[2]])
+b0_mean <- as.numeric(strsplit(inputs[[2]], '/')[[1]])
 b1_mean <- tryCatch({as.numeric(inputs[[3]])
 }, warning = function(w){
   if(substr(inputs[[3]],1,1) == 'n'){

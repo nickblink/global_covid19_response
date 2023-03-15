@@ -149,4 +149,43 @@ end_mean = mean(unlist(sapply(1:R, function(ii) {
 
 print(sprintf('The average starting value is %s and the average value at 01-01-2020 is %s', begin_mean, end_mean))
 ```
+## Situation 2: b0 = 6: b1 = 0
+```{r, echo = F, fig.height = 7}
+inputs <- c('0.6', '6', '0', 'mcar', 'noST','10','50','test','25')
 
+# pull parameters into proper format
+p <- as.numeric(inputs[[1]])
+b0_mean <- as.numeric(inputs[[2]])
+b1_mean <- tryCatch({as.numeric(inputs[[3]])
+}, warning = function(w){
+  if(substr(inputs[[3]],1,1) == 'n'){
+    return(-as.numeric(substr(inputs[[3]], 2, nchar(inputs[[3]]))))
+  }
+})
+missingness <- tolower(inputs[[4]])
+DGP <- tolower(inputs[[5]])
+R <- as.integer(inputs[[6]])
+num_jobs <- as.integer(inputs[[7]])
+output_path <- tolower(inputs[[8]])
+job_id <- as.integer(inputs[[9]])
+
+lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01', b0_mean = b0_mean, b1_mean = b1_mean)
+
+plot_facility_fits(lst[[1]], imp_vec = NULL)
+
+begin_mean = mean(unlist(sapply(1:R, function(ii) {
+  res = lst$df_list[[ii]] %>% 
+    filter(date == '2016-01-01') %>%
+    summarize(mean(y))
+  return(res)
+})), na.rm = T)
+
+end_mean = mean(unlist(sapply(1:R, function(ii) {
+  res = lst$df_list[[ii]] %>% 
+    filter(date == '2020-01-01') %>%
+    summarize(mean(y))
+  return(res)
+})), na.rm = T)
+
+print(sprintf('The average starting value is %s and the average value at 01-01-2020 is %s', begin_mean, end_mean))
+```

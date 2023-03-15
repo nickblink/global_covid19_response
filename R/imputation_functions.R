@@ -2851,7 +2851,13 @@ sample_real_betas <- function(facilities, file = 'results/all_facility_betas_fil
 sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.26, ...){
   betas = matrix(0, nrow = length(facilities), ncol = 8)
   
-  betas[,1] = rnorm(b0_mean, 1, n = nrow(betas))
+  if(length(b0_mean) == 1){
+    betas[,1] = rnorm(mean = b0_mean, sd = 1, n = nrow(betas))
+  }else{
+    u = sample(b0_mean, nrow(betas), replace = T)
+    betas[, 1] = rnorm(mean = u, sd = 1, n = nrow(betas))
+  }
+  
   betas[,2] = rnorm(b1_mean, b1_sd, n = nrow(betas))
   
   for(j in 3:8){
