@@ -287,6 +287,8 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
 # Weingberger-Fulcher imputation method
 WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
+  print(sprintf('family is %s', family))
+  
   # check if this method has already been run
   if(any(grepl('y_pred_WF', colnames(df)))){
     print('previous WF predictions found. Removing them')
@@ -340,16 +342,17 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
       tt <- df %>% filter(get(group) == xx)
       mod_col <- glm(formula_col, data = tt, family=poisson)
       
-      # if(xx == 'A3'){
-      #   browser()
-      # }
-      
       tt[,paste0(col, '_pred_WF')] = predict(mod_col, tt, type = 'response')
       
       if(R_PI > 0){
         # extract information from model fit
         beta_hat <- mod_col$coefficients
         beta_vcov <- vcov(mod_col)
+        
+        # store the model results to return
+        model_res = list()
+        model_res[[xx]][['beta_hat']] <- beta_hat
+        model_res[[xx]][['beta_vcov']] <- beta_vcov
         
         # bootstrap 
         sapply(1:R_PI, function(r){
@@ -377,28 +380,41 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
         tt = cbind(tt, fitted_quants)
         
       }
-      tmp_lst = list(tt, sim.boot)
+      tmp_lst = list(tt, sim.boot, model_res)
       return(tmp_lst)
     })
     
+    betas <- do.call('rbind',lapply(1:length(tmp), function(ii){
+      tmp_fac <- tmp[[ii]][[3]]
+      tt <- matrix(NA, ncol = 8)
+      tt[1,] <- tmp_fac[[1]][[1]]
+      rownames(tt) <- names(tmp_fac)
+      colnames(tt) <- names(tmp_fac[[1]][[1]])
+      return(tt)
+    }))
+    
+    beta_vcovs <- lapply(1:length(tmp), function(ii){
+      return(tmp[[ii]][[3]])
+    })
+    
     # combine the individual facility results into a larger data frame
-    #df <- data.table::rbindlist(lapply(tmp,'[[',1))
     df <- do.call('rbind',lapply(tmp,'[[',1))
     
     # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
     sim.full = Reduce('+', lapply(tmp, '[[', 2))
     
-    # get the quantiles at the county level
-    county_quants = t(apply(sim.full, 1, function(xx){
-      quantile(xx, probs = quant_probs)
-    }))
-    county_quants = as.data.frame(county_quants)
-    colnames(county_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
-    county_quants$date = tmp[[1]][[1]]$date
+    # (older code not accounting for multiple counties in the data)
+    # # get the quantiles at the county level
+    # county_quants = t(apply(sim.full, 1, function(xx){
+    #   quantile(xx, probs = quant_probs)
+    # }))
+    # county_quants = as.data.frame(county_quants)
+    # colnames(county_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
+    # county_quants$date = tmp[[1]][[1]]$date
 
   }
   
-  res_lst = list(df = df, county_fit = county_quants)
+  res_lst = list(df = df, betas = betas, beta_vcovs = beta_vcovs)
   return(res_lst)
 }
 
@@ -411,6 +427,7 @@ WF_CCA <- function(df, train_end_date = '2019-12-01', ...){
   res <- WF_imputation(tmp, ...)
   
   # store the results and return the original y values
+  # This is because the y values in 2020 are returned as NA from WF_imputation
   tmp <- res$df
   tmp = merge(tmp %>% select(-y),
               df %>% select(date, facility, y),
@@ -420,7 +437,9 @@ WF_CCA <- function(df, train_end_date = '2019-12-01', ...){
   # rename columns of the results
   colnames(tmp) <- gsub('y_pred_WF', 'y_pred_CCA_WF', colnames(tmp)) 
   
-  return(tmp)
+  res$df <- tmp
+  
+  return(res)
 }
 
 # Run Weinberger-Fulcher (WF) model using all observed data with no missingness as a baseline comparison.

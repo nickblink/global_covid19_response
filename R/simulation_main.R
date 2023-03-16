@@ -106,7 +106,7 @@ errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
                  CARBayes = data.frame(i = NULL, error = NULL))
 
 # function to run all models for a specific dataset
-one_run <- function(lst, i){
+one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   t0 <- Sys.time()
   print(sprintf('i = %i',i))
   df = lst$df_list[[i]]
@@ -121,52 +121,56 @@ one_run <- function(lst, i){
   }
   
   # initializing the return list
-  return_list <- list(df_miss = df_miss, errors = errors)
+  return_list <- list(df_miss = df_miss, errors = errors, WF_betas = NULL)
   rm(df_miss)
   
   # run the freqGLM_epi complete case analysis
-  print('running freqGLM_epi')
-  return_list <- tryCatch({
-    freqGLMepi_list = freqGLMepi_CCA(return_list[['df_miss']], R_PI = 200, verbose = F)
-    return_list[['df_miss']] <- freqGLMepi_list$df
-    return_list
-  }, error = function(e){
-    return_list[['errors']][['freqEpi']] <- rbind(return_list[['errors']][['freqEpi']], data.frame(i, error = e[[1]]))
-    return_list
-  })
+  if('freq' %in% models){
+    print('running freqGLM_epi')
+    return_list <- tryCatch({
+      freqGLMepi_list = freqGLMepi_CCA(return_list[['df_miss']], R_PI = 200, verbose = F)
+      return_list[['df_miss']] <- freqGLMepi_list$df
+      return_list
+    }, error = function(e){
+      return_list[['errors']][['freqEpi']] <- rbind(return_list[['errors']][['freqEpi']], data.frame(i, error = e[[1]]))
+      return_list
+    })
+  }
   
   
   # run the WF complete case analysis model
-  print('running CCA')
-  return_list <- tryCatch({
-    return_list[['df_miss']] <- WF_CCA(return_list[['df_miss']], col = "y", family = 'poisson', R_PI = 200)
-    return_list
-  }, error = function(e){
-    return_list[['errors']][['WF']] <- rbind(return_list[['errors']][['WF']], data.frame(i = i, error = e[[1]]))
-    return_list
-  })
+  if('WF' %in% models){
+    print('running WF CCA')
+    return_list <- tryCatch({
+      res <- WF_CCA(return_list[['df_miss']], col = "y", family = 'poisson', R_PI = 200)
+      return_list[['df_miss']] <- res$df
+      return_list[['WF_betas']] <- res$betas
+      return_list
+    }, error = function(e){
+      return_list[['errors']][['WF']] <- rbind(return_list[['errors']][['WF']], data.frame(i = i, error = e[[1]]))
+      return_list
+    })
+  }
+  
   
   # run the CAR complete case analysis model
-  print('running CARBayes')
-  return_list <- tryCatch({
-    return_list[['df_miss']] <- CARBayes_CCA(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
-    return_list
-  }, error = function(e){
-    print(e)
-    return_list[['errors']][['CARBayes']] <- rbind(return_list[['errors']][['CARBayes']], data.frame(i, error = e[[1]]))
-    return_list
-  })
+  if('CAR' %in% models){
+    print('running CARBayes')
+    return_list <- tryCatch({
+      return_list[['df_miss']] <- CARBayes_CCA(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      return_list
+    }, error = function(e){
+      print(e)
+      return_list[['errors']][['CARBayes']] <- rbind(return_list[['errors']][['CARBayes']], data.frame(i, error = e[[1]]))
+      return_list
+    })
+  }
+  
 
   print(sprintf('i = %i; time = %f minutes', i, difftime(Sys.time(), t0, units = 'm')))
   
   return(return_list)
 }
-
-# 
-# for(i in seq){
-#   one_run(lst, i)
-# }
-# test <- one_run(lst, 25)
 
 set.seed(1)
 # %dorng% works on the cluster. %do% works at home
@@ -177,5 +181,7 @@ system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })
 
-save(imputed_list, seq, params, file = results_file)
+true_betas <- lst$betas
+
+save(imputed_list, seq, params, true_betas, file = results_file)
 
