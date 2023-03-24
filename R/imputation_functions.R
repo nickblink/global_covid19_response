@@ -276,7 +276,7 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
     save(df_lst, error_lst, params, file = results_file)
   }
   
-  res_lst <- list(df_lst = df_lst, error_lst = error_lst)
+  res_lst <- list(df_lst = df_lst, error_lst = error_lst, params = params)
   if(return_lst){
     return(res_lst)
   }
@@ -2671,10 +2671,15 @@ grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "
     }else{
       load(file)
     }
+    print(lst_full$params)
     
     tmp <- calculate_metrics_by_point(lst_full$df_lst, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
     #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
     tmp$prop_missing = as.numeric(p)/10
+    
+    tmp$b0_mean <- paste(as.character(lst_full$params$b0_mean), collapse = '/')
+    tmp$b1_mean <- paste(as.character(lst_full$params$b1_mean), collapse = '/')
+    
     res <- rbind(res, tmp)
   }
   
@@ -2692,7 +2697,7 @@ grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "
 }
 
 # plot all methods against each other
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), metrics = c('bias',  'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), ...){
   if(is.null(res)){
     if(!is.null(files)){
       res <- grab_results(files, ...)

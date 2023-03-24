@@ -20,6 +20,33 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### 3/24/2023: Getting, grouping, and plotting different beta runs together ####
+file_MCAR <- grep('2023_03_16', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+res_MCAR <- grab_results(file_MCAR, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF_MCAR','CAR_MCAR','freqGLM_MCAR')) %>%
+  filter(method == 'WF_MCAR')
+
+res_MCAR$method = paste0('WF_b0_', res_MCAR$b0_mean, '_b1_', res_MCAR$b1_mean)
+
+res_1 = res_MCAR %>% filter(method %in% c('WF_b0_4.3_b1_-0.25',
+                        'WF_b0_6/4.3_b1_-0.25',
+                        'WF_b0_6_b1_-0.25'))
+
+res_2 = res_MCAR %>% filter(method %in% c('WF_b0_4.3_b1_-0.25',
+                                          'WF_b0_6_b1_-0.25',
+                                          "WF_b0_6_b1_0",
+                                          "WF_b0_4.3_b1_0"))
+tt <- plot_all_methods(res = res_1, 
+                       fix_axis = F) 
+                       #metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'))
+
+tt2 <- plot_all_methods(res = res_2, 
+                       fix_axis = F) 
+
+#ggsave(plot = tt, filename = 'figures/WF_beta_comparison_03242023.png', width = 7, height = 4)
+
+#ggsave(plot = tt2, filename = 'figures/WF_beta_comparison2_03242023.png', width = 7, height = 4)
+
 #### 3/3/2023: Getting, grouping, and plotting MCAR, MAR, MNAR together ####
 
 file_MCAR <- grep('mcar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
