@@ -236,8 +236,9 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
     lst_full <- c(lst_full, imputed_list)
   }
   
-  if(length(lst_full[[1]]) == 2){
+  if(length(lst_full[[1]]) >= 2){
     df_lst <- lapply(lst_full, '[[', 1)
+    WF_lst <- lapply(lst_full, '[[', 3)
     models = names(lst_full[[1]][[2]])
     error_lst <- NULL
     for(m in models){
@@ -276,7 +277,11 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
     save(df_lst, error_lst, params, file = results_file)
   }
   
-  res_lst <- list(df_lst = df_lst, error_lst = error_lst, params = params)
+  res_lst <- list(df_lst = df_lst, 
+                  error_lst = error_lst, 
+                  WF_lst = WF_lst,
+                  params = params, 
+                  true_betas = true_betas)
   if(return_lst){
     return(res_lst)
   }
@@ -2671,8 +2676,7 @@ grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "
     }else{
       load(file)
     }
-    print(lst_full$params)
-    
+     
     tmp <- calculate_metrics_by_point(lst_full$df_lst, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
     #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
     tmp$prop_missing = as.numeric(p)/10

@@ -20,6 +20,77 @@ library(cowplot)
 # FreqGLM_epi + WF
 # MICE + WF
 
+#### 3/25/2023: Analyzing coefficients' results ####
+file <- "C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mcar01_betatest_nost_beta43_n025_2023_03_16"
+
+lst <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
+
+est_betas <- Reduce("+", lst$WF_lst)/length(lst$WF_lst)
+
+bias <- est_betas - lst$true_betas
+colnames(bias)[1] <- 'intercept'
+
+res2 <- NULL
+for(col in colnames(bias)){
+  
+  x <- bias[,col]
+  
+  res2 <- rbind(res2,
+                data.frame(beta = col,
+                           bias = mean(x),
+                           lower = stats::quantile(x, probs = 0.25),
+                           upper = stats::quantile(x, probs = 0.75)))
+}
+
+res2$beta <- factor(res2$beta, levels = res2$beta)
+ggplot() + 
+  geom_point(data = res2, aes(x = beta, y = bias), position = position_dodge(width = 0.1)) +
+  geom_errorbar(data = res2, aes(x = beta, y = bias, ymin = lower, ymax = upper), position = position_dodge(width = 0.1)) +
+  geom_hline(yintercept = 0) + 
+  ylab('coefficient bias') + 
+  guides(alpha = 'none') +
+  ggtitle('coefficient bias across facilities') +
+  theme_bw()
+
+#
+#### 3/25/2023: Plotting bias by date ####
+file <- "C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mcar02_nost_beta6_n025_2023_03_16" 
+
+res <- grab_results(file, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF_MCAR','CAR_MCAR','freqGLM_MCAR')) %>%
+  filter(method == 'WF_MCAR')
+
+tmp <- res %>%
+  group_by(method, prop_missing, date) %>% 
+  summarize(median = median(bias),
+            lower = stats::quantile(bias, probs = 0.25),
+            upper = stats::quantile(bias, probs = 0.75)) 
+
+ggplot() + 
+  geom_point(data = tmp, aes(x = date, y = median, color = method), position = position_dodge(width = 0.1)) +
+  geom_errorbar(data = tmp, aes(x = date, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
+  geom_hline(yintercept = 0) + 
+  ylab('bias') + 
+  guides(alpha = 'none') +
+  ggtitle('bias from all facilities') 
+  theme_bw()
+
+  tmp <- res %>%
+    group_by(method, prop_missing, date, facility) %>% 
+    summarize(median = median(bias),
+              lower = stats::quantile(bias, probs = 0.25),
+              upper = stats::quantile(bias, probs = 0.75)) 
+  
+  ggplot() + 
+    facet_wrap(vars(facility)) +
+    geom_point(data = tmp, aes(x = date, y = median, color = method), position = position_dodge(width = 0.1)) +
+    #geom_errorbar(data = tmp, aes(x = date, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
+    geom_hline(yintercept = 0) + 
+    ylab('bias') + 
+    guides(alpha = 'none') +
+    ggtitle('bias from each facilities') +
+  theme_bw()
+  
+#
 #### 3/24/2023: Getting, grouping, and plotting different beta runs together ####
 file_MCAR <- grep('2023_03_16', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
