@@ -52,6 +52,9 @@ ggplot() +
   ggtitle('coefficient bias across facilities') +
   theme_bw()
 
+
+plot(lst$true_betas[,1], bias[,1], xlab = 'true beta', ylab = 'bias')
+
 #
 #### 3/25/2023: Plotting bias by date ####
 file <- "C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mcar02_nost_beta6_n025_2023_03_16" 

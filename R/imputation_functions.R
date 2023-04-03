@@ -407,15 +407,7 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
     
     # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
     sim.full = Reduce('+', lapply(tmp, '[[', 2))
-    
-    # (older code not accounting for multiple counties in the data)
-    # # get the quantiles at the county level
-    # county_quants = t(apply(sim.full, 1, function(xx){
-    #   quantile(xx, probs = quant_probs)
-    # }))
-    # county_quants = as.data.frame(county_quants)
-    # colnames(county_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
-    # county_quants$date = tmp[[1]][[1]]$date
+  
 
   }
   
