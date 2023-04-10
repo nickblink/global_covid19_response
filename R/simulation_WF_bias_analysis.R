@@ -69,12 +69,34 @@ run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000, model_form = NULL){
 
 b0_vec = 1:10
 bias_lst = lapply(b0_vec, function(b0){
-  run_sim(b0, b1 = 0, seasonal = F, model_form = 'y ~ 1', R = 10000)
+  run_sim(b0, b1 = 0, seasonal = F, model_form = 'y ~ 1', R = 20000)
 })
 
 mean_bias = unlist(lapply(bias_lst, '[[', 1))
 median_bias = unlist(lapply(bias_lst, '[[', 2))
 df = bias_lst[[1]][[3]]
+
+## Comparing the sum of y and the expected sum
+res <- NULL
+for(i in 1:10){
+  df = bias_lst[[i]][[3]]
+  res <- rbind(res, data.frame(mean_y = mean(df$sum_y)/48, exp_y = exp(i)))
+}
+
+res$diff = res$mean_y - res$exp_y
+res$diff_prop = res$diff/res$exp_y
+res$diff_log = log(res$mean_y) - log(res$exp_y)
+# mean_y        exp_y          diff     diff_prop
+# 1      2.717563     2.718282 -0.0007193285 -2.646262e-04
+# 2      7.388131     7.389056 -0.0009248489 -1.251647e-04
+# 3     20.080845    20.085537 -0.0046921315 -2.336075e-04
+# 4     54.590853    54.598150 -0.0072969081 -1.336475e-04
+# 5    148.416144   148.413159  0.0029846474  2.011040e-05
+# 6    403.416885   403.428793 -0.0119080761 -2.951717e-05
+# 7   1096.658133  1096.633158  0.0249749049  2.277417e-05
+# 8   2980.938670  2980.957987 -0.0193172501 -6.480215e-06
+# 9   8102.992999  8103.083928 -0.0909286171 -1.122148e-05
+# 10 22026.336354 22026.465795 -0.1294406401 -5.876596e-06
 
 plot(density(df$bias))
 cor(df)
