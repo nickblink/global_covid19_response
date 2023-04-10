@@ -1,9 +1,12 @@
 library(MASS)
 library(Matrix)
 library(dplyr)
+library(lubridate)
 
+current_path <- rstudioapi::getActiveDocumentContext()$path
+setwd(dirname(current_path))
+setwd('../')
 source('R/imputation_functions.R')
-
 
 run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000){
   df = initialize_df(district_sizes = 1)
@@ -35,10 +38,8 @@ run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000){
     
     return(tmp)
   })
-  
-  
+
   model_form <- as.formula("y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
-  
   
   beta_hats <- sapply(sim_lst, function(sim_data){
     mod_col <- glm(model_form, data = sim_data, family=poisson)
@@ -46,15 +47,28 @@ run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000){
     return(beta_hat)
   })
   
-  bias = rowMeans(beta_hats)[1] - b0
+  bias_res <- as.data.frame(t(sapply(1:R, function(ii){
+    y <- sim_lst[[ii]]$y
+    tmp <- matrix(c(sum(y == 0), sum(y), beta_hats[1, ii] - b0))
+    return(tmp)
+  })))
+  colnames(bias_res) = c('zeros', 'sum_y', 'bias')
   
-  return(bias)
+  mean_bias = rowMeans(beta_hats)[1] - b0
+  median_bias = median(beta_hats[1,]) - b0
+  
+  lst = list(mean_bias = mean_bias, median_bias = median_bias, bias_res)
+  return(lst)
 }
 
 b0_vec = 1:10
-bias_vec = sapply(b0_vec, function(b0){
-  run_sim(b0, b1 = 0, seasonal = F, R = 1000)
+bias_lst = lapply(b0_vec, function(b0){
+  run_sim(b0, b1 = 0, seasonal = F, R = 10000)
 })
 
-plot(b0_vec, bias_vec, xlab = 'true b0 (intercept)', ylab = 'b0 estimate bias')
+mean_bias = unlist(lapply(bias_lst, '[[', 1))
+median_bias = unlist(lapply(bias_lst, '[[', 2))
+
+plot(b0_vec, mean_bias, xlab = 'true b0 (intercept)', ylab = 'b0 estimate bias', main = 'black = mean; blue = median')
+points(b0_vec, median_bias, col = 'blue')
 abline(a = 0, b = 0, col= 'red')
