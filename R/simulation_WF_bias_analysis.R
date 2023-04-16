@@ -69,7 +69,7 @@ run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000, model_form = NULL){
 
 b0_vec = 1:10
 bias_lst = lapply(b0_vec, function(b0){
-  run_sim(b0, b1 = 0, seasonal = F, model_form = 'y ~ 1', R = 20000)
+  run_sim(b0, b1 = 0, seasonal = F, model_form = 'y ~ 1', R = 10000)
 })
 
 mean_bias = unlist(lapply(bias_lst, '[[', 1))
@@ -114,3 +114,14 @@ abline(h = 0, col = 'blue')
 plot(b0_vec, mean_bias, xlab = 'true b0 (intercept)', ylab = 'b0 estimate bias', main = 'black = mean; blue = median')
 points(b0_vec, median_bias, col = 'blue')
 abline(a = 0, b = 0, col= 'red')
+
+##### Testing the MLE bias and what not
+
+tmp = data.frame(y = rpois(50, exp(1)))
+mod_col <- glm('y ~ 1', data = tmp, family=poisson)
+
+mean_y = mean(tmp$y)
+log(mean_y) - mod_col$coefficients
+# ok so it's the same
+
+# so I want to compare
