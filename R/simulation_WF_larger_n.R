@@ -173,4 +173,7 @@ system.time({
 
 true_betas12 <- lst12$betas
 
-save(imputed_list4, imputed_list8, imputed_list12, true_betas4, true_betas8, true_betas12, file = 'data/WF_n_comparisons_04162023.RData')
+# save(imputed_list4, imputed_list8, imputed_list12, true_betas4, true_betas8, true_betas12, file = 'TOTHERIGHTFOLDER/data/WF_n_comparisons_04162023.RData')
+
+
+
