@@ -11,15 +11,76 @@ library(ggplot2)
 library(cowplot)
 
 
-## 7 different approaches. 
-# WF full data
-# WF CCA
-# Bayes CCA
-# FreqGLM_epi CCA
-# Bayes + WF
-# FreqGLM_epi + WF
-# MICE + WF
+#### 4/21/2023: Comparing size of training data on results ####
+load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/WF_n_comparisons_04162023.RData')
 
+imp_vec = c("y_pred_CCA_WF")
+lst4 <- lapply(imputed_list4, '[[', 1)
+res4 <- calculate_metrics_by_point(lst4, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+
+lst8 <- lapply(imputed_list8, '[[', 1)
+res8 <- calculate_metrics_by_point(lst8, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+
+lst12 <- lapply(imputed_list12, '[[', 1)
+res12 <- calculate_metrics_by_point(lst12, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+
+res4$method = 'WF_4yr'
+res8$method = 'WF_8yr'
+res12$method = 'WF_12yr'
+
+res <- rbind(res4, res8, res12)
+res$method = factor(res$method, levels = c('WF_4yr', 'WF_8yr', 'WF_12yr'))
+res$prop_missing = .01
+
+plot_all_methods(res = res, fix_axis = F)
+
+###
+
+beta4 <- lapply(imputed_list4, '[[', 3)
+beta8 <- lapply(imputed_list8, '[[', 3)
+beta12 <- lapply(imputed_list12, '[[', 3)
+
+plot_beta_bias <- function(beta_estimates, true_betas, title = 'coefficient bias across facilities'){
+  est_betas <- Reduce("+", beta_estimates)/length(beta_estimates)
+  
+  bias <- est_betas - true_betas
+  colnames(bias)[1] <- 'intercept'
+  
+  res2 <- NULL
+  for(col in colnames(bias)){
+    
+    x <- bias[,col]
+    
+    res2 <- rbind(res2,
+                  data.frame(beta = col,
+                             bias = mean(x),
+                             lower = stats::quantile(x, probs = 0.25),
+                             upper = stats::quantile(x, probs = 0.75)))
+  }
+  
+  res2$beta <- factor(res2$beta, levels = res2$beta)
+  p1 <- ggplot() + 
+    geom_point(data = res2, aes(x = beta, y = bias), position = position_dodge(width = 0.1)) +
+    geom_errorbar(data = res2, aes(x = beta, y = bias, ymin = lower, ymax = upper), position = position_dodge(width = 0.1)) +
+    geom_hline(yintercept = 0) + 
+    ylab('coefficient bias') + 
+    ylim(-.01, .002) + 
+    guides(alpha = 'none') +
+    ggtitle(title) +
+    theme_bw()
+  
+  return(p1)
+}
+
+plot_beta_bias(beta4, true_betas4, title = 'bias from 4 years training data')
+
+plot_beta_bias(beta8, true_betas8, title = 'bias from 8 years training data')
+
+plot_beta_bias(beta12, true_betas12, title = 'bias from 12 years training data')
+
+
+  
+#
 #### 3/25/2023: Analyzing coefficients' results ####
 file <- "C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mcar01_betatest_nost_beta43_n025_2023_03_16"
 
