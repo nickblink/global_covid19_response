@@ -2180,8 +2180,9 @@ plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, 
 }
 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
-# Also can plot the raw values if no imputations are provided
-plot_facility_fits <- function(df, imp_vec, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', ...){
+# Also can plot the raw values if no imputations are provided (imp_vec is NULL)
+### Parameters
+plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', ...){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -2868,7 +2869,7 @@ sample_real_betas <- function(facilities, file = 'results/all_facility_betas_fil
   return(betas)
 }
 
-sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.26, ...){
+sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25, ...){
   betas = matrix(0, nrow = length(facilities), ncol = 8)
   
   if(length(b0_mean) == 1){
