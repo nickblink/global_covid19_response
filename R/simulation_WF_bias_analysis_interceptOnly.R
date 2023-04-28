@@ -19,13 +19,20 @@ run_sim <- function(b0, n = 50, R = 10000){
 # simulate for beta0 values ranging from 1 to 10
 b0_vec = 1:10
 bias_vec = sapply(b0_vec, function(b0){
-  run_sim(b0, n = 50, R = 10000)
+  run_sim(b0, n = 50, R = 20000)
 })
 
 # plot the results
-plot(b0_vec, bias_vec, xlab = 'true b0', ylab = 'b0 bias')
+plot(b0_vec, bias_vec, xlab = 'true b0', ylab = 'b0 bias',  
+     main = 'black = empirical; blue = analytic')
 abline(h = 0, col = 'red')
 
+bias_analytic = -1/(2*50*exp(b0_vec))
+
+points(b0_vec, bias_analytic, col = 'blue')
+
+
+^HERE!
 
 #### Now with b0 and b1 ####
 # function to run the simulation for one set of beta values
@@ -73,3 +80,15 @@ abline(h = 0, col = 'red')
 
 plot(b1_vec, bias2[,2], xlab = 'true b1', ylab = 'b1 bias')
 abline(h = 0, col = 'red')
+
+
+#### Analytic expectation of variance ####
+# -1/(2n * E[y_exp]) = -1/(2n * exp(b0))
+
+b0_vec = 1:10
+
+y = -1/(2*50*exp(b0_vec))
+
+plot(b0_vec, y)
+
+

@@ -171,8 +171,6 @@ system.time({
 
 true_betas12 <- lst12$betas
 
-# save(imputed_list4, imputed_list8, imputed_list12, true_betas4, true_betas8, true_betas12, file = 'TOTHERIGHTFOLDER/data/WF_n_comparisons_04162023.RData')
-
 ## 20 years
 # Simulate the data
 if(DGP == 'nost'){
@@ -187,4 +185,4 @@ system.time({
 
 true_betas20 <- lst20$betas
 
-save(imputed_list4, imputed_list8, imputed_list12, imputed_list20, true_betas4, true_betas8, true_betas20, file = 'data/WF_n_comparisons_04272023.RData')
+save(imputed_list4, imputed_list8, imputed_list12, imputed_list20, true_betas4, true_betas8, true_betas12, true_betas20, file = 'C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/WF_n_comparisons_04272023.RData')

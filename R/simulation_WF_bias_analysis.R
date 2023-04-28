@@ -27,6 +27,18 @@ run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000, model_form = NULL){
     as.matrix()
   
   mu = X%*%betas
+  y_exp = exp(mu)
+  
+  # the not good lin alg way
+  tt = lapply(1:nrow(X), function(i){
+    x = X[i,]
+    res = y_exp[i]*x%*%t(x)
+    return(res)
+  })
+  
+  H1 = -Reduce("+", tt) / length(tt)
+  
+  browser()
   
   sim_lst <- lapply(1:R, function(i){
     tmp = df
@@ -115,7 +127,7 @@ plot(b0_vec, mean_bias, xlab = 'true b0 (intercept)', ylab = 'b0 estimate bias',
 points(b0_vec, median_bias, col = 'blue')
 abline(a = 0, b = 0, col= 'red')
 
-##### Testing the MLE bias and what not
+##### Testing the MLE bias and what not ####
 
 tmp = data.frame(y = rpois(50, exp(1)))
 mod_col <- glm('y ~ 1', data = tmp, family=poisson)
@@ -125,3 +137,24 @@ log(mean_y) - mod_col$coefficients
 # ok so it's the same
 
 # so I want to compare
+
+#### Deriving analytic bias of the model ####
+
+df = initialize_df(district_sizes = 1)
+
+# make periodic covariates
+df = add_periodic_cov(df)
+
+X = df %>% 
+  mutate(Intercept = 1) %>%
+  dplyr::select(Intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+
+# just for testing
+y_exp = 1
+x = t(as.matrix(X[1,]))
+y_exp*x%*%t(x)
+
+
+
+
+
