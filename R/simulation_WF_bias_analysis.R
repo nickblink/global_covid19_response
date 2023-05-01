@@ -9,10 +9,17 @@ setwd('../')
 source('R/imputation_functions.R')
 
 run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000, model_form = NULL){
+  
+  if((b1 != 0 | seasonal == T) & is.null(model_form)){
+    stop('model form does not match input beta values')
+  }
+  
   df = initialize_df(district_sizes = 1)
   
   # make periodic covariates
   df = add_periodic_cov(df)
+  
+  n = nrow(df)
   
   if(seasonal){
     betas = matrix(data = c(b0, b1, rnorm(6, 0, 0.25)), ncol = 1, dimnames = list(c("intercept","year","cos1","sin1","cos2","sin2","cos3","sin3"), NULL))
@@ -37,8 +44,22 @@ run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000, model_form = NULL){
   })
   
   H1 = -Reduce("+", tt) / length(tt)
+  Q = solve(H1)
   
-  browser()
+  H2 = lapply(1:length(betas), function(p){
+    tmp = lapply(1:nrow(X), function(i){
+      x = X[i,]
+      res = x[p]*y_exp[i]*x%*%t(x)
+      return(res)
+    })
+    
+    val = -Reduce("+", tmp) / length(tmp)
+    return(val)
+  })
+  
+  H2 = do.call('rbind', H2)
+  
+  bias_analytical = 1/(2*n)*Q%*%t(H2)%*%c(Q)
   
   sim_lst <- lapply(1:R, function(i){
     tmp = df
@@ -75,18 +96,27 @@ run_sim <- function(b0, b1 = -0.25, seasonal = T, R = 10000, model_form = NULL){
   mean_bias = rowMeans(beta_hats)[1] - b0
   median_bias = median(beta_hats[1,]) - b0
   
-  lst = list(mean_bias = mean_bias, median_bias = median_bias, bias_res, mu = mu)
+  lst = list(mean_bias = mean_bias, median_bias = median_bias, bias_res, mu = mu, analytical_bias = bias_analytical)
   return(lst)
 }
 
 b0_vec = 1:10
 bias_lst = lapply(b0_vec, function(b0){
-  run_sim(b0, b1 = 0, seasonal = F, model_form = 'y ~ 1', R = 10000)
+  run_sim(b0, b1 = 0, seasonal = T, model_form = 'y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3', R = 10000)
 })
 
 mean_bias = unlist(lapply(bias_lst, '[[', 1))
 median_bias = unlist(lapply(bias_lst, '[[', 2))
+analytical_bias = lapply(bias_lst, '[[', 5)
+b0_analytical = sapply(analytical_bias, function(x) x[1])
 df = bias_lst[[1]][[3]]
+
+plot(b0_vec, mean_bias, xlab = 'true b0', ylab = 'b0 bias',  
+     main = 'black = empirical; blue = analytic', ylim = c(1.1*min(c(b0_analytical, mean_bias)), 0.9*max(c(b0_analytical, mean_bias))))
+abline(h = 0, col = 'red')
+
+points(b0_vec, b0_analytical, col = 'blue')
+
 
 ## Comparing the sum of y and the expected sum
 res <- NULL
@@ -154,7 +184,7 @@ y_exp = 1
 x = t(as.matrix(X[1,]))
 y_exp*x%*%t(x)
 
-
+Q = 
 
 
 
