@@ -3,9 +3,23 @@ library(lubridate)
 library(ggplot2)
 library(gtools)
 
-setwd('C:/Users/nickl/Documents/global_covid19_response/')
+setwd('github_projects/global_covid19_response/')
 source('R/imputation_functions.R')
 D = readRDS('data/liberia_cleaned_NL.rds')
+D2 = readRDS('data/liberia_cleaned_01-06-2021.rds')
+
+
+##### Comparing data sources #####
+dim(D)
+dim(D2)
+
+D2 = D2[,colnames(D)]
+D2 = D2 %>%
+  filter(facility %in% unique(D$facility),
+         date <= max(D$date))
+
+res <- fit_WF_model(D)
+res2 <- fit_WF_model(D)
 
 ##### Fitting all facilities WF/freqGLM #####
 

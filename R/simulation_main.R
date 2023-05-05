@@ -15,7 +15,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST R #jobs name_output job_id
-inputs <- c('0.6', '6/4.3', 'n0.25', 'mcar', 'noST','500','50','test','25')
+inputs <- c('0.1', '6/4.3', 'n0.25', 'mcar', 'noST','500','50','test','25')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -121,7 +121,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   }
   
   # initializing the return list
-  return_list <- list(df_miss = df_miss, errors = errors, WF_betas = NULL)
+  return_list <- list(df_miss = df_miss, errors = errors, WF_betas = NULL, WF2_betas = NULL)
   rm(df_miss)
   
   # run the freqGLM_epi complete case analysis
@@ -152,7 +152,6 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
     })
   }
   
-  
   # run the CAR complete case analysis model
   if('CAR' %in% models){
     print('running CARBayes')
@@ -173,10 +172,8 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
 }
 
 set.seed(1)
+
 # %dorng% works on the cluster. %do% works at home
-# system.time({
-#   imputed_list <- foreach(i=seq) %do% one_run(lst, i)
-# })
 system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })

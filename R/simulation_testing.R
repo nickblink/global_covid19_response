@@ -10,6 +10,70 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 5/04/2023: Bias-adjusted results ####
+load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/MCAR_p1_R1000_WF_bias_correction_05052023.RData')
+
+df_lst <- lapply(imputed_list, '[[', 1)
+
+df_lst <- lapply(df_lst, function(tmp){
+  colnames(tmp)[22:29] <- gsub('WF','biasAdj', colnames(tmp)[22:29])
+  tmp
+})
+
+
+tmp <- calculate_metrics_by_point(df_lst, imp_vec = c("y_pred_CCA_WF", 'y_pred_CCA_biasAdj'), imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
+
+plot_metrics_by_point(df_lst, 
+                      imp_vec = c("y_pred_CCA_WF", 'y_pred_CCA_biasAdj'), 
+                      rename_vec = c('original WF',' WF bias adjusted'))
+
+#### 5/04/2023: Analyzing coefficient bias ####
+load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/MCAR_p1_R1000_WF_bias_correction_05052023.RData')
+
+WF_lst <- lapply(imputed_list, '[[', 3)
+WF2_lst <- lapply(imputed_list, '[[', 4)
+est_betas <- Reduce("+", WF_lst)/length(WF_lst)
+est_betas2 <- Reduce("+", WF2_lst)/length(WF2_lst)
+
+bias <- est_betas - true_betas
+colnames(bias)[1] <- 'intercept'
+bias2 <- est_betas2 - true_betas
+colnames(bias2) = colnames(bias)
+
+res2 <- NULL
+for(col in colnames(bias)){
+  
+  x <- bias[,col]
+  
+  res2 <- rbind(res2,
+                data.frame(beta = col,
+                           bias = median(x),
+                           lower = stats::quantile(x, probs = 0.25),
+                           upper = stats::quantile(x, probs = 0.75)))
+}
+
+res2$method = 'original WF'
+for(col in colnames(bias2)){
+  
+  x <- bias2[,col]
+  
+  res2 <- rbind(res2,
+                data.frame(beta = col,
+                           bias = median(x),
+                           lower = stats::quantile(x, probs = 0.25),
+                           upper = stats::quantile(x, probs = 0.75), 
+                           method = 'WF bias-adjusted'))
+}
+
+res2$beta <- factor(res2$beta, levels = res2$beta[1:8])
+ggplot() + 
+  geom_point(data = res2, aes(x = beta, y = bias, color = method), position = position_dodge(width = 0.1)) +
+  geom_errorbar(data = res2, aes(x = beta, y = bias, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
+  geom_hline(yintercept = 0) + 
+  ylab('coefficient bias') + 
+  guides(alpha = 'none') +
+  ggtitle('coefficient bias across facilities') +
+  theme_bw()
 
 #### 4/21/2023: Comparing size of training data on results ####
 load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/WF_n_comparisons_04162023.RData')

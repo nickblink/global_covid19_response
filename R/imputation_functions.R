@@ -167,7 +167,12 @@ date_facility_check <- function(imputed_list){
   }
 }
 
-fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities = NULL, family = 'nb'){
+fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities = NULL, family = 'nb', max_date = '2019-12-01'){
+  
+  print(sprintf('filtering data to be less than %s', max_date))
+  data = data %>%
+    filter(date <= max_date)
+  
   # use all facilities if not provided
   if(is.null(facilities)){
     facilities <- unique(data$facility)
@@ -290,7 +295,7 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
 ##### Imputation Functions #####
 
 # Weingberger-Fulcher imputation method
-WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
+WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, bias_correction_chen = F, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
   print(sprintf('family is %s', family))
   
@@ -353,6 +358,41 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
         # extract information from model fit
         beta_hat <- mod_col$coefficients
         beta_vcov <- vcov(mod_col)
+
+        # if correcting the bias, compute and correct it
+        if(bias_correction_chen){
+          X = tt %>%
+            mutate(intercept = 1) %>%
+            dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3) %>%
+            as.matrix()
+          
+          # the not good lin alg way
+          tmp = lapply(1:nrow(X), function(i){
+            x = X[i,]
+            res = tt$y_exp[i]*x%*%t(x)
+            return(res)
+          })
+          
+          H1 = -Reduce("+", tmp) / length(tmp)
+          Q = solve(H1)
+          
+          H2 = lapply(1:length(beta_hat), function(p){
+            tmp = lapply(1:nrow(X), function(i){
+              x = X[i,]
+              res = x[p]*tt$y_exp[i]*x%*%t(x)
+              return(res)
+            })
+            
+            val = -Reduce("+", tmp) / length(tmp)
+            return(val)
+          })
+          
+          H2 = do.call('rbind', H2)
+          bias_analytical = 1/(2*nrow(tt))*Q%*%t(H2)%*%c(Q)
+          
+          # update the beta hats to s
+          beta_hat <- beta_hat - bias_analytical  
+        }
         
         # store the model results to return
         model_res = list()
@@ -407,10 +447,8 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
     
     # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
     sim.full = Reduce('+', lapply(tmp, '[[', 2))
-  
 
   }
-  
   res_lst = list(df = df, betas = betas, beta_vcovs = beta_vcovs)
   return(res_lst)
 }
@@ -422,12 +460,12 @@ WF_CCA <- function(df, train_end_date = '2019-12-01', ...){
   tmp$y[tmp$date > train_end_date] <- NA
   
   res <- WF_imputation(tmp, ...)
-  
+
   # store the results and return the original y values
   # This is because the y values in 2020 are returned as NA from WF_imputation
   tmp <- res$df
-  tmp = merge(tmp %>% select(-y),
-              df %>% select(date, facility, y),
+  tmp = merge(tmp %>% dplyr::select(-y),
+              df %>% dplyr::select(date, facility, y),
               by = c('date','facility'))
 
   
@@ -2427,7 +2465,6 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
     df = NULL
     # imputed only here
     for(method in imp_vec){
-      
       tmp = imputed_list[[1]][,c('date','facility','district')]
       tmp$method = method
       tmp$num_missing = num_missing
@@ -2552,7 +2589,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
 }
 
 # plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width'), dotted_line = T, res = NULL, outbreak_date = '2020-01-01'){
+plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = F, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width'), dotted_line = T, res = NULL, outbreak_date = '2020-01-01'){
   
   if(!is.null(min_date)){
     imputed_only = F
