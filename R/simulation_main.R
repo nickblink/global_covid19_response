@@ -4,7 +4,6 @@ library(Matrix)
 library(dplyr)
 library(lubridate)
 library(ggplot2)
-#library(cowplot)
 library(doRNG)
 library(doParallel)
 
@@ -14,8 +13,8 @@ source('R/imputation_functions.R')
 registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
-# p b0 b1 missingness ST R #jobs name_output job_id
-inputs <- c('0.1', '6/4.3', 'n0.25', 'mcar', 'noST','500','50','test','25')
+# p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
+inputs <- c('0.1', '6', 'n0.25', 'mcar', 'CAR', '0.3', '0.3', '1', '500','50','test','25')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -30,10 +29,13 @@ b1_mean <- tryCatch({as.numeric(inputs[[3]])
 })
 missingness <- tolower(inputs[[4]])
 DGP <- tolower(inputs[[5]])
-R <- as.integer(inputs[[6]])
-num_jobs <- as.integer(inputs[[7]])
-output_path <- tolower(inputs[[8]])
-job_id <- as.integer(inputs[[9]])
+rho_DGP <- as.numeric(tolower(inputs[[6]]))
+alpha_DGP <- as.numeric(tolower(inputs[[7]]))
+tau2_DGP <- as.numeric(tolower(inputs[[8]]))
+R <- as.integer(inputs[[9]])
+num_jobs <- as.integer(inputs[[10]])
+output_path <- tolower(inputs[[11]])
+job_id <- as.integer(inputs[[12]])
 
 # check that proper missingness is input
 if(!(missingness %in% c('mcar','mar','mnar'))){
@@ -42,21 +44,29 @@ if(!(missingness %in% c('mcar','mar','mnar'))){
   print(sprintf('proceeding with %s missingness', missingness))
 }
 
-# missingness parameters
+# storing all the parameters
 params <- list()
 params[['p']] <- p
 params[['missingness']] <- missingness
 params[['DGP']] <- DGP
+if(DGP == 'car'){
+  params[['rho_DGP']] <- rho_DGP
+  params[['alpha_DGP']] <- alpha_DGP
+  params[['tau2_DGP']] <- tau2_DGP
+}
 params[['b0_mean']] <- b0_mean
 params[['b1_mean']] <- b1_mean
 if(missingness == 'mar'){
-  params[['rho']] <- 0.7
-  params[['alpha']] <- 0.7
-  params[['tau']] <- 3
+  params[['rho_MAR']] <- 0.7
+  params[['alpha_MAR']] <- 0.7
+  params[['tau2_MAR']] <- 9
 }else if(missingness =='mnar'){
   gamma = 1
   params[['gamma']] <- gamma
 }
+params[['R']] <- R
+params[['num_jobs']] <- num_jobs
+params[['job_id']] <- job_id
 
 # get sequence of simulation iterations to run
 if(job_id < num_jobs){
@@ -89,6 +99,8 @@ if(file.exists(results_file)){
 # Simulate the data
 if(DGP == 'nost'){
   lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01', b0_mean = b0_mean, b1_mean = b1_mean)
+}else if(DGP == 'car'){
+  lst <- simulate_data_CAR(district_sizes = c(4, 6, 10), R = R, rho = rho_DGP, alpha = alpha_DGP, tau2 = tau2_DGP, b0_mean = b0_mean, b1_mean = b1_mean)
 }else{
   stop('unrecognized data generating process')
 }
@@ -115,13 +127,13 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if(missingness == 'mcar'){
     df_miss = MCAR_sim(df, p = p, by_facility = T)
   }else if(missingness == 'mar'){
-    df_miss = MAR_spatiotemporal_sim(df, p = p, rho = params[['rho']], alpha = params[['alpha']], tau = params[['tau']])
+    df_miss = MAR_spatiotemporal_sim(df, p = p, rho = params[['rho_MAR']], alpha = params[['alpha_MAR']], tau = params[['tau2_MAR']])
   }else{
     df_miss <- MNAR_sim(df, p = p, direction = 'upper', gamma = gamma, by_facility = T)
   }
   
   # initializing the return list
-  return_list <- list(df_miss = df_miss, errors = errors, WF_betas = NULL, WF2_betas = NULL)
+  return_list <- list(df_miss = df_miss, errors = errors, WF_betas = NULL, CAR_summary = NULL)
   rm(df_miss)
   
   # run the freqGLM_epi complete case analysis
@@ -156,7 +168,9 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if('CAR' %in% models){
     print('running CARBayes')
     return_list <- tryCatch({
-      return_list[['df_miss']] <- CARBayes_CCA(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      return_list[['df_miss']] <- res$df
+      return_list[['CAR_summary']] <- res$summary_stats
       return_list
     }, error = function(e){
       print(e)
@@ -173,7 +187,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
 
 set.seed(1)
 
-# %dorng% works on the cluster. %do% works at home
+# run the models for each simulation dataset
 system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })

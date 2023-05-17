@@ -677,8 +677,11 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'all', model = c(
   }
   
   # run CAR Bayes
-  chain1 <- ST.CARar(formula = formula_col, family = "poisson",
-                     data = df, W = W, burnin = burnin, n.sample = n.sample,
+  chain1 <- ST.CARar(formula = formula_col, 
+                     family = "poisson",
+                     data = df, W = W, 
+                     burnin = burnin, 
+                     n.sample = n.sample,
                      thin = 10, AR = AR, verbose = F)
   
   df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
@@ -748,14 +751,14 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'all', model = c(
   }
 }
 
-### Run the complete case analysis using the CARBayes imputation function.
+### Fit the model on all data using the CARBayes imputation function and return results
 # df: data frame with facilities, dates, and outcomes
 # R_posterior: A specified number of posterior simulations to run (if you want it to be smaller than the number of returned posterior samples from CARBayes)
 # train_end_date: cutoff date for the training data to fit the model
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), ...){
+CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), ...){
   max_date <- max(df$date)
   facilities <- unique(df$facility)
   if(is.null(predict_start_date)){
@@ -766,6 +769,7 @@ CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', 
       .$date
     predict_start_date = min(dates)
   }else{
+    warning('I am setting phi to 0 at the start of 2020')
     dates = df %>% 
       filter(date >= predict_start_date) %>%
       select(date) %>%
@@ -778,6 +782,9 @@ CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', 
     filter(date <= train_end_date)
   
   res <- CARBayes_imputation(train, col, ...)
+  
+  # pull out the summary statistics
+  summary_stats <- res$model_chain$summary.results
   
   # pull out parameter values
   betas <- as.data.frame(res$model_chain$samples$beta)
@@ -875,7 +882,6 @@ CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', 
     
     return(phi_df)
   })
-  warning('am I setting phi to 0 at the start of 2020?')
   
   # rearrange phi_lst to match the format of fixed effects
   phi_by_fac <- lapply(facilities, function(f){
@@ -930,7 +936,10 @@ CARBayes_CCA <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', 
   # merge the results together
   df <- merge(df, fitted_quants, by = c('date', 'facility'), all = T)
   
-  return(df)
+  # return list of results
+  res_lst <- list(df = df, summary_stats = summary_stats)
+  
+  return(res_lst)
 }
 
 impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3, 0.4, 0.5), N = 2, cutoff_cor = NULL, harmonic_family = 'NB', bayes_harmonic_family = 'NB', cutoff_method = 'number', group = 'facility', bayes_iterations = 500, bayes_beta_prior = T){
@@ -2993,7 +3002,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   return(res_lst)
 }
 
-simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha = 0.3, tau = 1, scale_by_num_neighbors = T, b0_mean = 7, b1_mean = -0.2){
+simulate_data_CAR <- function(district_sizes, R = 1, rho = 0.3, alpha = 0.3, tau2 = 1, b0_mean = 7, b1_mean = -0.2){
   # set up data frame
   df = initialize_df(district_sizes)
   
@@ -3038,7 +3047,7 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   Q = make_precision_mat(df, rho = rho)
   
   tryCatch({
-    V = tau^2*solve(Q)
+    V = tau2*solve(Q)
   }, error = function(e){
     print(e)
     print('havent dealt with non-invertible precision matrices yet')
@@ -3080,7 +3089,7 @@ simulate_data_spatiotemporal <- function(district_sizes, R = 1, rho = 0.3, alpha
   })
   
   # make list of values to return
-  res_lst = list(df_list = df_lst, betas = betas, V = V, rho = rho, alpha = alpha, tau = tau, b0_mean = b0_mean, b1_mean = b1_mean)
+  res_lst = list(df_list = df_lst, betas = betas, V = V, rho = rho, alpha = alpha, tau2 = tau2, b0_mean = b0_mean, b1_mean = b1_mean)
   return(res_lst)
 }
 
