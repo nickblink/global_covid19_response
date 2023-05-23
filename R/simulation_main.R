@@ -98,9 +98,21 @@ if(file.exists(results_file)){
 
 # Simulate the data
 if(DGP == 'nost'){
-  lst <- simulate_data(district_sizes = c(4, 6, 10), R = R, end_date = '2020-12-01', b0_mean = b0_mean, b1_mean = b1_mean)
+  lst <- simulate_data(district_sizes = c(4, 6, 10), 
+                       R = R, 
+                       end_date = '2020-12-01', 
+                       b0_mean = b0_mean, 
+                       b1_mean = b1_mean)
 }else if(DGP == 'car'){
-  lst <- simulate_data_CAR(district_sizes = c(4, 6, 10), R = R, rho = rho_DGP, alpha = alpha_DGP, tau2 = tau2_DGP, b0_mean = b0_mean, b1_mean = b1_mean)
+  lst <- simulate_data(district_sizes = c(4, 6, 10), 
+                       R = R, 
+                       end_date = '2020-12-01',
+                       b0_mean = b0_mean, 
+                       b1_mean = b1_mean,
+                       type = 'CAR',
+                       rho = rho_DGP, 
+                       alpha = alpha_DGP, 
+                       tau2 = tau2_DGP)
 }else{
   stop('unrecognized data generating process')
 }

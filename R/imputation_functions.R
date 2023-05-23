@@ -2229,7 +2229,7 @@ plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
 # Also can plot the raw values if no imputations are provided (imp_vec is NULL)
 ### Parameters
-plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', ...){
+plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec = NULL, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', ...){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -2327,7 +2327,12 @@ plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec, 
     
   }
   
-  cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1))
+  if(!is.null(imp_vec)){
+    return(cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1)))
+  }else{
+    return(cowplot::plot_grid(plotlist = plot_list, ...))
+  }
+  
 }
 
 # calculate the desired metrics for a set of imputation methods
@@ -2432,6 +2437,7 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 # calculate the metrics for individual data points across simulated imputations
 calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F, k =NULL){
 
+  browser()
   # filter to only be greater than the specified date
   if(!is.null(min_date)){
     print(sprintf('only getting metrics with dates on or after %s', min_date))
@@ -2474,12 +2480,16 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
     df = NULL
     # imputed only here
     for(method in imp_vec){
+      print(method)
+      browser()
       tmp = imputed_list[[1]][,c('date','facility','district')]
       tmp$method = method
       tmp$num_missing = num_missing
       
+      print('A')
       point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
       lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
+      print('B')
       upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
       lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
@@ -2491,6 +2501,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
         outcome = median
       }
       
+      print('sup')
       # full dataset
       tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
       tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
@@ -2503,12 +2514,14 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
       
+      print('yo')
       tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_25[,ii] & y_true[,ii] <= upper_75[,ii])))
       tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_025[,ii] & y_true[,ii] <= upper_975[,ii])))
       
       tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
       tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
       
+      print('nah')
       tmp$outbreak_detection3 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak3[,ii] >= upper_975[,ii]))
       tmp$outbreak_detection5 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak5[,ii] >= upper_975[,ii]))
       tmp$outbreak_detection10 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak10[,ii] >= upper_975[,ii]))
@@ -2698,8 +2711,9 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
 }
 
 # 
-grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM')){
+grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
   res <- NULL
+  print(metrics)
   for(file in files){
     # p <- stringr::str_match(file, 'mnar(.*?)_')[[2]]
     p <- c(stringr::str_match(file, 'mcar(.*?)_')[[2]],
@@ -2714,6 +2728,14 @@ grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "
       lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
     }else{
       load(file)
+    }
+    
+    if(!any(grepl('outbreak_detection', metrics))){
+      warning('no outbreak detection. Artificially creating the y_exp value')
+      lst_full$df_lst <- lapply(lst_full$df_lst, function(df){
+        df$y_exp = df$y_true + 1
+        df
+      })
     }
      
     tmp <- calculate_metrics_by_point(lst_full$df_lst, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
@@ -2740,10 +2762,10 @@ grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "
 }
 
 # plot all methods against each other
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), ...){
   if(is.null(res)){
     if(!is.null(files)){
-      res <- grab_results(files, ...)
+      res <- grab_results(files,  ...)
     }else{
       stop('need files if not providing results')
     }
@@ -2938,7 +2960,8 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25
   return(betas)
 }
 
-simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10, ...){
+simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10, type = 'WF', ...){
+  #browser()
   # set seed
   set.seed(seed)
   # set up data frame
@@ -2950,6 +2973,9 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   # get all facility names
   facilities = unique(df$facility)
   
+  # get all dates
+  dates = unique(df$date) %>% sort()
+  
   # sample betas
   if(empirical_betas){
     betas = sample_real_betas(facilities)
@@ -2960,11 +2986,51 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   # initialize list of data frames
   df_lst = list()
   
-  # make n sampled sets of data
-  for(i in 1:R){
+  if(type == 'WF'){
+    # make R sampled sets of data
+    for(i in 1:R){
+      
+      # simulate values given the betas
+      tmp_lst = lapply(facilities, function(xx){
+        tmp = df %>% filter(facility == xx)
+        
+        # keep the 1 for intercepts
+        X = tmp %>% 
+          mutate(intercept = 1) %>%
+          dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+        
+        # error checking
+        if(!identical(colnames(betas), colnames(X))){
+          print(colnamaes(betas))
+          print(colnames(X))
+          stop(sprintf('colnames of betas not equal to X: %s, %s',paste(colnames(betas), collapse = ';'), paste(colnames(X), collapse = ';') ))
+        }
+        
+        # make the 8x1 beta vector for this facility
+        beta_f = t(betas[xx,,drop = F])
+        
+        # get mean prediction from linear model
+        mu = as.matrix(X)%*%beta_f
+        tmp$y_exp = exp(mu)
+        
+        # simluate random values
+        tmp$y = rpois(length(mu), exp(mu))
+        
+        return(tmp)
+      })
+      
+      # combine values into one data frame
+      df_lst[[i]] = do.call('rbind', tmp_lst)
+      
+    }
+  }else if(type == 'CAR'){
     
-    # simulate values given the betas
-    tmp_lst = lapply(facilities, function(xx){
+    rho = list(...)$rho
+    alpha = list(...)$alpha
+    tau2 = list(...)$tau2
+    
+    # add in the mean effects because these are the same for all simulations
+    df = do.call('rbind', lapply(facilities, function(xx){
       tmp = df %>% filter(facility == xx)
       
       # keep the 1 for intercepts
@@ -2974,28 +3040,69 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       
       # error checking
       if(!identical(colnames(betas), colnames(X))){
-        print(colnamaes(betas))
-        print(colnames(X))
-        stop(sprintf('colnames of betas not equal to X: %s, %s',paste(colnames(betas), collapse = ';'), paste(colnames(X), collapse = ';') ))
+        browser()
       }
       
       # make the 8x1 beta vector for this facility
       beta_f = t(betas[xx,,drop = F])
       
       # get mean prediction from linear model
-      mu = as.matrix(X)%*%beta_f
-      tmp$y_exp = exp(mu)
-      
-      # simluate random values
-      tmp$y = rpois(length(mu), exp(mu))
+      tmp$mu = (as.matrix(X)%*%beta_f)[,1]
       
       return(tmp)
+    }))
+    
+    # make the spatio-temporal precision matrix
+    Q = make_precision_mat(df, rho = rho)
+    
+    tryCatch({
+      V = tau2*solve(Q)
+    }, error = function(e){
+      print(e)
+      print('havent dealt with non-invertible precision matrices yet')
+      browser()
     })
     
-    # combine values into one data frame
-    df_lst[[i]] = do.call('rbind', tmp_lst)
+    # checking ordering of facilities matches
+    if(!identical(colnames(V), facilities)){
+      stop('names of covariances and facilities dont match')
+    }
     
+    # make R sampled sets of data
+    df_lst = lapply(1:R, function(i){
+      ### get the spatio-temporal random effects
+      # initialize phi
+      phi = matrix(0, nrow = length(dates), ncol = length(facilities))
+      colnames(phi) = facilities
+      
+      # first time step
+      phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, nrow(V)), Sigma = V)
+      
+      # cycle through other time steps, using auto-correlated priors
+      for(i in 2:length(dates)){
+        phi[i,] = MASS::mvrnorm(n = 1, mu = alpha*phi[i-1,], Sigma = V)
+      }
+      
+      # convert to matching format
+      phi = as.data.frame(phi)
+      phi$date = dates
+      phi_df = tidyr::gather(phi, facility, phi, setdiff(colnames(phi), c('facility','date')))
+      
+      # merge the phi values into the original data frame
+      df = merge(df, phi_df, by = c('date','facility'))
+      
+      ## Have not figured out how to get y_exp and and the variance of y
+      #df$y_exp = 
+      
+      # simulate the observed values
+      df$y = rpois(nrow(df), exp(df$mu + df$phi))
+      
+      return(df)
+    })
+  }else{
+    stop('please input a proper type')
   }
+  
   
   # make list of values to return
   res_lst = list(df_list = df_lst, betas = betas)

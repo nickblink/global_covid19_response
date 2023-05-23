@@ -10,6 +10,15 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 5/22/2023: CAR DGP results ####
+files <- grep('20230517',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+files1 <- grep('car331', files, value = T)
+files2 <- grep('car731', files, value = T)
+
+tt <- plot_all_methods(files1, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width'))
+
+
 #### 5/04/2023: Bias-adjusted results ####
 load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/MCAR_p1_R1000_WF_bias_correction_05052023.RData')
 
