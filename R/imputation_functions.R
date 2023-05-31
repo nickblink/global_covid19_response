@@ -2961,9 +2961,10 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25
 }
 
 simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10, type = 'WF', ...){
-  #browser()
+
   # set seed
   set.seed(seed)
+  
   # set up data frame
   df = initialize_df(district_sizes, ...)
   
@@ -2986,6 +2987,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   # initialize list of data frames
   df_lst = list()
   
+  # simulate the data according to the DGP
   if(type == 'WF'){
     # make R sampled sets of data
     for(i in 1:R){
@@ -3068,8 +3070,13 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       stop('names of covariances and facilities dont match')
     }
     
+    # add in the marginal variance to original df
+    dV = diag(V)
+    matid = match(df$facility, names(dV))
+    df$sigma2_marginal = dV[matid]
+    
     # make R sampled sets of data
-    df_lst = lapply(1:R, function(i){
+    df_lst = lapply(1:R, function(r){
       ### get the spatio-temporal random effects
       # initialize phi
       phi = matrix(0, nrow = length(dates), ncol = length(facilities))
@@ -3086,13 +3093,24 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       # convert to matching format
       phi = as.data.frame(phi)
       phi$date = dates
-      phi_df = tidyr::gather(phi, facility, phi, setdiff(colnames(phi), c('facility','date')))
+      phi_df = tidyr::gather(phi, facility, phi, setdiff(colnames(phi), c('facility','date'))) %>% 
+        arrange(facility, date)
+      
+      # add in the previous phi values
+      phi_df$phi_previous <- c(0,phi_df$phi[1:(nrow(phi_df) - 1)])
+      phi_df$phi_previous[phi_df$date == min(phi_df$date)] <- 0
       
       # merge the phi values into the original data frame
       df = merge(df, phi_df, by = c('date','facility'))
       
-      ## Have not figured out how to get y_exp and and the variance of y
-      #df$y_exp = 
+      
+      
+      # calculate the expected value of the Poisson log-normal
+      df$mu_marginal = df$mu + alpha*df$phi_previous
+      df$y_exp = exp(df$mu_marginal + df$sigma2_marginal/2)
+      
+      # variance from Poisson log-normal
+      df$y_var = (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
       
       # simulate the observed values
       df$y = rpois(nrow(df), exp(df$mu + df$phi))

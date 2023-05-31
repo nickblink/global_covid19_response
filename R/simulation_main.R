@@ -104,7 +104,7 @@ if(DGP == 'nost'){
                        b0_mean = b0_mean, 
                        b1_mean = b1_mean)
 }else if(DGP == 'car'){
-  lst <- simulate_data(district_sizes = c(4, 6, 10), 
+  lst <- simulate_data(district_sizes = c(4, 6, 10),
                        R = R, 
                        end_date = '2020-12-01',
                        b0_mean = b0_mean, 

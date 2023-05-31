@@ -10,6 +10,21 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 5/30/2023: Analyzing CAR DGP expectation and variance ####
+
+# after simulating the data
+tt <- do.call('rbind', lapply(lst$df_list, function(df){
+  res = data.frame(mean_observed = mean(df$y),
+                   mean_expected = mean(df$y_exp))
+  res
+}))
+colMeans(tt)
+
+ss <- do.call('rbind', lapply(lst$df_list, function(df){
+  # COMPARE THE Z SCORES
+}))
+
+#
 #### 5/22/2023: CAR DGP results ####
 files <- grep('20230517',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
