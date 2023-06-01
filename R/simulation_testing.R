@@ -350,9 +350,15 @@ for(i in 1:320){
 #### 01/19/2023: Plotting across methods ####
 file_MCAR <- grep('mcar', dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
-p1 <- plot_all_methods(file_MCAR[1:7])
+# getting the November ones (the ones from this run)
+file_MCAR2 <- grep('_11_',file_MCAR, value = T)
 
-ggsave(plot = p1, filename = 'C:/Users/Admin-Dell/Documents/github_projects/global_covid19_response/figures/MCAR_metrics_01182023.png', height = 4, width = 6)
+res <- grab_results(file_MCAR2)
+p1 <- plot_all_methods(res = res, fix_axis = F)
+# p1 <- plot_all_methods(file_MCAR2)
+
+#ggsave(plot = p1, filename = 'C:/Users/Admin-Dell/Documents/github_projects/global_covid19_response/figures/MCAR_metrics_01182023.png', height = 4, width = 6)
+ggsave(plot = p1, filename = 'C:/Users/Admin-Dell/Documents/github_projects/global_covid19_response/figures/MCAR_metrics_05312023.png', height = 5, width = 9)
 
 #### 12/14/2022: Analyzing Outbreak Detection results ####
 # file_MCAR <- grep('mcar', dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)

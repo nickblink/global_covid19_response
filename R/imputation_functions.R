@@ -242,12 +242,17 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
   }
   
   if(length(lst_full[[1]]) >= 2){
-    df_lst <- lapply(lst_full, '[[', 1)
-    WF_lst <- lapply(lst_full, '[[', 3)
-    models = names(lst_full[[1]][[2]])
-    error_lst <- NULL
-    for(m in models){
-      error_lst[[m]] <- do.call('rbind',lapply(lst_full, function(tmp) tmp$errors[[m]]))
+    if(class(lst_full[[1]]) == 'data.frame'){
+      df_lst <- lst_full
+      WF_lst <- error_lst <- true_betas <- NULL
+    }else{
+      df_lst <- lapply(lst_full, '[[', 1)
+      WF_lst <- lapply(lst_full, '[[', 3)
+      models = names(lst_full[[1]][[2]])
+      error_lst <- NULL
+      for(m in models){
+        error_lst[[m]] <- do.call('rbind',lapply(lst_full, function(tmp) tmp$errors[[m]]))
+      }
     }
   }else{
     df_lst <- lst_full
@@ -282,15 +287,26 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
     save(df_lst, error_lst, params, file = results_file)
   }
   
-  res_lst <- list(df_lst = df_lst, 
-                  error_lst = error_lst, 
-                  WF_lst = WF_lst,
-                  params = params, 
-                  true_betas = true_betas)
+  # doing this because deprecated results didnt have true betas
+  if(exists('true_betas')){
+    res_lst <- list(df_lst = df_lst, 
+                    error_lst = error_lst, 
+                    WF_lst = WF_lst,
+                    params = params, 
+                    true_betas = true_betas)
+  }else{
+    print('no true betas found in these results')
+    res_lst <- list(df_lst = df_lst, 
+                    error_lst = error_lst, 
+                    WF_lst = WF_lst,
+                    params = params)
+  }
+  
   if(return_lst){
     return(res_lst)
   }
 }
+
 #
 ##### Imputation Functions #####
 
@@ -2437,12 +2453,11 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 # calculate the metrics for individual data points across simulated imputations
 calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F, k =NULL){
 
-  browser()
   # filter to only be greater than the specified date
   if(!is.null(min_date)){
     print(sprintf('only getting metrics with dates on or after %s', min_date))
     imputed_list <- lapply(imputed_list, function(xx){
-      xx <- xx %>% filter(date >= min_date)
+      xx <- xx %>% dplyr::filter(date >= min_date)
     })
   }
   
@@ -2480,16 +2495,12 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
     df = NULL
     # imputed only here
     for(method in imp_vec){
-      print(method)
-      browser()
       tmp = imputed_list[[1]][,c('date','facility','district')]
       tmp$method = method
       tmp$num_missing = num_missing
       
-      print('A')
       point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
       lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-      print('B')
       upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
       lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
@@ -2501,7 +2512,6 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
         outcome = median
       }
       
-      print('sup')
       # full dataset
       tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
       tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
@@ -2514,14 +2524,12 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
       tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
       
-      print('yo')
       tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_25[,ii] & y_true[,ii] <= upper_75[,ii])))
       tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_025[,ii] & y_true[,ii] <= upper_975[,ii])))
       
       tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
       tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
       
-      print('nah')
       tmp$outbreak_detection3 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak3[,ii] >= upper_975[,ii]))
       tmp$outbreak_detection5 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak5[,ii] >= upper_975[,ii]))
       tmp$outbreak_detection10 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak10[,ii] >= upper_975[,ii]))
@@ -2762,7 +2770,7 @@ grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "
 }
 
 # plot all methods against each other
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), metrics = c('bias', 'RMSE', 'coverage95', 'interval_width', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), ...){
   if(is.null(res)){
     if(!is.null(files)){
       res <- grab_results(files,  ...)
@@ -2808,40 +2816,53 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar
     
     p1 <- ggplot() + 
       geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
-      geom_point(data = tmp, aes(x = prop_missing, y = median, color = method), position = position_dodge(width = 0.1)) +
+      geom_point(data = tmp, aes(x = prop_missing, y = median, color = method, shape = method), position = position_dodge(width = 0.1)) +
       geom_errorbar(data = tmp, aes(x = prop_missing, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
-      ylab(metric) + 
+      labs(x = 'proportion missing') + 
       guides(alpha = 'none') +
       theme_bw()
     
     # fixing the axis ranges
     if(metric == 'bias'){
-      p1 <- p1 + geom_hline(yintercept = 0)
+      p1 <- p1 + geom_hline(yintercept = 0)  +
+        ylab('bias')
       if(fix_axis[1]){
-        p1 <- p1 + ylim(c(-2, 2))
+        p1 <- p1 + 
+          ylim(c(-2, 2))
       }
     }else if(metric == 'RMSE'){
+      p1 <- p1 +
+        ylab('RMSE')
       if(fix_axis[2]){
         p1 <- p1 + ylim(c(0, 20)) 
       }
     }else if(metric == 'coverage95'){
-      p1 <- p1 + geom_hline(yintercept = 0.95)
+      p1 <- p1 + geom_hline(yintercept = 0.95) +
+        ylab('coverage-95')
       if(fix_axis[3]){
         p1 <- p1 + ylim(c(0.8, 1))
       }
     }else if(metric == 'interval_width'){
+      p1 <- p1 +
+        ylab('interval width')
       if(fix_axis[4]){
         p1 <- p1 + ylim(c(0, 70))
       }
     }else if(metric == 'outbreak_detection3'){
+      p1 <- p1 +
+        ylab('outbreak detection-3')
       if(fix_axis[5]){
         p1 <- p1 + ylim(c(0.5,1))
       }
     }else if(metric == 'outbreak_detection5'){
+      p1 <- p1 +
+        ylab('outbreak detection-5')
       if(fix_axis[6]){
         p1 <- p1 + ylim(c(0.8,1))
       }
     }else if(metric == 'outbreak_detection10'){
+      p1 <- p1 +
+        ylab('outbreak detection-10')
       if(fix_axis[7]){
         p1 <- p1 + ylim(c(0.9,1))
       }
