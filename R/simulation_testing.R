@@ -13,16 +13,84 @@ library(cowplot)
 #### 5/30/2023: Analyzing CAR DGP expectation and variance ####
 
 # after simulating the data
-tt <- do.call('rbind', lapply(lst$df_list, function(df){
+tt <- do.call('rbind', lapply(lst_WF$df_list, function(df){
   res = data.frame(mean_observed = mean(df$y),
                    mean_expected = mean(df$y_exp))
   res
 }))
 colMeans(tt)
 
-ss <- do.call('rbind', lapply(lst$df_list, function(df){
-  # COMPARE THE Z SCORES
+vars <- do.call('rbind', lapply(lst_WF$df_list, function(df){
+  z = (df$y - df$y_exp)/sqrt(df$y_var)
+  return(var(z))
 }))
+plot(density(vars))
+mean(vars)
+
+## now for the district analysis
+tt <- do.call('rbind', lapply(lst_WF$district_list, function(df){
+  res = data.frame(mean_observed = mean(df$y),
+                   mean_expected = mean(df$y_exp))
+  res
+}))
+colMeans(tt)
+
+vars <- do.call('rbind', lapply(lst_WF$district_list, function(df){
+  z = (df$y - df$y_exp)/sqrt(df$y_var)
+  return(var(z))
+}))
+plot(density(vars))
+mean(vars)
+
+# after simulating the data
+tt <- do.call('rbind', lapply(lst_CAR$df_list, function(df){
+  res = data.frame(mean_observed = mean(df$y),
+                   mean_expected = mean(df$y_exp))
+  res
+}))
+colMeans(tt)
+
+vars <- do.call('rbind', lapply(lst_CAR$df_list, function(df){
+  z = (df$y - df$y_exp)/sqrt(df$y_var)
+  return(var(z))
+}))
+plot(density(vars))
+mean(vars)
+
+## now for the district analysis
+tt <- do.call('rbind', lapply(lst_CAR$district_list, function(df){
+  res = data.frame(mean_observed = mean(df$y),
+                   mean_expected = mean(df$y_exp))
+  res
+}))
+colMeans(tt)
+
+vars <- do.call('rbind', lapply(lst_CAR$district_list, function(df){
+  z = (df$y - df$y_exp)/sqrt(df$y_var)
+  return(var(z))
+}))
+plot(density(vars))
+mean(vars)
+
+vars <- do.call('rbind', lapply(lst_CAR$district_list, function(df){
+  z = (df$y - df$y_exp)/sqrt(df$y_var_ind)
+  return(var(z))
+}))
+mean(vars)
+# too small
+
+vars <- do.call('rbind', lapply(lst_CAR$district_list, function(df){
+  z = (df$y - df$y_exp)/sqrt(df$y_cov)
+  return(var(z))
+}))
+mean(vars)
+# too small
+
+vars <- do.call('rbind', lapply(lst_CAR$district_list, function(df){
+  z = (df$y - df$y_exp)/sqrt(df$y_cov/2 + df$y_var_ind)
+  return(var(z))
+}))
+mean(vars)
 
 #
 #### 5/22/2023: CAR DGP results ####

@@ -6,6 +6,7 @@
 # library(lubridate)
 # library(ggplot2)
 # library(cowplot)
+options(dplyr.summarise.inform = FALSE)
 
 ##### Helper Functions #####
 # make the adjacency matrix according to all facilities in a district being neighbors
@@ -307,6 +308,16 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
   }
 }
 
+# get the district and facility list from a data frame
+get_district_facilities <- function(df){
+  tt = unique(df[,c('district','facility')])
+  res_lst <- NULL
+  for(i in 1:nrow(tt)){
+    res_lst[[tt[i,1]]] <- c(res_lst[[tt[i,1]]], tt[[i,2]])
+  }
+  return(res_lst)
+}
+
 #
 ##### Imputation Functions #####
 
@@ -326,6 +337,9 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
   
   # pulling unique groups
   uni_group = df %>% pull(get(group)) %>% unique()
+  
+  # get districts and facilities
+  dist_fac <- get_district_facilities(df)
   
   # setting up the formula
   formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
@@ -438,12 +452,41 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
         fitted_quants = as.data.frame(fitted_quants)
         colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
         
+        # merge the quantiles back into data frame
         tt = cbind(tt, fitted_quants)
         
       }
       tmp_lst = list(tt, sim.boot, model_res)
       return(tmp_lst)
     })
+    names(tmp) = uni_group
+    
+    # initialize district results
+    district_df = NULL
+    
+    # district-level analysis
+    for(d in names(dist_fac)){
+      tt = data.frame(district = d,
+                      date = tmp[[1]][[1]]$date)
+      facs = dist_fac[[d]]
+      
+      # get the sums by district: returns n x R data frame
+      sum_district = Reduce('+', lapply(facs, function(f){
+        tmp[[f]][[2]]
+      }))
+      
+      # get the quantiles and store them
+      fitted_quants = t(apply(sum_district, 1, function(xx){
+        quantile(xx, probs = quant_probs)
+      }))
+      fitted_quants = as.data.frame(fitted_quants)
+      colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
+      
+      # merge the quantiles back into data frame
+      tt = cbind(tt, fitted_quants)
+      
+      district_df = rbind(district_df, tt)
+    }
     
     betas <- do.call('rbind',lapply(1:length(tmp), function(ii){
       tmp_fac <- tmp[[ii]][[3]]
@@ -465,17 +508,21 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
     sim.full = Reduce('+', lapply(tmp, '[[', 2))
 
   }
-  res_lst = list(df = df, betas = betas, beta_vcovs = beta_vcovs)
+  res_lst = list(df = df, district_df = district_df, betas = betas, beta_vcovs = beta_vcovs)
   return(res_lst)
 }
 
 # run a complete case analysis for the WF method
-WF_CCA <- function(df, train_end_date = '2019-12-01', ...){
+WF_CCA <- function(df, district_df = NULL, train_end_date = '2019-12-01', ...){
   # replace values in the test set with missing ones
   tmp <- df
   tmp$y[tmp$date > train_end_date] <- NA
   
   res <- WF_imputation(tmp, ...)
+  
+  if(!is.null(district_df)){
+    res$district_df = merge(district_df, res$district_df, by = c('district','date'))
+  }
 
   # store the results and return the original y values
   # This is because the y values in 2020 are returned as NA from WF_imputation
@@ -483,10 +530,6 @@ WF_CCA <- function(df, train_end_date = '2019-12-01', ...){
   tmp = merge(tmp %>% dplyr::select(-y),
               df %>% dplyr::select(date, facility, y),
               by = c('date','facility'))
-
-  
-  # rename columns of the results
-  colnames(tmp) <- gsub('y_pred_WF', 'y_pred_CCA_WF', colnames(tmp)) 
   
   res$df <- tmp
   
@@ -2992,8 +3035,9 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   # make periodic covariates
   df = add_periodic_cov(df)
   
-  # get all facility names
+  # get all facility and district names
   facilities = unique(df$facility)
+  districts = unique(df$district)
   
   # get all dates
   dates = unique(df$date) %>% sort()
@@ -3007,6 +3051,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   
   # initialize list of data frames
   df_lst = list()
+  district_lst = list()
   
   # simulate the data according to the DGP
   if(type == 'WF'){
@@ -3036,6 +3081,9 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         mu = as.matrix(X)%*%beta_f
         tmp$y_exp = exp(mu)
         
+        # get variance (since it's Poisson it's the mean)
+        tmp$y_var <- tmp$y_exp
+        
         # simluate random values
         tmp$y = rpois(length(mu), exp(mu))
         
@@ -3043,7 +3091,16 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       })
       
       # combine values into one data frame
-      df_lst[[i]] = do.call('rbind', tmp_lst)
+      df = do.call('rbind', tmp_lst)
+      df_lst[[i]] = df
+      
+      # group the results by district
+      district <- df %>%
+        group_by(district, date) %>%
+        summarize(y_exp = sum(y_exp),
+                  y_var = sum(y_var),
+                  y = sum(y))
+      district_lst[[i]] = district
       
     }
   }else if(type == 'CAR'){
@@ -3124,27 +3181,59 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       # merge the phi values into the original data frame
       df = merge(df, phi_df, by = c('date','facility'))
       
-      
-      
       # calculate the expected value of the Poisson log-normal
       df$mu_marginal = df$mu + alpha*df$phi_previous
       df$y_exp = exp(df$mu_marginal + df$sigma2_marginal/2)
       
       # variance from Poisson log-normal
-      df$y_var = (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
+      df$y_var = df$y_exp + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
       
       # simulate the observed values
       df$y = rpois(nrow(df), exp(df$mu + df$phi))
       
       return(df)
     })
+    
+    # cycle through each created data frame
+    district_lst = lapply(df_lst, function(df){
+      # cycle through each district
+      district <- do.call('rbind', lapply(districts, function(d){
+        # filter data to this district
+        df2 <- df %>% filter(district == d)
+        facs = unique(df2$facility)
+        
+        # get covariance by this district
+        V_d = V[facs, facs]
+        V_exp = exp(V_d) - 1
+        ind_cov = upper.tri(V_exp) + lower.tri(V_exp)
+        
+        district_df = do.call('rbind', lapply(1:length(dates), function(i_date){
+          df3 <- df2 %>% filter(date == dates[i_date])
+          covs = (df3$y_exp%*%t(df3$y_exp))*V_exp
+          cov = sum(covs*ind_cov)
+          
+          tmp_df = data.frame(district = d,
+                              date = dates[i_date],
+                              y_exp = sum(df3$y_exp),
+                              y_var_ind = sum(df3$y_var),
+                              y_cov = cov,
+                              y_var = sum(df3$y_var) + cov,
+                              y = sum(df3$y))
+          return(tmp_df)
+          }
+        ))
+        return(district_df)
+      }))
+      return(district)
+    })
+    
   }else{
     stop('please input a proper type')
   }
   
   
   # make list of values to return
-  res_lst = list(df_list = df_lst, betas = betas)
+  res_lst = list(df_list = df_lst, district_list = district_lst, betas = betas)
   return(res_lst)
 }
 

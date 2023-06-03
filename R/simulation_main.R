@@ -166,8 +166,9 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if('WF' %in% models){
     print('running WF CCA')
     return_list <- tryCatch({
-      res <- WF_CCA(return_list[['df_miss']], col = "y", family = 'poisson', R_PI = 200)
+      res <- WF_CCA(return_list[['df_miss']], district_df = lst$district_list[[i]], col = "y", family = 'poisson', R_PI = 200)
       return_list[['df_miss']] <- res$df
+      return_list[['district_df']] <- res$district_df
       return_list[['WF_betas']] <- res$betas
       return_list
     }, error = function(e){
@@ -191,6 +192,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
     })
   }
   
+  warning('might need to add in district sums')
 
   print(sprintf('i = %i; time = %f minutes', i, difftime(Sys.time(), t0, units = 'm')))
   
