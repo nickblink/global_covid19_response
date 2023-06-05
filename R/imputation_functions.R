@@ -155,6 +155,7 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   return(df)
 }
 
+# check that the dates and facilities align in a list of data frames
 date_facility_check <- function(imputed_list){
   date_fac_mat = imputed_list[[1]][, c("date", "facility")]
   date_fac = paste0(date_fac_mat[,1], '--', date_fac_mat[,2])
@@ -164,6 +165,20 @@ date_facility_check <- function(imputed_list){
     date_fac_new = paste0(date_fac_mat_new[,1], '--', date_fac_mat[,2])
     if(!identical(date_fac_new, date_fac)){
       stop('mismatch in dates and facilities in the imputed list run')
+    }
+  }
+}
+
+# check that the dates and districts align in a list of data frames
+date_district_check <- function(imputed_list){
+  date_fac_mat = imputed_list[[1]][, c("date", "district")]
+  date_fac = paste0(date_fac_mat[,1], '--', date_fac_mat[,2])
+  
+  for(i in 2:length(imputed_list)){
+    date_fac_mat_new = imputed_list[[i]][, c("date", "district")]
+    date_fac_new = paste0(date_fac_mat_new[,1], '--', date_fac_mat[,2])
+    if(!identical(date_fac_new, date_fac)){
+      stop('mismatch in dates and districts in the imputed list run')
     }
   }
 }
@@ -228,7 +243,7 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 }
 
 # combine saved results from batch runs into one file
-combine_results <- function(input_folder, results_file, return_lst = FALSE, ignore_size_err = F){
+combine_results <- function(input_folder, results_file = NULL, return_lst = FALSE, ignore_size_err = F, district_results = F){
   files <- dir(input_folder, full.names = T)
   files <- grep('sim_results', files, value = T)
   
@@ -242,30 +257,34 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
     lst_full <- c(lst_full, imputed_list)
   }
   
-  if(length(lst_full[[1]]) >= 2){
-    if(class(lst_full[[1]]) == 'data.frame'){
-      df_lst <- lst_full
-      WF_lst <- error_lst <- true_betas <- NULL
-    }else{
-      df_lst <- lapply(lst_full, '[[', 1)
-      WF_lst <- lapply(lst_full, '[[', 3)
-      models = names(lst_full[[1]][[2]])
-      error_lst <- NULL
-      for(m in models){
-        error_lst[[m]] <- do.call('rbind',lapply(lst_full, function(tmp) tmp$errors[[m]]))
-      }
-    }
-  }else{
+  if(class(lst_full[[1]]) == 'data.frame'){
     df_lst <- lst_full
+    WF_lst <- error_lst <- true_betas <- NULL
+  }else{
+    df_lst <- lapply(lst_full, function(tmp) {tmp$df_miss})
+    WF_lst <- lapply(lst_full, function(tmp) {tmp$WF_betas})
+    if(district_results){
+      district_lst <- lapply(lst_full, function(tmp) {tmp$district_df})
+    }else{
+      
+    }
+    models = names(lst_full[[1]][[2]])
     error_lst <- NULL
+    for(m in models){
+      error_lst[[m]] <- do.call('rbind',lapply(lst_full, function(tmp) tmp$errors[[m]]))
+    }
   }
-
   
   # checking the size of the objects - can tell if there's an error
   if(!ignore_size_err){
+    if(district_results == T){
+      check_lst <- district_lst
+    }else{
+      check_lst <- df_lst
+    }
     object_sizes <- c()
-    for(i in 1:length(df_lst)){
-      obj <- object.size(df_lst[[i]])
+    for(i in 1:length(check_lst)){
+      obj <- object.size(check_lst[[i]])
       object_sizes <- c(object_sizes, obj)
       if(obj == 0){
         stop(sprintf('object size is 0 at list value %i', i))
@@ -273,39 +292,114 @@ combine_results <- function(input_folder, results_file, return_lst = FALSE, igno
     }
     if(any(object_sizes < .9*mean(object_sizes))){
       ind <- which(object_sizes < .9*mean(object_sizes))
-      warning(sprintf('there are %s out of %s object sizes less than half the mean size. That shouldnt be. Removing them', length(ind), length(df_lst)))
-      if(length(ind) > 0.05*length(df_lst)){
+      warning(sprintf('there are %s out of %s object sizes less than half the mean size. That shouldnt be. Removing them', length(ind), length(check_lst)))
+      if(length(ind) > 0.05*length(check_lst)){
         stop('too many files of incomplete size.')
       }else{
-        df_lst = df_lst[-ind]
+        check_lst = check_lst[-ind]
       }
+    }
+    if(district_results == T){
+      district_lst <- check_lst
+    }else{
+      df_lst <- check_lst
     }
   }
 
   print(sprintf('num files: %i, length of list: %s', length(files), length(lst_full)))
- 
-  if(!is.null(results_file)){
-    save(df_lst, error_lst, params, file = results_file)
+  
+  if(district_results){
+    res_lst <- list(district_lst = district_lst, 
+                    error_lst = error_lst, 
+                    WF_lst = WF_lst,
+                    params = params)
+  }else{
+    res_lst <- list(df_lst = df_lst, 
+         error_lst = error_lst, 
+         WF_lst = WF_lst,
+         params = params)
   }
   
   # doing this because deprecated results didnt have true betas
   if(exists('true_betas')){
-    res_lst <- list(df_lst = df_lst, 
-                    error_lst = error_lst, 
-                    WF_lst = WF_lst,
-                    params = params, 
-                    true_betas = true_betas)
+    res_lst$true_betas = true_betas
   }else{
     print('no true betas found in these results')
-    res_lst <- list(df_lst = df_lst, 
-                    error_lst = error_lst, 
-                    WF_lst = WF_lst,
-                    params = params)
+  }
+  
+  if(!is.null(results_file)){
+    save(res_lst, file = results_file)
   }
   
   if(return_lst){
     return(res_lst)
   }
+}
+
+### Takes in a list of files and/or directories. For each of these, pulls in the results using "combine_results" and then combines these results all together.
+combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
+  res <- NULL
+  
+  if(district_results){
+    print('getting district level results')
+    output = 'district_lst'
+  }else{
+    print('getting facility level results')
+    output = 'df_lst'
+  }
+  
+  for(file in files){
+    # p <- stringr::str_match(file, 'mnar(.*?)_')[[2]]
+    p <- c(stringr::str_match(file, 'mcar(.*?)_')[[2]],
+           stringr::str_match(file, 'mnar(.*?)_')[[2]],
+           stringr::str_match(file, 'mar(.*?)_')[[2]])
+    p <- p[!is.na(p)]
+    print(sprintf('p = %s', p))
+    print(file)
+    
+    # if a directory, combine results. If already combined, load them
+    if(dir.exists(file)){
+      lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL, district_results = district_results)
+    }else{
+      load(file)
+    }
+    
+    if(district_results){
+      date_district_check(lst_full$district_lst)
+    }else{
+      # make sure the dates and facilities match
+      date_facility_check(lst_full$df_lst)
+    }
+    
+    if(!any(grepl('outbreak_detection', metrics))){
+      warning('no outbreak detection. Artificially creating the y_exp value')
+      lst_full[[output]] <- lapply(lst_full[[output]], function(df){
+        df$y_exp = df$y_true + 1
+        df
+      })
+    }
+    
+    tmp <- calculate_metrics_by_point(lst_full[[output]], imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01', district_results = district_results) 
+    #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
+    tmp$prop_missing = as.numeric(p)/10
+    
+    tmp$b0_mean <- paste(as.character(lst_full$params$b0_mean), collapse = '/')
+    tmp$b1_mean <- paste(as.character(lst_full$params$b1_mean), collapse = '/')
+    
+    res <- rbind(res, tmp)
+  }
+  
+  # replace the names
+  if(!is.null(rename_vec)){
+    for(i in 1:length(imp_vec)){
+      res$method = gsub(imp_vec[i], rename_vec[i], res$method)
+    }
+    
+    # make a factor so the ordering in the plots stays
+    res$method =  factor(res$method, levels = rename_vec)
+  }
+  
+  return(res)
 }
 
 # get the district and facility list from a data frame
@@ -984,7 +1078,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     res <- as.data.frame(t(apply(predicted_vals[[f]], 1, function(xx){
       quantile(xx, probs = quant_probs)
     })))
-    colnames(res) <- paste0(paste0(col, '_pred_CCA_CAR_'), quant_probs)
+    colnames(res) <- paste0(paste0(col, '_pred_CAR_'), quant_probs)
     res$facility = f
     res$date = dates
     return(res)
@@ -2026,7 +2120,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     quantile(xx, probs = quant_probs, na.rm = T)
   }))
   fitted_quants = as.data.frame(fitted_quants)
-  colnames(fitted_quants) = paste0(paste0('y_pred_CCA_freqGLMepi_'), quant_probs)
+  colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
 
   # combine the final results and return
   df_combined = cbind(df_combined, fitted_quants)
@@ -2494,7 +2588,7 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
 }
 
 # calculate the metrics for individual data points across simulated imputations
-calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F, k =NULL){
+calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F, k = NULL, district_results = F){
 
   # filter to only be greater than the specified date
   if(!is.null(min_date)){
@@ -2510,16 +2604,20 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
     imputed_list = lapply(imputed_list, function(xx) xx[!is.na(xx$y.AR1),])
   }
   
-  # make sure the dates and facilities match
-  date_facility_check(imputed_list)
+  if(district_results){
+    # updating the y_true and y missing since we don't need those
+    y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y']))
+    y_missing = matrix(NA, nrow = nrow(y_true), ncol = ncol(y_true))
+  }else{
+    # get the true values everywhere and at the deleted time points
+    y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_true']))
+    y_missing = do.call('cbind', lapply(imputed_list, function(xx) {
+      y_true = xx[,'y_true'];
+      y_true[!is.na(xx[,'y'])] = NA
+      y_true
+    }))
+  }
   
-  # get the true values everywhere and at the deleted time points
-  y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_true']))
-  y_missing = do.call('cbind', lapply(imputed_list, function(xx) {
-    y_true = xx[,'y_true'];
-    y_true[!is.na(xx[,'y'])] = NA
-    y_true
-  }))
   # ^above, an NA means the value was not missing, and a number means the value was missing
   y_exp = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_exp']))
   
@@ -2538,20 +2636,27 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
     df = NULL
     # imputed only here
     for(method in imp_vec){
-      tmp = imputed_list[[1]][,c('date','facility','district')]
+      if(district_results){
+        tmp = imputed_list[[1]][,c('date','district')]
+      }else{
+        tmp = imputed_list[[1]][,c('date','facility','district')]
+      }
+      
       tmp$method = method
       tmp$num_missing = num_missing
       
-      point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
       lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
       upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
       lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
       upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
-      median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
       
       if(use_point_est){
+        point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
+        tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
         outcome = point_est
       }else{
+        median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
+        tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,]))
         outcome = median
       }
       
@@ -2559,8 +2664,6 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
       tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
       tmp$y_exp <- sapply(1:nrow(y_exp), function(ii) mean(y_exp[ii,], na.rm = T))
-      tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,]))
-      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
       tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_true[,ii]}))
       tmp$relative_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])/y_exp[,ii]}))
       tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])}))
@@ -2592,7 +2695,11 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
     
     for(method in imp_vec){
       
-      tmp = imputed_list[[1]][,c('date','facility','district')]
+      if(district_results){
+        tmp = imputed_list[[1]][,c('date','district')]
+      }else{
+        tmp = imputed_list[[1]][,c('date','facility','district')]
+      }
       tmp$method = method
       tmp$num_missing = num_missing
       
@@ -2761,62 +2868,11 @@ plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARB
   return(final_plot)
 }
 
-# 
-grab_results <- function(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
-  res <- NULL
-  print(metrics)
-  for(file in files){
-    # p <- stringr::str_match(file, 'mnar(.*?)_')[[2]]
-    p <- c(stringr::str_match(file, 'mcar(.*?)_')[[2]],
-           stringr::str_match(file, 'mnar(.*?)_')[[2]],
-           stringr::str_match(file, 'mar(.*?)_')[[2]])
-    p <- p[!is.na(p)]
-    print(sprintf('p = %s', p))
-    print(file)
-    
-    # if a directory, combine results. If already combined, load them
-    if(dir.exists(file)){
-      lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL)
-    }else{
-      load(file)
-    }
-    
-    if(!any(grepl('outbreak_detection', metrics))){
-      warning('no outbreak detection. Artificially creating the y_exp value')
-      lst_full$df_lst <- lapply(lst_full$df_lst, function(df){
-        df$y_exp = df$y_true + 1
-        df
-      })
-    }
-     
-    tmp <- calculate_metrics_by_point(lst_full$df_lst, imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01') 
-    #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
-    tmp$prop_missing = as.numeric(p)/10
-    
-    tmp$b0_mean <- paste(as.character(lst_full$params$b0_mean), collapse = '/')
-    tmp$b1_mean <- paste(as.character(lst_full$params$b1_mean), collapse = '/')
-    
-    res <- rbind(res, tmp)
-  }
-  
-  # replace the names
-  if(!is.null(rename_vec)){
-    for(i in 1:length(imp_vec)){
-      res$method = gsub(imp_vec[i], rename_vec[i], res$method)
-    }
-    
-    # make a factor so the ordering in the plots stays
-    res$method =  factor(res$method, levels = rename_vec)
-  }
-  
-  return(res)
-}
-
 # plot all methods against each other
 plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), metrics = c('bias', 'RMSE', 'coverage95', 'interval_width', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), ...){
   if(is.null(res)){
     if(!is.null(files)){
-      res <- grab_results(files,  ...)
+      res <- combine_results_wrapper(files,  ...)
     }else{
       stop('need files if not providing results')
     }
@@ -3099,7 +3155,8 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         group_by(district, date) %>%
         summarize(y_exp = sum(y_exp),
                   y_var = sum(y_var),
-                  y = sum(y))
+                  y = sum(y),
+                  y_true = sum(y))
       district_lst[[i]] = district
       
     }
@@ -3218,7 +3275,8 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
                               y_var_ind = sum(df3$y_var),
                               y_cov = cov,
                               y_var = sum(df3$y_var) + cov,
-                              y = sum(df3$y))
+                              y = sum(df3$y),
+                              y_true = sum(df3$y))
           return(tmp_df)
           }
         ))

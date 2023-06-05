@@ -10,6 +10,17 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 6/05/2023: Analyzing CAR DGP facility AND district results ####
+files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+tt <- plot_all_methods(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+
+tt2 <- plot_all_methods(files, imp_vec = c("y_pred_WF"), rename_vec = c('WF'), fix_axis = F, district_results = T)
+
+files1 = files[1]
+lst_full <- combine_results(input_folder = files1, return_lst = T, results_file = NULL)
+
+#
 #### 5/30/2023: Analyzing CAR DGP expectation and variance ####
 
 # after simulating the data
@@ -99,8 +110,7 @@ files <- grep('20230517',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Res
 files1 <- grep('car331', files, value = T)
 files2 <- grep('car731', files, value = T)
 
-tt <- plot_all_methods(files1, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width'))
-
+tt <- plot_all_methods(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), fix_axis = F)
 
 #### 5/04/2023: Bias-adjusted results ####
 load('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/MCAR_p1_R1000_WF_bias_correction_05052023.RData')
