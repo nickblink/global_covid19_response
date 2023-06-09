@@ -2382,7 +2382,7 @@ plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
 # Also can plot the raw values if no imputations are provided (imp_vec is NULL)
 ### Parameters
-plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec = NULL, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', ...){
+plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec = NULL, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', outbreak_points = NULL, ...){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -2431,13 +2431,19 @@ plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec =
         geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
         geom_line(data = df_f, aes(x = date, y = y, group = method, color = method)) +
         geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1) +
-        scale_color_manual(values = c(color_vec)) + 
-        scale_fill_manual(values = c(color_vec)) + 
+        #scale_color_manual(values = c(color_vec)) + 
+        #scale_fill_manual(values = c(color_vec)) + 
         ylim(c(0,ymax)) +
         ggtitle(sprintf('facility %s', f)) + 
         ylab('y') +
         theme_bw() +
         theme(text = element_text(size = 10))
+      
+      if(!is.null(color_vec)){
+        p1 <- p1 + 
+          scale_color_manual(values = c(color_vec)) + 
+          scale_fill_manual(values = c(color_vec)) 
+      }
       
       if(plot_missing_points){
         tmp2 <- tmp %>%
@@ -2448,8 +2454,18 @@ plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec =
           geom_point(data = tmp2, aes(x = date, y = 0),  color = 'red', size = 3)
       }
       
+      # plot vertical line at outbreak time
       if(!is.null(vertical_line)){
         p1 <- p1 + geom_vline(xintercept = as.Date(vertical_line))
+      }
+      
+      # plot outbreak points
+      if(!is.null(outbreak_points)){
+        ind = which(tmp$date == '2020-01-01')
+        out_df = data.frame(date = rep(as.Date('2020-01-01'), length(outbreak_points)),
+                            outbreak = tmp$y_exp[ind] + outbreak_points*sqrt(tmp$y_var[ind]),
+                            k = factor(outbreak_points))
+        p1 <- p1 + geom_point(data = out_df, aes(x = date, y = outbreak, shape = k), col = 'red' )
       }
       
       # store the legend for later
@@ -2471,21 +2487,32 @@ plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec =
         theme_bw() +
         theme(text = element_text(size = 10))
         
+      # plot vertical line at outbreak point
       if(!is.null(vertical_line)){
         p1 <- p1 + geom_vline(xintercept = as.Date(vertical_line))
       }
+      
+      # plot outbreak points
+      if(!is.null(outbreak_points)){
+        ind = which(tmp$date == '2020-01-01')
+        out_df = data.frame(date = rep(as.Date('2020-01-01'), length(outbreak_points)),
+                            outbreak = tmp$y_exp[ind] + outbreak_points*sqrt(tmp$y_var[ind]),
+                            k = factor(outbreak_points))
+        p1 <- p1 + geom_point(data = out_df, aes(x = date, y = outbreak, shape = k), col = 'red' )
+      }
+      
+      # store the legend for later
+      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
+      
+      # remove the legend position on this plot
+      p1 <- p1 + theme(legend.position = 'none') 
       
       plot_list[[iter]] = p1
     }
     
   }
   
-  if(!is.null(imp_vec)){
-    return(cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1)))
-  }else{
-    return(cowplot::plot_grid(plotlist = plot_list, ...))
-  }
-  
+  return(cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1)))
 }
 
 # calculate the desired metrics for a set of imputation methods
@@ -2620,10 +2647,11 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
   
   # ^above, an NA means the value was not missing, and a number means the value was missing
   y_exp = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_exp']))
+  y_var = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_var']))
   
-  y_outbreak3 <- y_exp + 3*sqrt(y_exp)
-  y_outbreak5 <- y_exp + 5*sqrt(y_exp)
-  y_outbreak10 <- y_exp + 10*sqrt(y_exp)
+  y_outbreak3 <- y_exp + 3*sqrt(y_var)
+  y_outbreak5 <- y_exp + 5*sqrt(y_var)
+  y_outbreak10 <- y_exp + 10*sqrt(y_var)
   
   # numeric missing matrix
   missing_mat <- apply(y_missing, 2, function(xx) 1 - as.numeric(is.na(xx)))
@@ -2641,7 +2669,7 @@ calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y
       }else{
         tmp = imputed_list[[1]][,c('date','facility','district')]
       }
-      
+
       tmp$method = method
       tmp$num_missing = num_missing
       

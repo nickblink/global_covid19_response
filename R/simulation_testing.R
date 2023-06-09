@@ -10,10 +10,43 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 6/08/2023: Plotting CAR DGP ####
+files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+f1 <- grep('simulated_data', dir(files[1], full.names = T), value = T)
+load(f1)
+df = lst$df_list[[1]]
+plot_facility_fits(df, outbreak_points = c(3,5,10))
+
+mean(df$y) # 248
+median(df$y) # 107
+
+#dist_df = lst$district_list[[1]]
+
+load(dir(files[1], full.names = T)[1])
+df2 = imputed_list[[1]]$df_miss
+plot_facility_fits(df2, 
+                   imp_vec = c('y_pred_WF', 'y_pred_CCA_CAR'), 
+                   imp_names = c('WF', 'CAR'),
+                   outbreak_points = c(3,5,10))
+
+### Now for some MCAR data
+load('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/mcar02_nost_beta6_n025_2023_03_16/simulated_data.RData')
+df = lst$df_list[[1]]
+
+mean(df$y) # 185
+median(df$y) # 105
+df$y_var = df$y_exp
+
+plot_facility_fits(df, outbreak_points = c(3,5,10))
+
+#
 #### 6/05/2023: Analyzing CAR DGP facility AND district results ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
-tt <- plot_all_methods(files, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+res = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+
+tt <- plot_all_methods(res = res, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), fix_axis = F, rename_vec = c('WF','CAR'))
 
 tt2 <- plot_all_methods(files, imp_vec = c("y_pred_WF"), rename_vec = c('WF'), fix_axis = F, district_results = T)
 
