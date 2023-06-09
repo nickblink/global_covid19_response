@@ -9,6 +9,15 @@
 options(dplyr.summarise.inform = FALSE)
 
 ##### Helper Functions #####
+# pull out the p value from a file name
+get_p_from_name <- function(file){
+  p <- c(stringr::str_match(file, 'mcar(.*?)_')[[2]],
+         stringr::str_match(file, 'mnar(.*?)_')[[2]],
+         stringr::str_match(file, 'mar(.*?)_')[[2]])
+  p <- p[!is.na(p)]
+  return(p)
+}
+
 # make the adjacency matrix according to all facilities in a district being neighbors
 make_district_adjacency <- function(df, scale_by_num_neighbors = F){
   
@@ -243,7 +252,7 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 }
 
 # combine saved results from batch runs into one file
-combine_results <- function(input_folder, results_file = NULL, return_lst = FALSE, ignore_size_err = F, district_results = F){
+combine_results <- function(input_folder, results_file = NULL, return_lst = T, return_raw_list = F, ignore_size_err = F, district_results = F){
   files <- dir(input_folder, full.names = T)
   files <- grep('sim_results', files, value = T)
   
@@ -255,6 +264,10 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = FALS
   for(i in 2:length(files)){
     load(files[i])
     lst_full <- c(lst_full, imputed_list)
+  }
+  
+  if(return_raw_list){
+    return(lst_full)
   }
   
   if(class(lst_full[[1]]) == 'data.frame'){
@@ -349,11 +362,7 @@ combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_
   }
   
   for(file in files){
-    # p <- stringr::str_match(file, 'mnar(.*?)_')[[2]]
-    p <- c(stringr::str_match(file, 'mcar(.*?)_')[[2]],
-           stringr::str_match(file, 'mnar(.*?)_')[[2]],
-           stringr::str_match(file, 'mar(.*?)_')[[2]])
-    p <- p[!is.na(p)]
+    p <- get_p_from_name(file)
     print(sprintf('p = %s', p))
     print(file)
     
@@ -2944,7 +2953,8 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar
     p1 <- ggplot() + 
       geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
       geom_point(data = tmp, aes(x = prop_missing, y = median, color = method, shape = method), position = position_dodge(width = 0.1)) +
-      geom_errorbar(data = tmp, aes(x = prop_missing, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
+      # geom_errorbar(data = tmp, aes(x = prop_missing, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
+      geom_errorbar(data = tmp, aes(x = prop_missing, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1))
       labs(x = 'proportion missing') + 
       guides(alpha = 'none') +
       theme_bw()

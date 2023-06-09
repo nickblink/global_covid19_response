@@ -10,6 +10,105 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 6/09/2023: Getting CAR parameter convergence
+files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+load(dir(files[1], full.names = T)[1])
+
+process_CAR_params <- function(imputed_list, all_betas = F){
+  # get row indices of betas
+  tt <- imputed_list[[1]]$CAR_summary
+  ind = which(!(rownames(tt) %in% c('tau2','rho.S','rho.T')))
+  
+  # get all row names
+  rn = rownames(tt)
+  
+  # Organize betas and pull out mean and n.effective
+  tmp <- lapply(imputed_list, function(xx){
+    tt = xx$CAR_summary
+    if(!identical(rownames(tt), rn)){
+      stop('unmatched row names')
+    }
+    tt2 <- rbind(tt, matrix(colMeans(tt[ind,]), nrow = 1, dimnames = list('betas', NULL)))
+    return(list(tt2[,1], tt2[,'n.effective']))
+  })
+  
+  # create matrix of means and n effective numbers
+  param_means <- do.call('cbind', lapply(tmp, '[[', 1))
+  param_n <- do.call('cbind', lapply(tmp, '[[', 2))
+  
+  # combine into one df
+  df <- data.frame(param = rownames(param_means),
+                   mean_param = apply(param_means, 1, mean),
+                   median_param = apply(param_means, 1, median),
+                   param_05 = apply(param_means, 1, function(x){ quantile(x, probs = 0.05)}),
+                   param_95 = apply(param_means, 1, function(x){ quantile(x, probs = 0.95)}),
+                   mean_n_eff = apply(param_n, 1, mean),
+                   median_n_eff = apply(param_n, 1, median),
+                   n_eff_05 = apply(param_n, 1, function(x){ quantile(x, probs = 0.05)}),
+                   n_eff_95 = apply(param_n, 1, function(x){ quantile(x, probs = 0.95)}))
+  
+  if(!all_betas){
+    df <- df %>% 
+      filter(param %in% c('betas','tau2', 'rho.S','rho.T'))
+  }
+  
+  return(df)
+}
+
+process_CAR_params_wrapper <- function(files, plotting = T, rename_params = T, expected = NULL){
+  # expected = data.frame(param = c('tau2','rho.S','alpha'), expected = c(1, 0.3,0.3))
+  res_df <- NULL
+  for(f in files){
+    lst <- combine_results(f, return_raw_list = T)
+    p <- get_p_from_name(f)
+    res <- process_CAR_params(lst)
+    res$prop_missing = as.numeric(p)/10
+    res_df <- rbind(res_df, res)
+  }
+  
+  if(rename_params){
+    res_df$param <- gsub('rho.T','alpha', res_df$param)
+  }
+  
+  if(plotting){
+    
+    tmp <- res_df %>% filter(param != 'betas')
+    
+    if(!is.null(expected)){
+      tmp = merge(tmp, expected)
+      p1 <- ggplot(tmp) +
+        facet_wrap(vars(param)) + 
+        geom_point(aes(x = prop_missing, y = mean_param)) + 
+        geom_errorbar(aes(x = prop_missing,  ymin = param_05, ymax = param_95), position = position_dodge(width = 0.1)) +
+        geom_hline(aes(yintercept = expected), color = 'red') + 
+        ylab('mean MCMC parameter estimate (5%, 95%) of simulations')
+    }else{
+      p1 <- ggplot(tmp) +
+        facet_wrap(vars(param)) + 
+        geom_point(aes(x = prop_missing, y = mean_param)) + 
+        geom_errorbar(aes(x = prop_missing,  ymin = param_05, ymax = param_95), position = position_dodge(width = 0.1)) +
+        ylab('mean MCMC parameter estimate (5%, 95%) of simulations')
+    }
+    
+    ## PLOT THE N EFFECTIVE
+    
+    ## COMBINE INTO ONE BIG PLOT
+    
+    ## RETURN THAT ISH
+    
+    ## SPLIT THIS INTO A WRAPPER RETURN FUNCTION AND A PLOTTING FUNCTION
+    
+   
+  }
+}
+# make a wrapper to easily call this from a list of files?
+## Yes - it can call combine files
+## And it can return results for the different missingness values. That is useful.
+
+res = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+
+#
 #### 6/08/2023: Plotting CAR DGP ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
