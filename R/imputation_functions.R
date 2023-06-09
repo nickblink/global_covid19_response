@@ -164,6 +164,16 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   return(df)
 }
 
+# get the district and facility list from a data frame
+get_district_facilities <- function(df){
+  tt = unique(df[,c('district','facility')])
+  res_lst <- NULL
+  for(i in 1:nrow(tt)){
+    res_lst[[tt[i,1]]] <- c(res_lst[[tt[i,1]]], tt[[i,2]])
+  }
+  return(res_lst)
+}
+
 # check that the dates and facilities align in a list of data frames
 date_facility_check <- function(imputed_list){
   date_fac_mat = imputed_list[[1]][, c("date", "facility")]
@@ -192,6 +202,7 @@ date_district_check <- function(imputed_list){
   }
 }
 
+# fit the basic WF model
 fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities = NULL, family = 'nb', max_date = '2019-12-01'){
   
   print(sprintf('filtering data to be less than %s', max_date))
@@ -411,14 +422,65 @@ combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_
   return(res)
 }
 
-# get the district and facility list from a data frame
-get_district_facilities <- function(df){
-  tt = unique(df[,c('district','facility')])
-  res_lst <- NULL
-  for(i in 1:nrow(tt)){
-    res_lst[[tt[i,1]]] <- c(res_lst[[tt[i,1]]], tt[[i,2]])
+# pulls out the CAR parameter estimates from an imputed list and organizes them
+process_CAR_params <- function(imputed_list, all_betas = F){
+  # get row indices of betas
+  tt <- imputed_list[[1]]$CAR_summary
+  ind = which(!(rownames(tt) %in% c('tau2','rho.S','rho.T')))
+  
+  # get all row names
+  rn = rownames(tt)
+  
+  # Organize betas and pull out mean and n.effective
+  tmp <- lapply(imputed_list, function(xx){
+    tt = xx$CAR_summary
+    if(!identical(rownames(tt), rn)){
+      stop('unmatched row names')
+    }
+    tt2 <- rbind(tt, matrix(colMeans(tt[ind,]), nrow = 1, dimnames = list('betas', NULL)))
+    return(list(tt2[,1], tt2[,'n.effective']))
+  })
+  
+  # create matrix of means and n effective numbers
+  param_means <- do.call('cbind', lapply(tmp, '[[', 1))
+  param_n <- do.call('cbind', lapply(tmp, '[[', 2))
+  
+  # combine into one df
+  df <- data.frame(param = rownames(param_means),
+                   mean_param = apply(param_means, 1, mean),
+                   median_param = apply(param_means, 1, median),
+                   param_05 = apply(param_means, 1, function(x){ quantile(x, probs = 0.05)}),
+                   param_95 = apply(param_means, 1, function(x){ quantile(x, probs = 0.95)}),
+                   mean_n_eff = apply(param_n, 1, mean),
+                   median_n_eff = apply(param_n, 1, median),
+                   n_eff_05 = apply(param_n, 1, function(x){ quantile(x, probs = 0.05)}),
+                   n_eff_95 = apply(param_n, 1, function(x){ quantile(x, probs = 0.95)}))
+  
+  if(!all_betas){
+    df <- df %>% 
+      filter(param %in% c('betas','tau2', 'rho.S','rho.T'))
   }
-  return(res_lst)
+  
+  return(df)
+}
+
+# pulls out CAR estimates from a set of files where results are located and splits up results by the proportion missing
+process_CAR_params_wrapper <- function(files, rename_params = T){
+  # expected = data.frame(param = c('tau2','rho.S','alpha'), expected = c(1, 0.3,0.3))
+  res_df <- NULL
+  for(f in files){
+    lst <- combine_results(f, return_raw_list = T)
+    p <- get_p_from_name(f)
+    res <- process_CAR_params(lst)
+    res$prop_missing = as.numeric(p)/10
+    res_df <- rbind(res_df, res)
+  }
+  
+  if(rename_params){
+    res_df$param <- gsub('rho.T','alpha', res_df$param)
+  }
+  
+  return(res_df)
 }
 
 #
@@ -3012,6 +3074,46 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar
   }
   
   final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = 2), legend, ncol = 1, rel_heights = c(10,1))
+  
+  return(final_plot)
+}
+
+# plot the CAR parameter estimates from a set of simulations
+# This function can either take in a list of files with results or a processed CAR results data set and plot them
+plot_CAR_params <- function(files = NULL, res_df = NULL, expected = data.frame(param = c('tau2','rho.S','alpha'), expected_value = c(1, 0.3,0.3)), ...){
+  if(!is.null(files)){
+    res_df <- process_CAR_params_wrapper(files, ...)
+  }
+  
+  tmp <- res_df %>% filter(param != 'betas')
+  
+  ## plot the parameter estimates
+  if(!is.null(expected)){
+    tmp = merge(tmp, expected)
+    p1 <- ggplot(tmp) +
+      facet_wrap(vars(param)) + 
+      geom_point(aes(x = prop_missing, y = mean_param)) + 
+      geom_errorbar(aes(x = prop_missing,  ymin = param_05, ymax = param_95), position = position_dodge(width = 0.1)) +
+      geom_hline(aes(yintercept = expected_value), color = 'red') + 
+      ylab('mean MCMC parameter estimate (5%, 95%) of simulations')
+  }else{
+    p1 <- ggplot(tmp) +
+      facet_wrap(vars(param)) + 
+      geom_point(aes(x = prop_missing, y = mean_param)) + 
+      geom_errorbar(aes(x = prop_missing,  ymin = param_05, ymax = param_95), position = position_dodge(width = 0.1)) +
+      ylab('mean param estimate (5%, 95%) of simulations')
+  }
+  
+  ## plot the n effective results
+  p2 <- ggplot(res_df) +
+    facet_wrap(vars(param), nrow = 1) + 
+    geom_point(aes(x = prop_missing, y = mean_n_eff)) + 
+    geom_errorbar(aes(x = prop_missing,  ymin = n_eff_05, ymax = n_eff_95), position = position_dodge(width = 0.1)) +
+    scale_y_continuous(trans='log2') + 
+    ylab('mean n.effective (5%, 95%)')
+  
+  ## Combine into final plot
+  final_plot <- cowplot::plot_grid(p1, p2, ncol = 1)
   
   return(final_plot)
 }
