@@ -14,7 +14,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('0.1', '6', 'n0.25', 'mcar', 'CAR', '0.3', '0.3', '1', '500','50','test','25')
+inputs <- c('0.1', '6', 'n0.25', 'mcar', 'CAR', '0.3', '0.3', '1', '10','5','test','1')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -145,7 +145,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   }
   
   # initializing the return list
-  return_list <- list(df_miss = df_miss, errors = errors, WF_betas = NULL, CAR_summary = NULL)
+  return_list <- list(df_miss = df_miss, district_df = lst$district_list[[i]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
   rm(df_miss)
   
   # run the freqGLM_epi complete case analysis
@@ -166,9 +166,10 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if('WF' %in% models){
     print('running WF CCA')
     return_list <- tryCatch({
-      res <- WF_CCA(return_list[['df_miss']], district_df = lst$district_list[[i]], col = "y", family = 'poisson', R_PI = 200)
+      res <- WF_CCA(return_list[['df_miss']], col = "y", family = 'poisson', R_PI = 200)
       return_list[['df_miss']] <- res$df
-      return_list[['district_df']] <- res$district_df
+      return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
+        res$district_df
       return_list[['WF_betas']] <- res$betas
       return_list
     }, error = function(e){
@@ -181,8 +182,10 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if('CAR' %in% models){
     print('running CARBayes')
     return_list <- tryCatch({
-      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
       return_list[['df_miss']] <- res$df
+      return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
       return_list[['CAR_summary']] <- res$summary_stats
       return_list
     }, error = function(e){
@@ -191,10 +194,11 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
       return_list
     })
   }
-  
-  warning('might need to add in district sums')
 
   print(sprintf('i = %i; time = %f minutes', i, difftime(Sys.time(), t0, units = 'm')))
+  
+  # check I got the correct result names
+  outcome_name_checker(return_list, models = models)
   
   return(return_list)
 }

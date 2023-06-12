@@ -10,7 +10,8 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-#### 6/09/2023: Getting CAR parameter convergence
+
+#### 6/09/2023: Getting CAR parameter convergence ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
 res_df <- process_CAR_params_wrapper(files)
@@ -54,10 +55,15 @@ plot_facility_fits(df, outbreak_points = c(3,5,10))
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
 res = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+res_dst = combine_results_wrapper(files, imp_vec = c("y_pred_WF"), rename_vec = c('WF'), district_results = T)
 
 tt <- plot_all_methods(res = res, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), fix_axis = F, rename_vec = c('WF','CAR'))
 
-tt2 <- plot_all_methods(files, imp_vec = c("y_pred_WF"), rename_vec = c('WF'), fix_axis = F, district_results = T)
+tt2 <- plot_all_methods(res = res_dist, imp_vec = c("y_pred_WF"), rename_vec = c('WF'), fix_axis = F)
+
+
+
+
 
 files1 = files[1]
 lst_full <- combine_results(input_folder = files1, return_lst = T, results_file = NULL)

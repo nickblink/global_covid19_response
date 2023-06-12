@@ -353,6 +353,25 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   }
 }
 
+# Check that the names of the simulation outcomes are there. This is to avoid running a super long simulation and then find out I didn't return all the results
+outcome_name_checker <- function(res, models = c('WF','CAR','freqGLM'), quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
+  cols <- c('district','date','y','y_true','y_exp','y_var')
+  for(m in models){
+    cols <- c(cols, paste0('y_pred_',m,'_',quant_probs))
+  }
+  
+  missing_cols = setdiff(c('facility', cols), colnames(res$df_miss))
+  missing_dist_cols = setdiff(cols, colnames(res$district_df))
+  
+  if(length(missing_cols) > 0){
+    print(sprintf('missing cols from facility df: %s', paste0(missing_cols, collapse = ', ')))
+  }
+  
+  if(length(missing_dist_cols) > 0){
+    print(sprintf('missing cols from district df: %s', paste0(missing_dist_cols, collapse = ', ')))
+  }
+}
+
 ### Takes in a list of files and/or directories. For each of these, pulls in the results using "combine_results" and then combines these results all together.
 combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
   res <- NULL
@@ -482,7 +501,7 @@ process_CAR_params_wrapper <- function(files, rename_params = T){
 # Weingberger-Fulcher imputation method
 WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, bias_correction_chen = F, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
-  print(sprintf('family is %s', family))
+  # print(sprintf('family is %s', family))
   
   # check if this method has already been run
   if(any(grepl('y_pred_WF', colnames(df)))){
@@ -502,7 +521,6 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
   # setting up the formula
   formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
   
-
   if(family == 'quasipoisson'){
     warning('havent coded PIs in quasipoisson or NB yet')
     
@@ -855,7 +873,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_imputation <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T){
   
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -863,8 +881,8 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'all', model = c(
     df[,grep('y_CARBayes_ST', colnames(df))] <- NULL
   }
   
+  # checking that we don't have any single districts
   tt = df %>% filter(date == unique(date)[1]) %>% pull(district) %>% table
-  
   if(any(tt == 1)){
     warning('Randomly choosing a district for a facility without that district (this should be fixed later)')
     # replace the single districts with the biggest ones
@@ -873,7 +891,7 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'all', model = c(
     }
   }
   
-  districts = df %>% group_by(district) %>% summarize(n = length(unique(facility)))
+  #districts = df %>% group_by(district) %>% summarize(n = length(unique(facility)))
   
   # create the adjacency matrix
   D2 = df %>% dplyr::select(district, facility) %>% distinct()
@@ -975,9 +993,15 @@ CARBayes_imputation <- function(df, col, AR = 1, return_type = 'all', model = c(
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), ...){
-  max_date <- max(df$date)
+CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), ...){
+  
+  # get districts and facilities
+  dist_fac <- get_district_facilities(df)
   facilities <- unique(df$facility)
+  
+  # get the max date
+  max_date <- max(df$date)
+  
   if(is.null(predict_start_date)){
     dates = df %>% 
       filter(date > train_end_date) %>%
@@ -986,7 +1010,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
       .$date
     predict_start_date = min(dates)
   }else{
-    warning('I am setting phi to 0 at the start of 2020')
+    warning(sprintf('Setting phi to 0 at %s in the posterior prediction simulation', predict_start_date))
     dates = df %>% 
       filter(date >= predict_start_date) %>%
       select(date) %>%
@@ -998,8 +1022,10 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   train <- df %>%
     filter(date <= train_end_date)
   
-  res <- CARBayes_imputation(train, col, ...)
+  # fit the model!
+  res <- CARBayes_fitting(train, col, ...)
   
+  #### the rest is for future model prediction
   # pull out the summary statistics
   summary_stats <- res$model_chain$summary.results
   
@@ -1018,7 +1044,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     stop('cant sample more posterior predictions than the original model fit returns')
   }
   
-  ### group the betas into their separate facility values
+  # group the betas into their separate facility values
   fac_beta_list <- list()
   beta_ref <- betas[,c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
   for(f in facilities){
@@ -1084,7 +1110,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     phi = matrix(0, nrow = length(dates), ncol = length(facilities))
     colnames(phi) = facilities
     
-    # first time step
+    # first time step (at 2016-01-01, not 2020-01-01)
     phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, ncol(phi)), Sigma = covar_mats[[i]])
     
     # cycle through other time steps, using auto-correlated priors
@@ -1125,7 +1151,6 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   names(mean_pred) <- facilities
   
   # predict new points using the fixed effects, phi values and poisson distribution
-  print('fitting a poisson model for posterior prediction')
   predicted_vals <- lapply(facilities, function(f){
     # get mean fits
     res <- mean_pred[[f]]
@@ -1153,16 +1178,39 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   # merge the results together
   df <- merge(df, fitted_quants, by = c('date', 'facility'), all = T)
   
-  # predicted_vals is a list for each facility of dimension n x R
-  # so need to get indices of list for each district
-  # cycle through districts,
-  # for each district, sum the n x R matrix from each facility
-  # Get the quantiles for these values
-  # merge into district_df
+  # initialize district results
+  district_df = NULL
   
-  browser()
+  # district-level analysis
+  for(d in names(dist_fac)){
+    tt = data.frame(district = d,
+                    date = dates)
+    facs = dist_fac[[d]]
+    
+    # get the sums by district: returns n x R data frame
+    sum_district = Reduce('+', lapply(facs, function(f){
+      predicted_vals[[f]]
+    }))
+    
+    # get the quantiles and store them
+    fitted_quants = t(apply(sum_district, 1, function(xx){
+      quantile(xx, probs = quant_probs)
+    }))
+    fitted_quants = as.data.frame(fitted_quants)
+    colnames(fitted_quants) = paste0(paste0(col, '_pred_CAR_'), quant_probs)
+    
+    # merge the quantiles back into data frame
+    tt = cbind(tt, fitted_quants)
+    
+    district_df = rbind(district_df, tt)
+  }
+  
+  if(!is.null(input_district_df)){
+    res$district_df = merge(input_district_df, res$district_df, by = c('district','date'))
+  }
+  
   # return list of results
-  res_lst <- list(df = df, summary_stats = summary_stats)
+  res_lst <- list(df = df, district_df = district_df, summary_stats = summary_stats)
   
   return(res_lst)
 }
@@ -3017,7 +3065,7 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar
       geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
       geom_point(data = tmp, aes(x = prop_missing, y = median, color = method, shape = method), position = position_dodge(width = 0.1)) +
       # geom_errorbar(data = tmp, aes(x = prop_missing, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
-      geom_errorbar(data = tmp, aes(x = prop_missing, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1))
+      geom_errorbar(data = tmp, aes(x = prop_missing, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) + 
       labs(x = 'proportion missing') + 
       guides(alpha = 'none') +
       theme_bw()
