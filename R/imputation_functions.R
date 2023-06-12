@@ -1,11 +1,4 @@
-### The functions used for imputation in Liberia
-# library(MASS)
-# library(CARBayesST)
-# library(Matrix)
-# library(dplyr)
-# library(lubridate)
-# library(ggplot2)
-# library(cowplot)
+### The functions used for imputation 
 options(dplyr.summarise.inform = FALSE)
 
 ##### Helper Functions #####
@@ -1160,6 +1153,14 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   # merge the results together
   df <- merge(df, fitted_quants, by = c('date', 'facility'), all = T)
   
+  # predicted_vals is a list for each facility of dimension n x R
+  # so need to get indices of list for each district
+  # cycle through districts,
+  # for each district, sum the n x R matrix from each facility
+  # Get the quantiles for these values
+  # merge into district_df
+  
+  browser()
   # return list of results
   res_lst <- list(df = df, summary_stats = summary_stats)
   
