@@ -255,8 +255,27 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
   return(df)
 }
 
-# combine saved results from batch runs into one file
-combine_results <- function(input_folder, results_file = NULL, return_lst = T, return_raw_list = F, ignore_size_err = F, district_results = F){
+### Check that the names of the simulation outcomes are there. This is to avoid running a super long simulation and then find out I didn't return all the results
+outcome_name_checker <- function(res, models = c('WF','CAR','freqGLM'), quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
+  cols <- c('district','date','y','y_true','y_exp','y_var')
+  for(m in models){
+    cols <- c(cols, paste0('y_pred_',m,'_',quant_probs))
+  }
+  
+  missing_cols = setdiff(c('facility', cols), colnames(res$df_miss))
+  missing_dist_cols = setdiff(cols, colnames(res$district_df))
+  
+  if(length(missing_cols) > 0){
+    print(sprintf('missing cols from facility df: %s', paste0(missing_cols, collapse = ', ')))
+  }
+  
+  if(length(missing_dist_cols) > 0){
+    print(sprintf('missing cols from district df: %s', paste0(missing_dist_cols, collapse = ', ')))
+  }
+}
+
+### combine saved results from batch runs into one file
+combine_results <- function(input_folder, results_file = NULL, return_lst = T, return_raw_list = F, ignore_size_err = F, district_results = F, subset_results = NULL){
   files <- dir(input_folder, full.names = T)
   files <- grep('sim_results', files, value = T)
   
@@ -268,6 +287,10 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   for(i in 2:length(files)){
     load(files[i])
     lst_full <- c(lst_full, imputed_list)
+  }
+  
+  if(!is.null(subset_results)){
+    lst_full = lst_full[subset_results]
   }
   
   if(return_raw_list){
@@ -353,27 +376,8 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   }
 }
 
-# Check that the names of the simulation outcomes are there. This is to avoid running a super long simulation and then find out I didn't return all the results
-outcome_name_checker <- function(res, models = c('WF','CAR','freqGLM'), quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
-  cols <- c('district','date','y','y_true','y_exp','y_var')
-  for(m in models){
-    cols <- c(cols, paste0('y_pred_',m,'_',quant_probs))
-  }
-  
-  missing_cols = setdiff(c('facility', cols), colnames(res$df_miss))
-  missing_dist_cols = setdiff(cols, colnames(res$district_df))
-  
-  if(length(missing_cols) > 0){
-    print(sprintf('missing cols from facility df: %s', paste0(missing_cols, collapse = ', ')))
-  }
-  
-  if(length(missing_dist_cols) > 0){
-    print(sprintf('missing cols from district df: %s', paste0(missing_dist_cols, collapse = ', ')))
-  }
-}
-
 ### Takes in a list of files and/or directories. For each of these, pulls in the results using "combine_results" and then combines these results all together.
-combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
+combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), subset_results = NULL){
   res <- NULL
   
   if(district_results){
@@ -391,7 +395,7 @@ combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_
     
     # if a directory, combine results. If already combined, load them
     if(dir.exists(file)){
-      lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL, district_results = district_results)
+      lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL, district_results = district_results, subset_results = subset_results)
     }else{
       load(file)
     }
@@ -449,16 +453,20 @@ process_CAR_params <- function(imputed_list, all_betas = F){
     if(!identical(rownames(tt), rn)){
       stop('unmatched row names')
     }
-    tt2 <- rbind(tt, matrix(colMeans(tt[ind,]), nrow = 1, dimnames = list('betas', NULL)))
-    return(list(tt2[,1], tt2[,'n.effective']))
+    tt2 <- rbind(tt, matrix(colMeans(tt[ind,]), 
+                            nrow = 1, 
+                            dimnames = list('betas', NULL)))
+    return(list(tt2[,1], tt2[,'n.effective'], tt2[,'% accept']))
   })
   
   # create matrix of means and n effective numbers
   param_means <- do.call('cbind', lapply(tmp, '[[', 1))
   param_n <- do.call('cbind', lapply(tmp, '[[', 2))
+  param_accept <- do.call('cbind', lapply(tmp, '[[', 3))
   
   # combine into one df
   df <- data.frame(param = rownames(param_means),
+                   mean_acceptance = apply(param_accept, 1, mean),
                    mean_param = apply(param_means, 1, mean),
                    median_param = apply(param_means, 1, median),
                    param_05 = apply(param_means, 1, function(x){ quantile(x, probs = 0.05)}),
@@ -477,13 +485,13 @@ process_CAR_params <- function(imputed_list, all_betas = F){
 }
 
 # pulls out CAR estimates from a set of files where results are located and splits up results by the proportion missing
-process_CAR_params_wrapper <- function(files, rename_params = T){
+process_CAR_params_wrapper <- function(files, rename_params = T, all_betas = F){
   # expected = data.frame(param = c('tau2','rho.S','alpha'), expected = c(1, 0.3,0.3))
   res_df <- NULL
   for(f in files){
     lst <- combine_results(f, return_raw_list = T)
     p <- get_p_from_name(f)
-    res <- process_CAR_params(lst)
+    res <- process_CAR_params(lst, all_betas)
     res$prop_missing = as.numeric(p)/10
     res_df <- rbind(res_df, res)
   }
@@ -1010,12 +1018,15 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
       .$date
     predict_start_date = min(dates)
   }else{
-    warning(sprintf('Setting phi to 0 at %s in the posterior prediction simulation', predict_start_date))
     dates = df %>% 
       filter(date >= predict_start_date) %>%
       select(date) %>%
       unique() %>%
       .$date
+  }
+  
+  if(predict_start_date > min(dates)){
+    warning(sprintf('Setting phi to 0 at %s in the posterior prediction simulation', predict_start_date))
   }
   
   # make a train set to fit on

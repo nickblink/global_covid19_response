@@ -10,14 +10,58 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 7/09/2023: Comparing R values
+files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+res_full = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+
+res100 <- lapply(1:10, function(ii){
+  seq = (1 + (ii-1)*100):(ii*100)
+  tmp = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), subset_results = seq)
+  return(tmp)
+})
+
+res200 <- lapply(1:5, function(ii){
+  seq = (1 + (ii-1)*200):(ii*200)
+  tmp = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), subset_results = seq)
+  return(tmp)
+})
+
+res_full$method = paste0(res_full$method, '_full')
+res1 = res200[[1]]
+res1$method = paste0(res1$method, '_200')
+res2 = res200[[2]]
+res2$method = paste0(res2$method, '_200_2')
+res3 = res200[[3]]
+res3$method = paste0(res3$method, '_200_3')
+
+res = rbind(res_full, res1, res2, res3)
+
+ind_WF = grep('WF', res$method)
+res_WF = res[ind_WF,]
+res_CAR = res[-ind_WF,]
+
+plot_all_methods(res = res_WF, fix_axis = F)
+plot_all_methods(res = res_CAR, fix_axis = F)
+
+
+# How to subset??
+# will need to adapt the combine_results and combine_results_wrapper function so that they can take subsets. 
+# This will be inefficient in terms of re-combining the results each time, but it's easiest for now. Actually that *may* not be true
+
 
 #### 6/09/2023: Getting CAR parameter convergence ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
-res_df <- process_CAR_params_wrapper(files)
+res_df <- process_CAR_params_wrapper(files, all_betas = F)
 plot_CAR_params(res_df = res_df)
 #plot_CAR_params(files = files)
 
+res_df <- process_CAR_params_wrapper(files, all_betas = T)
+res2 = res_df %>%
+  filter(!(param %in% c('tau2','rho.S','alpha','betas')))
+
+table(res2$prop_missing, res2$mean_acceptance)
 
 #
 #### 6/08/2023: Plotting CAR DGP ####
