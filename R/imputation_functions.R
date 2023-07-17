@@ -881,7 +881,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10){
   
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -925,7 +925,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
                      data = df, W = W, 
                      burnin = burnin, 
                      n.sample = n.sample,
-                     thin = 10, AR = AR, verbose = F)
+                     thin = thin, AR = AR, verbose = F)
   
   df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
   
@@ -1001,7 +1001,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), ...){
+CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, ...){
   
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
@@ -1221,7 +1221,11 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   }
   
   # return list of results
-  res_lst <- list(df = df, district_df = district_df, summary_stats = summary_stats)
+  if(return_chain){
+    res_lst <- list(df = df, district_df = district_df, summary_stats = summary_stats, model_chain = res$model_chain)
+  }else{
+    res_lst <- list(df = df, district_df = district_df, summary_stats = summary_stats)
+  }
   
   return(res_lst)
 }

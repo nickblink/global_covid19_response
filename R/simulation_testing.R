@@ -10,7 +10,7 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-#### 7/09/2023: Comparing R values
+#### 7/09/2023: Comparing R values ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
 res_full = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))

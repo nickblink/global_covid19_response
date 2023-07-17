@@ -108,17 +108,44 @@ df_miss = MCAR_sim(df, p = p, by_facility = T)
 return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
 
 # run the models
-res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+set.seed(10)
+system.time({
+res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 1, return_chain = T)
+}) # 182s
 
-res2 <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 5000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+set.seed(10)
+system.time({
+res2 <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin = 10, return_chain = T)
+}) # 44s
 
-res3 <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+set.seed(10)
+system.time({
+  res3 <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 5000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin = 50, return_chain = T)
+}) # 56s
 
-#HERE!
-  
-res4 <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 50000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+set.seed(10)
+system.time({
+  res4 <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 5000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin = 10, return_chain = T)
+}) # 72s
 
-save(res, res2, res3,res4, file = 'C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/CARBayes_debug_res2_07092023.RData')
+names(res)
+tt = res$model_chain$samples$beta
+ss = res2$model_chain$samples$beta
+
+# ok they are the same. Good.
+sum(abs(ss[1,]) - abs(tt[10,]))
+sum(abs(ss[10,]) - abs(tt[100,]))
+
+diff = res$summary_stats - res2$summary_stats
+
+View(res$summary_stats)
+View(res2$summary_stats)
+View(diff)
+
+
+
+#### Analyzing the n.sample results  ####
+load('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results/CARBayes_debug_res2_07092023.RData')
 
 # compare the convergence statistics
 # Compare the beta convergence from each of these (will require averaging the convergence or calling the getting results function)
