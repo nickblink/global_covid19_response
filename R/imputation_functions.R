@@ -881,8 +881,8 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10){
-  
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL){
+
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
     print('previous CAR Bayes predictions found. Removing them')
@@ -919,13 +919,38 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
     formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
   }
   
+  if(prior == 'WF'){
+    # Get the WF estimates
+    lm_fit <- glm(formula_col, family = 'poisson', data = df)
+    coef_mat <- summary(lm_fit)$coefficients
+    prior_mean_beta <- coef_mat[,1]
+    prior_var_beta <- coef_mat[,2]*prior_var_scale
+  }else if(prior == 'constant'){
+    prior_mean_beta = prior_mean
+    prior_var_beta = prior_var
+  }else if(prior == 'none'){
+    prior_mean_beta = NULL
+    prior_var_beta = NULL
+  }else{
+    stop('please input a proper prior value (WF, constant, none)')
+  }
+  
   # run CAR Bayes
   chain1 <- ST.CARar(formula = formula_col, 
                      family = "poisson",
                      data = df, W = W, 
+                     prior.mean.beta = prior_mean_beta,
+                     prior.var.beta = prior_var_beta,
                      burnin = burnin, 
                      n.sample = n.sample,
                      thin = thin, AR = AR, verbose = F)
+  
+  # check that the prior names matched the CAR fitted names
+  if(prior == 'WF'){
+    if(!(identical(rownames(coef_mat), rownames(chain1$summary.results)[1:160]))){
+      stop('error in WF prior and CAR formula name mismatch')
+    }
+  }
   
   df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
   

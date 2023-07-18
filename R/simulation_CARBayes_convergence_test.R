@@ -10,7 +10,7 @@ library(doParallel)
 source('R/imputation_functions.R')
 
 # register the cores
-registerDoParallel(cores = 20)
+#registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
@@ -107,6 +107,14 @@ df_miss = MCAR_sim(df, p = p, by_facility = T)
 # initializing the return list
 return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
 
+#### Testing priors ####
+res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T)
+
+res2 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, prior = 'WF', prior_var_scale = 1)
+
+res3 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, prior = 'constant', prior_mean = rep(2, 160), prior_var = rep(1, 160))
+
+#### Test thinning and n.sample ####
 # run the models
 set.seed(10)
 system.time({
