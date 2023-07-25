@@ -935,7 +935,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
     lm_fit <- glm(formula_col, family = 'poisson', data = df)
     coef_mat <- summary(lm_fit)$coefficients
     prior_mean_beta <- coef_mat[,1]
-    prior_var_beta <- coef_mat[,2]*prior_var_scale
+    prior_var_beta <- coef_mat[,2]^2*prior_var_scale
   }else if(prior == 'constant'){
     prior_mean_beta = prior_mean
     prior_var_beta = prior_var
