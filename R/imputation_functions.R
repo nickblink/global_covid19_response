@@ -390,7 +390,13 @@ combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_
   
   for(file in files){
     p <- get_p_from_name(file)
-    print(sprintf('p = %s', p))
+    if(length(p) == 0){
+      print('cant find p. Artificially set equal to 0')
+      p = 0
+    }else{
+      print(sprintf('p = %s', p))
+    }
+    
     print(file)
     
     # if a directory, combine results. If already combined, load them
@@ -439,9 +445,9 @@ combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_
 }
 
 # pulls out the CAR parameter estimates from an imputed list and organizes them
-process_CAR_params <- function(imputed_list, all_betas = F){
+process_CAR_params <- function(imputed_list, all_betas = F, CAR_name = 'CAR_summary'){
   # get row indices of betas
-  tt <- imputed_list[[1]]$CAR_summary
+  tt <- imputed_list[[1]][[CAR_name]]
   ind = which(!(rownames(tt) %in% c('tau2','rho.S','rho.T')))
   
   # get all row names
@@ -449,7 +455,7 @@ process_CAR_params <- function(imputed_list, all_betas = F){
   
   # Organize betas and pull out mean and n.effective
   tmp <- lapply(imputed_list, function(xx){
-    tt = xx$CAR_summary
+    tt = xx[[CAR_name]]
     if(!identical(rownames(tt), rn)){
       stop('unmatched row names')
     }
@@ -485,15 +491,20 @@ process_CAR_params <- function(imputed_list, all_betas = F){
 }
 
 # pulls out CAR estimates from a set of files where results are located and splits up results by the proportion missing
-process_CAR_params_wrapper <- function(files, rename_params = T, all_betas = F){
+process_CAR_params_wrapper <- function(files, rename_params = T, all_betas = F, use_prop_missing = F, CAR_names = c('CAR_summary')){
   # expected = data.frame(param = c('tau2','rho.S','alpha'), expected = c(1, 0.3,0.3))
   res_df <- NULL
   for(f in files){
     lst <- combine_results(f, return_raw_list = T)
-    p <- get_p_from_name(f)
-    res <- process_CAR_params(lst, all_betas)
-    res$prop_missing = as.numeric(p)/10
-    res_df <- rbind(res_df, res)
+    for(CN in CAR_names){
+      res <- process_CAR_params(lst, all_betas, CAR_name = CN)
+      if(use_prop_missing){
+        p <- get_p_from_name(f)
+        res$prop_missing = as.numeric(p)/10
+      }
+      res$CAR_name = CN
+      res_df <- rbind(res_df, res)
+    }
   }
   
   if(rename_params){

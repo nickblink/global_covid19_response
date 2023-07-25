@@ -10,6 +10,34 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 7/25/2023: Comparing the CAR param convergence for different sample sizes and plotting metrics ####
+files <- grep('car_thin_comparison_0_20230720',dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+res_df <- process_CAR_params_wrapper(files, all_betas = F, CAR_names = c('CAR_summary', 'CAR_summary2', 'CAR_summary3', 'CAR_summary4', 'CAR_summary5'))
+plot_CAR_params(res_df = res_df)
+
+tmp = res_df %>% filter(param == 'tau2')
+tmp[,c(1,8:11)]
+
+tmp = res_df %>% filter(param == 'betas')
+tmp[,c(1,8:11)]
+
+tmp = res_df %>% filter(param == 'alpha')
+tmp[,c(1,8:11)]
+
+tmp = res_df %>% filter(param == 'rho.S')
+tmp[,c(1,8:11)]
+
+res = combine_results_wrapper(files, imp_vec = c("y_pred_CAR_none", "y_pred_CAR_WF1", "y_pred_CAR_WF10", "y_pred_CAR_WF100", "y_pred_CAR_constant"), rename_vec = c('none', 'WF_1' ,'WF_10', 'WF_100', 'constant'))
+
+plot_all_methods(res = res, fix_axis = F)
+
+res2 = res %>% 
+  filter(method != 'constant')
+
+plot_all_methods(res = res2, fix_axis = F)
+
+#
 #### 7/09/2023: Comparing R values ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
