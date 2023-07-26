@@ -10,8 +10,28 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 7/26/2023: Comparing the CAR n.sample and thinning performance ####
+files <- grep('car_thin_comparison_0_20230725',dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+
+res_df <- process_CAR_params_wrapper(files, all_betas = F, CAR_names = c('CAR_summary', 'CAR_summary2', 'CAR_summary3', 'CAR_summary4'))
+
+
+tmp = res_df %>% filter(param == 'betas')
+tmp[,c(1,8:11)]
+
+tmp = res_df %>% filter(param == 'tau2')
+tmp[,c(1,8:11)]
+
+tmp = res_df %>% filter(param == 'alpha')
+tmp[,c(1,8:11)]
+
+tmp = res_df %>% filter(param == 'rho.S')
+tmp[,c(1,8:11)]
+
+
+#
 #### 7/25/2023: Comparing the CAR param convergence for different sample sizes and plotting metrics ####
-files <- grep('car_thin_comparison_0_20230720',dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+files <- grep('car_prior_comparison_0_20230720',dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
 res_df <- process_CAR_params_wrapper(files, all_betas = F, CAR_names = c('CAR_summary', 'CAR_summary2', 'CAR_summary3', 'CAR_summary4', 'CAR_summary5'))
 plot_CAR_params(res_df = res_df)
