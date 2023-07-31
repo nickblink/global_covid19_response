@@ -107,6 +107,29 @@ df_miss = MCAR_sim(df, p = p, by_facility = T)
 # initializing the return list
 return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
 
+#### Testing different CAR models ####
+res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T)
+
+names(res1)
+
+# test the ESS calculations
+head(res1$summary_stats)
+
+betas = res1$model_chain$samples$beta
+ESS1 = coda::effectiveSize(betas)
+diff1 = ESS1 - res1$summary_stats[1:160,6]
+plot(density(abs(diff1/ESS1)))
+# ok so the results are very close. Max 3% off
+# I'm gonna stop here. I'm not gonna worry about mcmcse::ess. Because this is damn close enough
+
+res2 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, S_glm_debug = T, return_raw_fit = T)
+
+df = data.frame(CARBayesST = res1$summary_stats[1:160,6],
+                S_glm = res2$model_chain$summary.results[,6])
+colMeans(df)
+
+# so S_glm is on average 5X better. However, it has a lot of zeros. Meaning the space was not explored at all for those params. Should I run a bigger sample here to be sure? My comp will probably crash.
+
 #### Testing priors ####
 res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T)
 

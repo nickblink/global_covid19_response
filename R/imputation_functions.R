@@ -892,7 +892,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, S_glm_debug = F){
 
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -946,15 +946,30 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
     stop('please input a proper prior value (WF, constant, none)')
   }
   
-  # run CAR Bayes
-  chain1 <- ST.CARar(formula = formula_col, 
-                     family = "poisson",
-                     data = df, W = W, 
-                     prior.mean.beta = prior_mean_beta,
-                     prior.var.beta = prior_var_beta,
-                     burnin = burnin, 
-                     n.sample = n.sample,
-                     thin = thin, AR = AR, verbose = F)
+  if(S_glm_debug){
+    print('running S_glm_debug')
+    chain1 <- CARBayes::S.glm(formula = formula_col, 
+                       family = "poisson",
+                       data = df, 
+                       prior.mean.beta = prior_mean_beta,
+                       prior.var.beta = prior_var_beta,
+                       burnin = burnin, 
+                       n.sample = n.sample,
+                       thin = thin, verbose = T)
+    lst = list(model_chain = chain1)
+    return(lst)
+  }else{
+    # run CAR Bayes
+    chain1 <- ST.CARar(formula = formula_col, 
+                       family = "poisson",
+                       data = df, W = W, 
+                       prior.mean.beta = prior_mean_beta,
+                       prior.var.beta = prior_var_beta,
+                       burnin = burnin, 
+                       n.sample = n.sample,
+                       thin = thin, AR = AR, verbose = F)
+    
+  }
   
   # check that the prior names matched the CAR fitted names
   if(prior == 'WF'){
@@ -1037,7 +1052,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, ...){
+CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, ...){
   
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
@@ -1071,6 +1086,11 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   # fit the model!
   res <- CARBayes_fitting(train, col, ...)
+  
+  # return the fit if not doing post-processing
+  if(return_raw_fit){
+    return(res)
+  }
   
   #### the rest is for future model prediction
   # pull out the summary statistics
