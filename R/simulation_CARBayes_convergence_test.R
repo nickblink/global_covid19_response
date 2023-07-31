@@ -108,7 +108,7 @@ df_miss = MCAR_sim(df, p = p, by_facility = T)
 return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
 
 #### Testing different CAR models ####
-res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T)
+res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = 4000, n.sample = 16000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T)
 
 names(res1)
 
@@ -122,13 +122,19 @@ plot(density(abs(diff1/ESS1)))
 # ok so the results are very close. Max 3% off
 # I'm gonna stop here. I'm not gonna worry about mcmcse::ess. Because this is damn close enough
 
-res2 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, S_glm_debug = T, return_raw_fit = T)
+res2 = CARBayes_wrapper(return_list[['df_miss']], burnin = 4000, n.sample = 16000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, S_glm_debug = T, return_raw_fit = T)
 
 df = data.frame(CARBayesST = res1$summary_stats[1:160,6],
                 S_glm = res2$model_chain$summary.results[,6])
 colMeans(df)
 
-# so S_glm is on average 5X better. However, it has a lot of zeros. Meaning the space was not explored at all for those params. Should I run a bigger sample here to be sure? My comp will probably crash.
+# burn = 1k, n = 2k: S_glm is on average 5X better (avg ESS = 19 compared to 4). However, it has a lot of zeros. Meaning the space was not explored at all for those params. Should I run a bigger sample here to be sure? My comp will probably crash.
+
+# burn = 2k, n =4k: S_glm is on average 10x better (avg ESS = 50 compared to 5). Still some zeroes this time, but not as much as last time. The zeroes were all on a few of the cos3's and sin3's. Could this be an inherent problem with the model? Some ESS are at 200 and some even a bit over, which doesn't make sense to me.
+
+# burn = 4k, n = 8k: S_glm is almost 20x better (avg ESS = 110 compared to 5.7) (median 50:5). Still the cos3's and sin3's are getting zeroes. Why the f is that happening?
+
+# burn = 4k, n = 16k: S_glm is almost 20x better (avg ESS = 146 compared to 9.5) (median 66:8). Now getting some 0s on the cos1's. It appears, maybe, that the betas are sampled in MCMC in groups of 5. Because there's always 5 zeroes in a row
 
 #### Testing priors ####
 res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T)
