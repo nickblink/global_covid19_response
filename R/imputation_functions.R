@@ -925,9 +925,12 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
   if(model == 'facility_intercept'){
     formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3 + facility", col))
   }else if(model == 'facility_fixed'){
-    formula_col = as.formula(sprintf("%s ~ facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3", col))
-  }else{
+    formula_col = as.formula(sprintf("%s ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3", col))
+  }else if(model == 'fixed'){
     formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
+  }else{
+    print('Using user-defined model')
+    formula_col = as.formula(model)
   }
   
   if(prior == 'WF'){
