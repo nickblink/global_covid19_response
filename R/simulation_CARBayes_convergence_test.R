@@ -107,8 +107,147 @@ df_miss = MCAR_sim(df, p = p, by_facility = T)
 # initializing the return list
 return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
 
+#### Testing the beta block ####
+## Beta blocking
+common.betablock <- function(p)
+{
+  print('HERE!!! HERE')
+  ## Compute the blocking structure for beta     
+  blocksize.beta <- 1
+  if(blocksize.beta >= p)
+  {
+    n.beta.block <- 1
+    beta.beg <- 1
+    beta.fin <- p
+  }else
+  {
+    n.standard <- 1 + floor((p-blocksize.beta) / blocksize.beta)
+    remainder <- p - n.standard * blocksize.beta
+    
+    if(remainder==0)
+    {
+      beta.beg <- c(1,seq((blocksize.beta+1), p, blocksize.beta))
+      beta.fin <- seq(blocksize.beta, p, blocksize.beta)
+      n.beta.block <- length(beta.beg)
+    }else
+    {
+      beta.beg <- c(1, seq((blocksize.beta+1), p, blocksize.beta))
+      beta.fin <- c(seq((blocksize.beta), p, blocksize.beta), p)
+      n.beta.block <- length(beta.beg)
+    }
+  }
+  
+  return(list(beta.beg, beta.fin, n.beta.block))
+}
+
+res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+
+
+#
+#### Testing different mean models with dif. number of facilities ####
+lst <- simulate_data(district_sizes = c(3,3),
+                     R = R, 
+                     end_date = '2020-12-01',
+                     b0_mean = b0_mean, 
+                     b1_mean = b1_mean,
+                     type = 'CAR',
+                     rho = rho_DGP, 
+                     alpha = alpha_DGP, 
+                     tau2 = tau2_DGP)
+
+df = lst$df_list[[2]]
+df_miss = MCAR_sim(df, p = p, by_facility = T)
+# initializing the return list
+return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
+
+burn = 5000
+n = 10000
+
+{
+  # intercept model
+  res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+  
+  # intercept model - S_glm
+  res2 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, S_glm_debug = T)
+  
+  # intercept and year model
+  res3 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility + facility*year', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+  
+  # intercept and year model - S_glm
+  res4 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility + facility*year', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, S_glm_debug = T)
+  
+  # one sin and cos term model
+  res5 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility + facility*year + facility*cos1 + facility*sin1', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+  
+  # one sin and cos term model - S_glm
+  res6 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility + facility*year + facility*cos1 + facility*sin1', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, S_glm_debug = T)
+  
+  # full model
+  res7 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+  
+  # full model - S_glm
+  res8 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, S_glm_debug = T)
+}
+
+res_lst = list(res1, res2, res3, res4, res5, res6, res7, res8)
+lapply(res_lst,
+       function(xx){
+         sr = xx$model_chain$summary.results
+         sr = sr[!(rownames(sr) %in% c('tau2','rho.S','rho.T')),]
+         ESS = sr[,6]
+         data.frame(avg_ESS = mean(ESS),
+                    ESS_0 = sum(ESS == 0),
+                    ESS_full = sum(ESS >= 500))
+       })
+
+save(res_lst, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Hedt_Synd_Surveillance_Project/results/ESS_comparison_under_different_mean_models_6facilities_08032023.RData')
+
+#### Testing different mean models ####
+burn = 5000
+n = 10000
+
+{
+# intercept model
+res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+
+# intercept model - S_glm
+res2 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, S_glm_debug = T)
+
+# intercept and year model
+res3 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility + facility*year', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+
+# intercept and year model - S_glm
+res4 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility + facility*year', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, S_glm_debug = T)
+
+# one sin and cos term model
+res5 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility + facility*year + facility*cos1 + facility*sin1', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+
+# one sin and cos term model - S_glm
+res6 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'y ~ facility + facility*year + facility*cos1 + facility*sin1', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, S_glm_debug = T)
+
+# full model
+res7 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T)
+
+# full model - S_glm
+res8 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, S_glm_debug = T)
+}
+
+res_lst = list(res1, res2, res3, res4, res5, res6, res7, res8)
+lapply(res_lst,
+       function(xx){
+         sr = xx$model_chain$summary.results
+         sr = sr[!(rownames(sr) %in% c('tau2','rho.S','rho.T')),]
+         ESS = sr[,6]
+         data.frame(avg_ESS = mean(ESS),
+                    ESS_0 = sum(ESS == 0),
+                    ESS_full = sum(ESS >= 500))
+       })
+
+save(res_lst, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Hedt_Synd_Surveillance_Project/results/ESS_comparison_under_different_mean_models_08032023.RData')
+
+#
 #### Testing different CAR models ####
-res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = 4000, n.sample = 16000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T)
+res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T)
 
 names(res1)
 
