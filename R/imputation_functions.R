@@ -753,7 +753,7 @@ WF_baseline <- function(df, train_end_date = '2019-12-01', col = "y", family = '
   return(tmp)
 }
 
-# Bayes imputation method
+# Bayes imputatioFfacility_Fixedsdfsdfn method
 bayes_WF_imputation <- function(df, df_OG = NULL, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period) %>% as.data.frame()
@@ -892,7 +892,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, S_glm_debug = F){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, S_glm_debug = F, MALA = T){
 
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -970,7 +970,10 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
                        prior.var.beta = prior_var_beta,
                        burnin = burnin, 
                        n.sample = n.sample,
-                       thin = thin, AR = AR, verbose = F)
+                       thin = thin, 
+                       AR = AR, 
+                       verbose = F,
+                       MALA = MALA)
     
   }
   
