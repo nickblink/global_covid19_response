@@ -3,8 +3,9 @@ setwd(dirname(current_path))
 
 library(dplyr)
 library(rstan)
-rstan_options(auto_write = F)
+rstan_options(auto_write = T)
 
+#
 #### Take 1 - intercept only ####
 pois_sdata <- list(
   N = 100,  # number of observations
@@ -63,3 +64,32 @@ m3 <- stan(file = "poisson_model3.stan", data = pois_sdata,
 
 print(m3, pars = c("beta"))
 
+
+shinystan::launch_shinystan(m3)
+#
+#### Take 4 - just passing a string ####
+
+m3 <- stan(model_code = "data {
+  int<lower=0> N;  // number of observations
+  int y[N];  // data array (counts);
+}
+parameters {
+  real log_lambda;  // log of rate parameter
+}
+model {
+  y ~ poisson_log(log_lambda);
+  // prior
+  log_lambda ~ normal(0, 5);
+}
+generated quantities {
+  real lambda = exp(log_lambda);
+  int yrep[N];
+  for (i in 1:N) {
+    yrep[i] = poisson_log_rng(log_lambda);
+  }
+}
+", data = pois_sdata, 
+           # Below are optional arguments
+           iter = 2000, 
+           chains = 4, 
+           cores = min(parallel::detectCores(), 4))

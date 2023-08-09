@@ -1,6 +1,6 @@
 data {
   int<lower=0> N;  // number of observations
-  real y[N];  // data array (counts);
+  int y[N];  // data array (counts);
 }
 parameters {
   real log_lambda;  // log of rate parameter

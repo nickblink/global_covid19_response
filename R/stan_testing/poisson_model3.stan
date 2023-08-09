@@ -1,7 +1,7 @@
 data {
   int<lower=0> p; // number of variables
   int<lower=0> N;  // number of observations
-  matrix[N,p] X; // design matrix
+  matrix[N, p] X; // design matrix
   int<lower=0> y[N];  // data array (counts)
 }
 parameters {
