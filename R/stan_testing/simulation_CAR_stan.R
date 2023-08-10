@@ -6,8 +6,12 @@ library(lubridate)
 library(ggplot2)
 library(doRNG)
 library(doParallel)
+library(rstan)
 
 source('../imputation_functions.R')
+
+# data creation
+{
 
 # register the cores
 #registerDoParallel(cores = 20)
@@ -107,6 +111,8 @@ df_miss = MCAR_sim(df, p = p, by_facility = T)
 # initializing the return list
 return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
 
+}
+
 #### Just one facility linear regression ####
 df2 = df %>%
   filter(facility == 'A1')
@@ -131,6 +137,10 @@ m3 <- stan(file = "single_fac_reg.stan", data = pois_sdata,
 
 print(m3, pars = c("beta"))
 
+params = extract(m3)
+
+
+#
 #### QR style ####
 m4 <- stan(file = "QR_regression.stan", data = pois_sdata, 
            # Below are optional arguments
@@ -148,7 +158,9 @@ print(m4, pars = c('y_exp', 'y_exp2'))
 #### Multiple facilities regression ####
 formula = as.formula("y ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3")
 
-df3 = df %>% filter(district == 'A')
+df3 = df %>% filter(district == 'B')
+# works with A
+# works with B on single_fac_reg but not QR_regression
 
 X = model.matrix(formula, data = df3)
 y = df3$y
@@ -163,10 +175,21 @@ m5 <- stan(file = "QR_regression.stan", data = pois_sdata,
            # Below are optional arguments
            iter = 8000, 
            warmup = 4000,
-           chains = 4, 
+           chains = 1, 
+           init = '0',
            cores = min(parallel::detectCores(), 4))
 
 # Stan model 'anon_model' does not contain samples.
 # What does that mean?
+# this is because the mean of the model is too damn big
 
 print(m5, pars = c("beta"))
+tt = extract(m5)
+
+max(tt$y_exp)
+max(tt$y_pred)
+
+y_pred = colMeans(tt$y_pred)
+y_exp = colMeans(tt$y_exp)
+plot(y, y_pred)
+plot(y, y_exp)

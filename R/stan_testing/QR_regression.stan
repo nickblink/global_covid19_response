@@ -20,9 +20,11 @@ model {
   y ~ poisson_log(Q_ast*theta);
 }
 generated quantities {
-  vector[p] beta = R_ast_inverse * theta;
-  vector[N] y_exp = exp(X*beta);
-  int y_pred[N] = poisson_log_rng(X*beta);
-  int y_pred2[N] = poisson_log_rng(Q_ast*theta);
-  vector[N] y_exp2 = exp(Q_ast*theta);
+ int y_pred[N];
+ vector[p] beta = R_ast_inverse * theta; // is this right? Double check that
+ vector[N] y_exp = exp(X*beta);
+ y_pred = poisson_log_rng(X*beta);
+ //y_pred = poisson_rng(y_exp);
+//  int y_pred2[N] = poisson_log_rng(Q_ast*theta);
+// vector[N] y_exp2 = exp(Q_ast*theta);
 }

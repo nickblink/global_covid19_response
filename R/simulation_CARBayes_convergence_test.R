@@ -107,6 +107,23 @@ df_miss = MCAR_sim(df, p = p, by_facility = T)
 # initializing the return list
 return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
 
+#### Running with QR decomposition ####
+
+burn = 5000
+n = 10000
+
+# intercept model
+res1 = CARBayes_wrapper(return_list[['df_miss']], burnin = burn, n.sample = n, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', thin  = 10, return_chain = T, return_raw_fit = T, MALA = T)
+
+sr = res1$model_chain$summary.results
+sr = sr[!(rownames(sr) %in% c('tau2','rho.S','rho.T')),]
+ESS = sr[,6]
+data.frame(avg_ESS = mean(ESS),
+           ESS_0 = sum(ESS == 0),
+           ESS_full = sum(ESS >= 500))
+
+# Ok that didn't solve it. Well it was worth a shot. 
+
 #### Running with and without MALA ####
 burn = 5000
 n = 10000
