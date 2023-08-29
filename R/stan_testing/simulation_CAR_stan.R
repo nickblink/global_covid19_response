@@ -128,39 +128,40 @@ pois_sdata <- list(
   X = X, # design matrix
   y = y)  # outcome variable 
 
-m3 <- stan(file = "single_fac_reg.stan", data = pois_sdata, 
+m1 <- stan(file = "single_fac_reg.stan", data = pois_sdata, 
            # Below are optional arguments
            iter = 2000, 
            warmup = 1000,
            chains = 4, 
            cores = min(parallel::detectCores(), 4))
 
-print(m3, pars = c("beta"))
+print(m1, pars = c("beta"))
 
-params = extract(m3)
+params = extract(m1)
 
 
 #
 #### QR style ####
-m4 <- stan(file = "QR_regression.stan", data = pois_sdata, 
+m2 <- stan(file = "QR_regression.stan", data = pois_sdata, 
            # Below are optional arguments
            iter = 2000, 
            warmup = 1000,
            chains = 4, 
            cores = min(parallel::detectCores(), 4))
 
-print(m4, pars = c("beta"))
+print(m2, pars = c("beta"))
 
-print(m4, pars = c('y_exp', 'y_exp2'))
-# it seems like the predictions the same. Noice. Thank you QR decomposition and the people who figured out that it improves modeling.
+print(m2, pars = c('y_exp'))
+# it seems like the predictions the same (when I am also computing y_exp2 as a test, that is). Noice. Thank you QR decomposition and the people who figured out that it improves modeling.
 
 #
 #### Multiple facilities regression ####
 formula = as.formula("y ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3")
 
-df3 = df %>% filter(district == 'B')
+df3 = df %>% filter(district == 'C')
 # works with A
-# works with B on single_fac_reg but not QR_regression
+# works with B on single_fac_reg but not QR_regression (maybe not true - it seems to work when I run it later).
+# works with C
 
 X = model.matrix(formula, data = df3)
 y = df3$y
@@ -171,7 +172,7 @@ pois_sdata <- list(
   X = X, # design matrix
   y = y)  # outcome variable 
 
-m5 <- stan(file = "QR_regression.stan", data = pois_sdata, 
+m3 <- stan(file = "QR_regression.stan", data = pois_sdata, 
            # Below are optional arguments
            iter = 8000, 
            warmup = 4000,
@@ -183,8 +184,8 @@ m5 <- stan(file = "QR_regression.stan", data = pois_sdata,
 # What does that mean?
 # this is because the mean of the model is too damn big
 
-print(m5, pars = c("beta"))
-tt = extract(m5)
+print(m3, pars = c("beta"))
+tt = extract(m3)
 
 max(tt$y_exp)
 max(tt$y_pred)
@@ -213,7 +214,7 @@ pois_sdata <- list(
   mu = prior_mean_beta,
   Sigma = sigma_beta)  # outcome variable 
 
-m5 <- stan(file = "regression_priors.stan", data = pois_sdata, 
+m4 <- stan(file = "regression_priors.stan", data = pois_sdata, 
            # Below are optional arguments
            iter = 8000, 
            warmup = 4000,
@@ -222,5 +223,79 @@ m5 <- stan(file = "regression_priors.stan", data = pois_sdata,
            cores = min(parallel::detectCores(), 4))
 
 # most definitely slower. So be it.
-check_treedepth(m5)
+check_treedepth(m4)
 # apparently this is a problem if we have saturated maximum tree depth, because that indicates premature ending of the NUTS sampler.
+
+#### Running a simple CAR model ####
+# I will run a model with a CAR random effect. This will not have a parameter for spatial correlation nor will it have any temporal correlation. 
+# I will use the pairwise formulation of the likelihood this model so that I will input edges and nodes for the adjacency matrix and compute from that rather than computing the precision matrix directly. I can later test if this is faster or not.
+# So I will have the same mean model with the CAR random effect for each location (not differing over time, remember). Hmmm I guess it will be constant over time? That seems wack. I will add in independent CAR random effects for each time point. How about that? Not perfectly ideal, but I'll have to figure this out at some point anyway
+
+
+### Preparing the stan data
+# This function takes in the data frame and prepares the data to be input to stan for a CAR model. 
+# The df is ordered correctly and then the nodes are created so that phi can be a vector with the time points stacked on top of one another
+prep_stan_data <- function(df, formula){
+  N_T <- length(unique(df$date))
+  N_F <- length(unique(df$facility))
+  
+  # order the data frame
+  df <- df %>% arrange(date, facility)
+  
+  W = make_district_adjacency(df)
+  
+  base_df = data.frame(node1 = NULL, node2 = NULL)
+  
+  # Make the base df for one time point
+  for(i in 1:(nrow(W)-1)){
+    j = which(W[i,] == 1)
+    j = j[j > i]
+    base_df = rbind(base_df, 
+                    data.frame(node1 = rep(i, length(j)),
+                               node2 = j))
+  }
+  
+  # Make the repeated nodes for all time points
+  node_df = base_df
+  for(t in 2:N_T){
+    node_df = rbind(node_df, base_df + (t-1)*N_F)
+  }
+  
+  # make the model matrix and outcome
+  X = model.matrix(formula, data = df)
+  y = df$y
+  
+  # compute the priors
+  lm_fit <- glm(formula, family = 'poisson', data = df)
+  coef_mat <- summary(lm_fit)$coefficients
+  prior_mean_beta <- coef_mat[,1]
+  sigma_beta = 10*vcov(lm_fit)
+  
+  # make the stan data frame
+  stan_data <- list(
+    N = nrow(X), # number of observations
+    p = ncol(X), # number of variables
+    X = X, # design matrix
+    y = y, # outcome variable 
+    mu = prior_mean_beta, # prior mean
+    Sigma = sigma_beta, # prior variance
+    N_edges = nrow(node_df),
+    node1 = node_df$node1, # pairs of nodes that are adjacent
+    node2 = node_df$node2)  
+  
+  return(stan_data)
+}
+
+stan_data <- prep_stan_data(df, formula)
+# HERE - need to check that this returns something reasonable and then need to write the stan code for this.
+
+m5 <- stan(file = "regression_ICAR.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 8000, 
+           warmup = 4000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+# well it didn't crash!
+

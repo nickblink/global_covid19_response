@@ -3329,7 +3329,7 @@ initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = 
   
   dates = seq(as.Date(start_date), as.Date(end_date), by = 'month')
   
-  df = expand.grid(facilities, dates, stringsAsFactors = F)
+  df = expand.grid(facilities, dates, stringsAsFactors = T)
   colnames(df) = c('facility','date')
   
   df$district = substr(df$facility, 1, 1) 
@@ -3492,9 +3492,9 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       print('havent dealt with non-invertible precision matrices yet')
       browser()
     })
-    
+
     # checking ordering of facilities matches
-    if(!identical(colnames(V), facilities)){
+    if(!identical(colnames(V), as.character(facilities))){
       stop('names of covariances and facilities dont match')
     }
     
