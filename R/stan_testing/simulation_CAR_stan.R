@@ -193,3 +193,34 @@ y_pred = colMeans(tt$y_pred)
 y_exp = colMeans(tt$y_exp)
 plot(y, y_pred)
 plot(y, y_exp)
+
+#### Setting MVN priors ####
+formula = as.formula("y ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3")
+
+X = model.matrix(formula, data = df)
+y = df$y
+
+lm_fit <- glm(formula, family = 'poisson', data = df)
+coef_mat <- summary(lm_fit)$coefficients
+prior_mean_beta <- coef_mat[,1]
+sigma_beta = 10*vcov(lm_fit)
+
+pois_sdata <- list(
+  N = nrow(X), # number of observations
+  p = ncol(X), # number of variables
+  X = X, # design matrix
+  y = y,
+  mu = prior_mean_beta,
+  Sigma = sigma_beta)  # outcome variable 
+
+m5 <- stan(file = "regression_priors.stan", data = pois_sdata, 
+           # Below are optional arguments
+           iter = 8000, 
+           warmup = 4000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+# most definitely slower. So be it.
+check_treedepth(m5)
+# apparently this is a problem if we have saturated maximum tree depth, because that indicates premature ending of the NUTS sampler.
