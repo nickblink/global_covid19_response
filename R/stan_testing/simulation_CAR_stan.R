@@ -1,5 +1,4 @@
 library(MASS)
-library(CARBayesST)
 library(Matrix)
 library(dplyr)
 library(lubridate)
@@ -87,7 +86,7 @@ if(DGP == 'nost'){
                        b0_mean = b0_mean, 
                        b1_mean = b1_mean)
 }else if(DGP == 'car'){
-  lst <- simulate_data(district_sizes = c(4, 6, 10),
+  lst <- simulate_data(district_sizes = c(4, 6),
                        R = R, 
                        end_date = '2020-12-01',
                        b0_mean = b0_mean, 
@@ -275,6 +274,8 @@ prep_stan_data <- function(df, formula){
   stan_data <- list(
     N = nrow(X), # number of observations
     p = ncol(X), # number of variables
+    N_F = N_F, # number of facilities
+    N_T = N_T, # number of time points
     X = X, # design matrix
     y = y, # outcome variable 
     mu = prior_mean_beta, # prior mean
@@ -286,16 +287,74 @@ prep_stan_data <- function(df, formula){
   return(stan_data)
 }
 
+formula = as.formula("y ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3")
+
 stan_data <- prep_stan_data(df, formula)
-# HERE - need to check that this returns something reasonable and then need to write the stan code for this.
 
 m5 <- stan(file = "regression_ICAR.stan", data = stan_data, 
            # Below are optional arguments
-           iter = 8000, 
-           warmup = 4000,
+           iter = 2000, 
+           warmup = 1000,
            chains = 1, 
            init = '0',
            cores = min(parallel::detectCores(), 4))
 
 # well it didn't crash!
 
+
+#### Running a Leroux CAR model - Q matrix style ####
+
+prep_stan_data_leroux <- function(df, formula){
+  N_T <- length(unique(df$date))
+  N_F <- length(unique(df$facility))
+  
+  # order the data frame
+  df <- df %>% arrange(date, facility)
+  
+  W_star = make_district_W2_matrix(df)
+  
+  # make the model matrix and outcome
+  X = model.matrix(formula, data = df)
+  y = df$y
+  
+  # compute the priors
+  lm_fit <- glm(formula, family = 'poisson', data = df)
+  coef_mat <- summary(lm_fit)$coefficients
+  prior_mean_beta <- coef_mat[,1]
+  sigma_beta = 10*vcov(lm_fit)
+  
+  # make the stan data frame
+  stan_data <- list(
+    N = nrow(X), # number of observations
+    p = ncol(X), # number of variables
+    N_F = N_F, # number of facilities
+    N_T = N_T, # number of time points
+    X = X, # design matrix
+    y = y, # outcome variable 
+    mu = prior_mean_beta, # prior mean
+    Sigma = sigma_beta, # prior variance
+    W_star = W_star, 
+    I = diag(1.0, N_F))
+  
+  return(stan_data)
+}
+
+formula = as.formula("y ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3")
+
+stan_data <- prep_stan_data_leroux(df, formula)
+
+m6 <- stan(file = "regression_leroux.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 2000, 
+           warmup = 1000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+# it ran!
+
+shinystan::launch_shinystan(m6)
+tt = extract(m6)
+
+#### Running a Rushworth CAR model - Leggo baby! ####
+# all I need to add is the autocorrelation component. I got dis.

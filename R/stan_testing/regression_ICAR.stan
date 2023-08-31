@@ -1,8 +1,8 @@
 data {
   int<lower=0> p; // number of variables
   int<lower=0> N;  // number of observations
-  int<lower=0> F;  // number of facilities
-  int<lower=0> T;  // number of time points
+  int<lower=0> N_F;  // number of facilities
+  int<lower=0> N_T;  // number of time points
   matrix[N,p] X; // design matrix
   int y[N];  // output
   vector[p] mu; // prior mean betas
