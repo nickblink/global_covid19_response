@@ -6,10 +6,11 @@ library(ggplot2)
 library(doRNG)
 library(doParallel)
 library(rstan)
+library(bayestestR)
 
 source('../imputation_functions.R')
 
-# data creation
+#### data creation ####
 {
 
 # register the cores
@@ -86,7 +87,7 @@ if(DGP == 'nost'){
                        b0_mean = b0_mean, 
                        b1_mean = b1_mean)
 }else if(DGP == 'car'){
-  lst <- simulate_data(district_sizes = c(4, 6),
+  lst <- simulate_data(district_sizes = c(4, 6, 10),
                        R = R, 
                        end_date = '2020-12-01',
                        b0_mean = b0_mean, 
@@ -112,6 +113,7 @@ return_list <- list(df_miss = df_miss, district_df = lst$district_list[[1]], err
 
 }
 
+#
 #### Just one facility linear regression ####
 df2 = df %>%
   filter(facility == 'A1')
@@ -351,10 +353,101 @@ m6 <- stan(file = "regression_leroux.stan", data = stan_data,
            init = '0',
            cores = min(parallel::detectCores(), 4))
 
-# it ran!
+# it ran! But the ESS is too low? Not sure. Moving on anyway
 
 shinystan::launch_shinystan(m6)
-tt = extract(m6)
+tt = extract(m6, permuted = F)
+print(m6, pars = 'beta')
 
 #### Running a Rushworth CAR model - Leggo baby! ####
 # all I need to add is the autocorrelation component. I got dis.
+
+# (run the previous data setup for leroux. It's the same here)
+m7 <- stan(file = "regression_rushworth.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 2000, 
+           warmup = 1000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+
+# ok so it ran in 6-7 minutes for 2000 iterations and 1 chain. Getting an NA for at least one of the rhats. No bueno. And there are apparently very low bulk ESS and tail ESS that are too low.
+
+print(m7, pars = 'beta')
+stan_est = extract(m7, pars = 'beta', permuted = F)
+ESS <- effective_sample(m7)
+ESS[grep('beta', ESS[,1]),]
+plot(density(ESS[grep('beta', ESS[,1]),2]))
+# not bad! I mean, compared to CARBayesST, not bad. I like that.
+ESS[is.nan(ESS[,2]),]
+# So the NaNs might all be the elements of the Q matrix that are zero. That makes sense
+
+
+# That's all good! What now? Missing data? Improving speed? 
+# ok 
+
+#### Now with missing data ####
+prep_stan_data_rushworth <- function(df, formula){
+  N = nrow(df)
+  N_T <- length(unique(df$date))
+  N_F <- length(unique(df$facility))
+  
+  # order the data frame
+  df <- df %>% arrange(date, facility)
+  
+  W_star = make_district_W2_matrix(df)
+  
+  # make the model matrix and outcome
+  X = model.matrix(formula, data = df)
+  y = df$y
+  
+  browser()
+  
+  # missingness data
+  N_miss = sum(is.na(y))
+  N_obs = sum(!is.na(y))
+  ind_miss = which(is.na(y))
+  ind_obs = which(!is.na(y))
+  y_obs = y[ind_obs]
+  
+  # compute the priors
+  lm_fit <- glm(formula, family = 'poisson', data = df)
+  coef_mat <- summary(lm_fit)$coefficients
+  prior_mean_beta <- coef_mat[,1]
+  sigma_beta = 10*vcov(lm_fit)
+  
+  # make the stan data frame
+  stan_data <- list(
+    N = N, # number of observations
+    p = ncol(X), # number of variables
+    N_F = N_F, # number of facilities
+    N_T = N_T, # number of time points
+    N_miss = N_miss,
+    N_obs = N_obs,
+    ind_miss = ind_miss,
+    ind_obs = ind_obs,
+    X = X, # design matrix
+    y_obs = y_obs, # outcome variable 
+    mu = prior_mean_beta, # prior mean
+    Sigma = sigma_beta, # prior variance
+    W_star = W_star, 
+    I = diag(1.0, N_F))
+  
+  return(stan_data)
+}
+
+stan_data <- prep_stan_data_rushworth(df, formula)
+
+m8 <- stan(file = "regression_rushworth.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 2000, 
+           warmup = 1000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+
+# Ah here's the issue. Parameters cannot be integers...darn. What if I round it? No there's gotta be a different way... What if I just don't include the y values in the likelihood? Like I include the phis and the observed y's? What's the point of keeping it in the likelihood anyway?
+
+# THE CURRENT ISSUE IS THE MODEL.MATRIX NOT BEING THE RIGHT SHAPE. OH YA. THAT THING
