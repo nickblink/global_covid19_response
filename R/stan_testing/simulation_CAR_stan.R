@@ -388,6 +388,7 @@ ESS[is.nan(ESS[,2]),]
 # ok 
 
 #### Now with missing data ####
+df = df_miss
 prep_stan_data_rushworth <- function(df, formula){
   N = nrow(df)
   N_T <- length(unique(df$date))
@@ -398,11 +399,17 @@ prep_stan_data_rushworth <- function(df, formula){
   
   W_star = make_district_W2_matrix(df)
   
-  # make the model matrix and outcome
-  X = model.matrix(formula, data = df)
+  # make the complete model matrix
+  df2 <- df; df2$y[is.na(df2$y)] <- 0
+  X = model.matrix(formula, data = df2)
+  
+  # get the outcome
   y = df$y
   
-  browser()
+  # # comparing missingness.
+  # if(!identical(as.integer(rownames(X_obs)), which(!is.na(df$y)))){
+  #   stop('mismatch of model matrix and df missing rows')
+  # }
   
   # missingness data
   N_miss = sum(is.na(y))
@@ -420,7 +427,7 @@ prep_stan_data_rushworth <- function(df, formula){
   # make the stan data frame
   stan_data <- list(
     N = N, # number of observations
-    p = ncol(X), # number of variables
+    p = ncol(X_obs), # number of variables
     N_F = N_F, # number of facilities
     N_T = N_T, # number of time points
     N_miss = N_miss,
@@ -447,7 +454,44 @@ m8 <- stan(file = "regression_rushworth.stan", data = stan_data,
            init = '0',
            cores = min(parallel::detectCores(), 4))
 
+stan_est = extract(m8, pars = 'beta', permuted = F)
+ESS <- effective_sample(m8)
+ESS[grep('beta', ESS[,1]),]
+plot(density(ESS[grep('beta', ESS[,1]),2]))
 
-# Ah here's the issue. Parameters cannot be integers...darn. What if I round it? No there's gotta be a different way... What if I just don't include the y values in the likelihood? Like I include the phis and the observed y's? What's the point of keeping it in the likelihood anyway?
 
-# THE CURRENT ISSUE IS THE MODEL.MATRIX NOT BEING THE RIGHT SHAPE. OH YA. THAT THING
+# BTW I'm fitting with the 2020 data, but that can be dealt with
+res <- get_posterior_mean(m8)
+betas <- res[grep('beta',rownames(res)),1]
+names(betas) <- colnames(stan_data[['X']])
+names(betas) <- gsub('\\(|\\)','',names(betas))
+
+fac_beta_list <- list()
+beta_ref <- betas[c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")]
+for(f in  levels(df$facility)){
+  # if this is the reference facility (likely A1 in my simulations)
+  if(sum(grepl(f, names(betas))) == 0){
+    beta_f <- beta_ref
+  }else{
+    cols <- paste0('facility', f, c("",":year", ":cos1", ":sin1", ":cos2", ":sin2", ":cos3", ":sin3"))
+    beta_f <- betas[cols] + beta_ref 
+    names(beta_f) <- c("Intercept", "year", "cos1", "sin1", "cos2", "sin2", "cos3", "sin3")
+  }
+  fac_beta_list[[f]] <- beta_f
+}
+
+beta_df <- t(data.frame(fac_beta_list))
+
+plot(beta_df[,1], lst$betas[,1], main = 'intercepts of facilities', xlab = 'mean posterior intercept', ylab = 'true intercept')
+# ok good
+plot(beta_df[,2], lst$betas[,2], main = 'year terms of facilities', xlab = 'mean posterior trend', ylab = 'true trend')
+# ok also good
+
+par(mfrow = c(3,2))
+for(i in 3:8){
+  plot(beta_df[,i], lst$betas[,i])
+  print(cor(beta_df[,i], lst$betas[,i]))
+}
+# ok not bad. Unsurprising that these are more off.
+
+#save(m8, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/m8_rushworth_missingdata_09012023.RData')

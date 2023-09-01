@@ -7,7 +7,7 @@ data {
   int<lower=0> N_obs; // number of observed y points
   int<lower=0, upper=N> ind_miss[N_miss]; // indices of missing y points
   int<lower=0, upper=N> ind_obs[N_obs]; // indices of observed y points
-  matrix[N,p] X; // design matrix
+  matrix[N,p] X; // design matrix of observed values
   int<lower=0> y_obs[N_obs];  // output
   vector[p] mu; // prior mean betas
   matrix[p,p] Sigma; // prior variance betas
@@ -41,6 +41,6 @@ model {
   }
 }
 generated quantities {
-  vector[N] y_exp = exp(X*beta);
-  int y_pred[N] = poisson_log_rng(X*beta);
+  vector[N] y_exp = exp(X*beta + phi);
+  int y_pred[N] = poisson_log_rng(X*beta + phi);
 }
