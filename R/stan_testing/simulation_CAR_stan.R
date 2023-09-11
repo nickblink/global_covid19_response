@@ -427,7 +427,7 @@ prep_stan_data_rushworth <- function(df, formula){
   # make the stan data frame
   stan_data <- list(
     N = N, # number of observations
-    p = ncol(X_obs), # number of variables
+    p = ncol(X), # number of variables
     N_F = N_F, # number of facilities
     N_T = N_T, # number of time points
     N_miss = N_miss,
@@ -495,3 +495,77 @@ for(i in 3:8){
 # ok not bad. Unsurprising that these are more off.
 
 #save(m8, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/m8_rushworth_missingdata_09012023.RData')
+
+#### Now with (incomplete) Rushworth sparse encoding ####
+df = df_miss
+formula = as.formula("y ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3")
+
+prep_stan_data_rushworth_sparse <- function(df, formula){
+  N = nrow(df)
+  N_T <- length(unique(df$date))
+  N_F <- length(unique(df$facility))
+  
+  # order the data frame
+  df <- df %>% arrange(date, facility)
+  
+  #W_star = make_district_W2_matrix(df)
+  W = make_district_adjacency(df)
+  W_n = sum(W)/2
+  
+  # make the complete model matrix
+  df2 <- df; df2$y[is.na(df2$y)] <- 0
+  X = model.matrix(formula, data = df2)
+  
+  # get the outcome
+  y = df$y
+  
+  # # comparing missingness.
+  # if(!identical(as.integer(rownames(X_obs)), which(!is.na(df$y)))){
+  #   stop('mismatch of model matrix and df missing rows')
+  # }
+  
+  # missingness data
+  N_miss = sum(is.na(y))
+  N_obs = sum(!is.na(y))
+  ind_miss = which(is.na(y))
+  ind_obs = which(!is.na(y))
+  y_obs = y[ind_obs]
+  
+  # compute the priors
+  lm_fit <- glm(formula, family = 'poisson', data = df)
+  coef_mat <- summary(lm_fit)$coefficients
+  prior_mean_beta <- coef_mat[,1]
+  sigma_beta = 10*vcov(lm_fit)
+  
+  # make the stan data frame
+  stan_data <- list(
+    N = N, # number of observations
+    p = ncol(X), # number of variables
+    N_F = N_F, # number of facilities
+    N_T = N_T, # number of time points
+    N_miss = N_miss,
+    N_obs = N_obs,
+    ind_miss = ind_miss,
+    ind_obs = ind_obs,
+    X = X, # design matrix
+    y_obs = y_obs, # outcome variable 
+    mu = prior_mean_beta, # prior mean
+    Sigma = sigma_beta, # prior variance
+    #W_star = W_star, 
+    W = W,
+    W_n = W_n,
+    I = diag(1.0, N_F))
+  
+  return(stan_data)
+}
+
+stan_data <- prep_stan_data_rushworth_sparse(df, formula)
+
+m9 <- stan(file = "regression_rushworth_sparse.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 2000, 
+           warmup = 1000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
