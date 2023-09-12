@@ -83,18 +83,21 @@ transformed parameters {
   observed_est = (X*beta)[ind_obs] + phi[ind_obs];
   real log_detQ = log_determinant(Q);
   vector[N] phi_star = phi;
+  // center the phi_star values from a random walk with temporal correlation alpha
+  for (t in 2:N_T){
+    phi_star[((t-1)*N_F+1):(t*N_F)] = phi[((t-1)*N_F+1):(t*N_F)] - alpha*phi[((t-2)*N_F+1):((t-1)*N_F)];
+  }
 }
 model {
   beta ~ multi_normal(mu, Sigma); // beta prior
   //y ~ poisson_log(X*beta + phi); // likelihood
   y_obs ~ poisson_log(observed_est);
   //phi[1:N_F] ~ multi_normal_prec(rep_vector(0.0, N_F), Q); // MRF initial prior
-  
-  target += sparse_car_lpdf(phi[1:N_F], tau2, rho, W_sparse, D_sparse, N_F, W_n);
+  phi_star[1:N_F] ~ sparse_car(tau2, rho, W_sparse, D_sparse, log_detQ, N_F, W_n);
   //phi[1:N_F] ~ sparse_car(tau2, rho, W_sparse, D_sparse, lambda, n, W_n)
-  
   for (t in 2:N_T) {
-    phi[((t-1)*N_F+1):(t*N_F)] ~ multi_normal_prec(alpha*phi[((t-2)*N_F+1):((t-1)*N_F)], Q); // CAR prior with RF process and Leroux spatial correlation
+    phi_star[((t-1)*N_F+1):(t*N_F)] ~ sparse_car(tau2, rho, W_sparse, D_sparse, log_detQ, N_F, W_n);
+    //phi[((t-1)*N_F+1):(t*N_F)] ~ //multi_normal_prec(alpha*phi[((t-2)*N_F+1):((t-1)*N_F)], Q); // CAR prior with RF process and Leroux spatial correlation
   }
 }
 generated quantities {

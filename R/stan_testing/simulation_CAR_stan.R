@@ -217,11 +217,12 @@ pois_sdata <- list(
 
 m4 <- stan(file = "regression_priors.stan", data = pois_sdata, 
            # Below are optional arguments
-           iter = 8000, 
-           warmup = 4000,
+           iter = 2000, 
+           warmup = 1000,
            chains = 1, 
            init = '0',
            cores = min(parallel::detectCores(), 4))
+# takes 53s total time for 2000 iterations (1000 warmup)
 
 # most definitely slower. So be it.
 check_treedepth(m4)
@@ -569,3 +570,35 @@ m9 <- stan(file = "regression_rushworth_sparse.stan", data = stan_data,
            init = '0',
            cores = min(parallel::detectCores(), 4))
 
+# 310s warm-up, 126s sampling, 436s total for the incomplete version
+# 165s warm-up, 298s samping, 464s total for complete version
+# why so slow? And why the inconsistency of time? Is that just randomness?
+# this could be because of small number of units. With more areal units it could make a big difference. There isn't enough sparsity anyway. Somewhere I read that sparsity only really helps when the data is >90% sparse, which is not the case here. It will be the case in the pop estimation project.
+# well I should at least compare the results anyway
+# for the dense rushworth code, it took 275s warm up, 231s sampling, and 507s total. So essentially the same.
+
+# save(m9, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/m9_rushworth_missingdata_09122023.RData')
+
+## COmparing the two:
+res <- get_posterior_mean(m8)
+betas <- res[grep('beta',rownames(res)),1]
+names(betas) <- colnames(stan_data[['X']])
+names(betas) <- gsub('\\(|\\)','',names(betas))
+
+res2 <- get_posterior_mean(m9)
+betas2 <- res[grep('beta',rownames(res2)),1]
+names(betas2) <- colnames(stan_data[['X']])
+names(betas2) <- gsub('\\(|\\)','',names(betas2))
+
+res2 = res2[match(rownames(res), rownames(res2)),]
+tt = res - res2
+tt = tt[grep('tau2|rho|alpha|beta|phi', rownames(tt)),]
+head(tt)
+plot(density(tt))
+# so these were barely off from each other. That is a good sign.
+
+tt = abs(res - res2)/abs(res)
+tt = tt[grep('tau2|rho|alpha|beta', rownames(tt)),]
+head(tt)
+plot(density(tt))
+# so on average 5% off.
