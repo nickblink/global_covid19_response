@@ -10,6 +10,7 @@ library(bayestestR)
 
 source('../imputation_functions.R')
 
+#
 #### data creation ####
 {
 
@@ -496,6 +497,10 @@ for(i in 3:8){
 # ok not bad. Unsurprising that these are more off.
 
 #save(m8, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/m8_rushworth_missingdata_09012023.RData')
+
+load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/m8_rushworth_missingdata_09012023.RData')
+
+shinystan::launch_shinystan(m8)
 
 #### Now with (incomplete) Rushworth sparse encoding ####
 df = df_miss
