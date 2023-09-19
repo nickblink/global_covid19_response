@@ -10,6 +10,25 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 9/19/2023: Getting simulation-level results ####
+files <- grep('beta6_n025_20230603',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar01_car331_beta6_n025_20230603/sim_results_p0.1_mcar_1(50).RData")
+
+# cutting to 9 (it's confusing to have a list of 20 with 20 facilities)
+imputed_list = imputed_list[1:9]
+
+df = imputed_list[[1]]$df_miss
+
+imputed_list = lapply(imputed_list, '[[', 1)
+
+#res = calculate_metrics_by_sim(df, imp_vec = c('y_pred_WF','y_pred_CCA_CAR', 'y_pred_CCA_freqGLMepi'), imputed_only = F)
+
+res = calculate_metrics(imputed_list, imp_vec = c('y_pred_WF','y_pred_CCA_CAR'))
+
+COMPARE THE RESULTS BY POINT TO THE PREVIOUS FUNCTION. THEN DELETE THAT ISH
+
+#
 #### 7/26/2023: Comparing the CAR n.sample and thinning performance ####
 files <- grep('car_thin_comparison_0_20230725',dir('C:/Users/nickl/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
