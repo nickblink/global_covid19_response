@@ -2739,46 +2739,6 @@ plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec =
   return(cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1)))
 }
 
-# calculate the desired metrics for a set of imputation methods
-calculate_metrics_by_sim <- function(df, imp_vec, imputed_only = T, median_estimate = F, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10')){
-  
-  df = as.data.frame(df)
-  
-  y_outbreak3 <- y_exp + 3*sqrt(y_var)
-  y_outbreak5 <- y_exp + 5*sqrt(y_var)
-  y_outbreak10 <- y_exp + 10*sqrt(y_var)
-  
-  warning('filter out data by date')
-  
-  # if imputed only, compute metrics only on the missing values
-  if(imputed_only){
-    df = df %>% filter(is.na(y))
-  }
-  
-  # for each method, compute metrics
-  tmp_lst <- lapply(imp_vec, function(xx){
-    if(median_estimate){
-      point_estimate = df[,paste0(xx, '_0.5')]
-    }else{
-      point_estimate = df[,xx]
-    }
-    tmp = data.frame(metric = c('coverage95','coverage50','bias','absolute_bias','RMSE', 'MAPE'),
-                     value = c(mean(df$y_true >= df[,paste0(xx, '_0.025')] & df$y_true <= df[,paste0(xx, '_0.975')]),
-                               mean(df$y_true >= df[,paste0(xx, '_0.25')] & df$y_true <= df[,paste0(xx, '_0.75')]),
-                               mean(point_estimate - df$y_true),
-                               mean(abs(point_estimate - df$y_true)),
-                               sqrt(mean((point_estimate - df$y_true)^2)),
-                               mean(abs(point_estimate - df$y_true)/df$y_true, na.rm = T)))
-    colnames(tmp)[2] = xx
-    return(tmp)
-  })
-    
-  
-  # combine them all
-  res = Reduce(function(x, y) merge(x, y, by="metric"), tmp_lst)
-  
-  return(res)
-}
 
 # plot a set of metrics for a list of simulation runs
 plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T){
@@ -2829,190 +2789,6 @@ plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_v
   return(final_plot)
 }
 
-# calculate the metrics for individual data points across simulated imputations
-calculate_metrics_by_point <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), min_date = NULL, imputed_only = T, rm_ARna = F, use_point_est = F, k = NULL, district_results = F){
-
-  # filter to only be greater than the specified date
-  if(!is.null(min_date)){
-    print(sprintf('only getting metrics with dates on or after %s', min_date))
-    imputed_list <- lapply(imputed_list, function(xx){
-      xx <- xx %>% dplyr::filter(date >= min_date)
-    })
-  }
-  
-  # removing the starting points with NA AR1 values, since these
-  if(rm_ARna){
-    print('removing the starting points because of NA autoregressive term')
-    imputed_list = lapply(imputed_list, function(xx) xx[!is.na(xx$y.AR1),])
-  }
-  
-  if(district_results){
-    # updating the y_true and y missing since we don't need those
-    y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y']))
-    y_missing = matrix(NA, nrow = nrow(y_true), ncol = ncol(y_true))
-  }else{
-    # get the true values everywhere and at the deleted time points
-    y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_true']))
-    y_missing = do.call('cbind', lapply(imputed_list, function(xx) {
-      y_true = xx[,'y_true'];
-      y_true[!is.na(xx[,'y'])] = NA
-      y_true
-    }))
-  }
-  
-  # ^above, an NA means the value was not missing, and a number means the value was missing
-  y_exp = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_exp']))
-  y_var = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_var']))
-  
-  y_outbreak3 <- y_exp + 3*sqrt(y_var)
-  y_outbreak5 <- y_exp + 5*sqrt(y_var)
-  y_outbreak10 <- y_exp + 10*sqrt(y_var)
-  
-  # numeric missing matrix
-  missing_mat <- apply(y_missing, 2, function(xx) 1 - as.numeric(is.na(xx)))
-  missing_mat_NA <- missing_mat; missing_mat_NA[missing_mat_NA == 0] <- NA
-  
-  # get the number of times each data point was missing across simulations
-  num_missing = apply(y_missing, 1, function(xx) sum(!is.na(xx)))
-  
-  browser()
-  
-  if(!imputed_only){
-    df = NULL
-    # imputed only here
-    for(method in imp_vec){
-      if(district_results){
-        tmp = imputed_list[[1]][,c('date','district')]
-      }else{
-        tmp = imputed_list[[1]][,c('date','facility','district')]
-      }
-
-      tmp$method = method
-      tmp$num_missing = num_missing
-      
-      lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-      upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
-      lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
-      upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
-      
-      if(use_point_est){
-        point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
-        tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
-        outcome = point_est
-      }else{
-        median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
-        tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,]))
-        outcome = median
-      }
-      
-      # full dataset
-      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
-      tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
-      tmp$y_exp <- sapply(1:nrow(y_exp), function(ii) mean(y_exp[ii,], na.rm = T))
-      tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_true[,ii]}))
-      tmp$relative_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])/y_exp[,ii]}))
-      tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])}))
-      tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
-      tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
-      
-      tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_25[,ii] & y_true[,ii] <= upper_75[,ii])))
-      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_025[,ii] & y_true[,ii] <= upper_975[,ii])))
-      
-      tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
-      tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
-      
-      tmp$outbreak_detection3 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak3[,ii] >= upper_975[,ii]))
-      tmp$outbreak_detection5 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak5[,ii] >= upper_975[,ii]))
-      tmp$outbreak_detection10 <- rowMeans(sapply(1:ncol(y_exp), function(ii) y_outbreak10[,ii] >= upper_975[,ii]))
-      
-      # measure of how wide the 95% prediction intervals are
-      tmp$interval_width = rowMeans(upper_975 - lower_025) 
-      tmp$prop_interval_width = rowMeans((upper_975 - lower_025)/y_true)
-      tmp$point_sd = apply(outcome, 1, sd)
-      
-      # update the results
-      df = rbind(df, tmp)
-    }
-    
-  # imputed only here
-  }else{
-    df = NULL
-    
-    for(method in imp_vec){
-      
-      if(district_results){
-        tmp = imputed_list[[1]][,c('date','district')]
-      }else{
-        tmp = imputed_list[[1]][,c('date','facility','district')]
-      }
-      tmp$method = method
-      tmp$num_missing = num_missing
-      
-      point_est = do.call('cbind', lapply(imputed_list, function(xx) xx[,method]))
-      lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
-      upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
-      lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
-      upper_75 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.75')]))
-      median = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.5')]))
-      
-      # make points only for missing data set
-      point_est <- point_est*missing_mat_NA
-      median <- median*missing_mat_NA
-      lower_025 <- lower_025*missing_mat_NA
-      lower_25 <- lower_25*missing_mat_NA
-      upper_75 <- upper_75*missing_mat_NA
-      upper_975 <- upper_975*missing_mat_NA
-      
-      if(use_point_est){
-        outcome = point_est
-      }else{
-        outcome = median
-      }
-      
-      # missing data set
-      tmp$y_missing <- sapply(1:nrow(y_missing), function(ii) mean(y_missing[ii,], na.rm = T))
-      tmp$y_true <- sapply(1:nrow(y_true), function(ii) mean(y_true[ii,], na.rm = T))
-      tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,], na.rm = T))
-      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,], na.rm = T))
-      tmp$bias = rowMeans(sapply(1:ncol(outcome), function(ii) {outcome[,ii] - y_missing[,ii]}), na.rm = T)
-      tmp$absolute_bias = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])}), na.rm = T)
-      tmp$MAPE = rowMeans(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_missing[,ii])/y_missing[,ii]}), na.rm = T)
-      tmp$RMSE = sqrt(rowMeans(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_missing[,ii])^2}), na.rm = T))
-      
-      tmp$coverage50 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] >= lower_25[,ii] & y_missing[,ii] <= upper_75[,ii])), na.rm = T)
-      tmp$coverage95 = rowMeans(sapply(1:ncol(lower_25), function(ii) (y_missing[,ii] >= lower_025[,ii] & y_missing[,ii] <= upper_975[,ii])), na.rm = T)
-      
-      tmp$lower_025 <- sapply(1:nrow(lower_025), function(ii) median(lower_025[ii,], na.rm = T))
-      tmp$upper_975 <- sapply(1:nrow(upper_975), function(ii) median(upper_975[ii,], na.rm = T))
-      
-      # get the interval width and standard deviation only at points that are missing
-      tmp$interval_width = rowMeans(do.call('cbind', lapply(imputed_list, function(xx){
-        interval = xx[,paste0(method, '_0.975')] - xx[,paste0(method, '_0.025')];
-        interval[!is.na(xx[,'y'])] = NA
-        interval
-      })), na.rm = T)
-      
-      tmp$prop_interval_width = rowMeans(do.call('cbind', lapply(imputed_list, function(xx){
-        interval = xx[,paste0(method, '_0.975')] - xx[,paste0(method, '_0.025')];
-        interval[!is.na(xx[,'y'])] = NA
-        interval/xx$y_true
-      })), na.rm = T)
-
-      tmp$point_sd = apply(do.call('cbind', lapply(imputed_list, function(xx){
-        median = xx[,paste0(method, '_0.5')];
-        median[!is.na(xx[,'y'])] = NA
-        median
-      })), 1, function(xx) sd(xx, na.rm = T))
-      
-      # update the results
-      df = rbind(df, tmp)
-    }
-  }
-  
-  #res_lst = list(df = df, num_missing = num_missing)
-  return(df)
-}
-
 # process the imputed list for metric calculations
 clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL, rm_ARna = F, imputed_only = F){
   # filter to only be greater than the specified date
@@ -3045,7 +2821,7 @@ clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL
   return(imputed_list)
 }
 
-# calculate the metrics 
+# calculate the metrics across simulations
 calculate_metrics <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), results_by_point = F, date = '2020-01-01', min_date = NULL, rm_ARna = F, imputed_only = F,  use_point_est = F, k = NULL, district_results = F){
 
   if(results_by_point){
@@ -3118,8 +2894,7 @@ calculate_metrics <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes
         tmp = imputed_list[[1]][,c('date','facility','district')]
       }
       tmp$num_missing = num_missing
-      tmp$median <- sapply(1:nrow(median), function(ii) mean(median[ii,]))
-      tmp$point_est <- sapply(1:nrow(point_est), function(ii) mean(point_est[ii,]))
+
     }else{
       tmp = data.frame(r = 1:length(imputed_list))
     }

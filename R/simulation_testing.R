@@ -24,9 +24,19 @@ imputed_list = lapply(imputed_list, '[[', 1)
 
 #res = calculate_metrics_by_sim(df, imp_vec = c('y_pred_WF','y_pred_CCA_CAR', 'y_pred_CCA_freqGLMepi'), imputed_only = F)
 
-res = calculate_metrics(imputed_list, imp_vec = c('y_pred_WF','y_pred_CCA_CAR'))
+res = calculate_metrics(imputed_list, imp_vec = c('y_pred_WF','y_pred_CCA_CAR'), date = NULL, min_date = '2020-01-01', results_by_point = T)
 
-COMPARE THE RESULTS BY POINT TO THE PREVIOUS FUNCTION. THEN DELETE THAT ISH
+res2 = calculate_metrics_by_point(imputed_list, imp_vec = c('y_pred_WF','y_pred_CCA_CAR'), min_date = '2020-01-01', imputed_only = F)
+
+identical(res$date, res2$date)
+identical(res$facility, res2$facility)
+# good. Those match
+
+identical(res$bias, res2$bias)
+identical(res$outbreak_detection10, res2$outbreak_detection10)
+identical(res$coverage95, res2$coverage95)
+
+# ok it's all good. DELTE
 
 #
 #### 7/26/2023: Comparing the CAR n.sample and thinning performance ####
