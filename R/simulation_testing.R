@@ -26,7 +26,19 @@ res_MAR = combine_results_wrapper(files_MAR, methods = c("y_pred_CCA_WF","y_pred
 
 res_MNAR = combine_results_wrapper(files_MNAR, methods = c("y_pred_CCA_WF","y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), results_by_point = F)
 
-save(res_MAR, res_MCAR, res_MNAR, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/results_WF_3MGP_09202023.RData')
+#save(res_MAR, res_MCAR, res_MNAR, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/results_WF_3MGP_09202023.RData')
+
+load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/results_WF_3MGP_09202023.RData')
+
+p1 <- plot_all_methods(res = res_MCAR, fix_axis = list(F, F, F, F), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF: MCAR')
+
+p2 <- plot_all_methods(res = res_MAR, fix_axis = list(F, F, F, F), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF: MAR')
+
+p3 <- plot_all_methods(res = res_MNAR, fix_axis = list(F, F, F, F), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF: MNAR')
+
+plot_grid(plotlist = list(p1, p2, p3), ncol = 1)
+
+ggsave('figures/results_MCAR_MAR_MNAR.png', height = 7, width = 10)
 
 #
 #### 9/19/2023: Testing simulation-level results ####
