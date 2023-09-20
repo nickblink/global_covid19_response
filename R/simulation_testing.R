@@ -10,9 +10,29 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-#### 9/19/2023: Getting simulation-level results ####
+#### 9/20/2023 (Kiko's bday!): Getting groups of results ####
+### Get the file names
+files_MNAR <- grep('nost_beta43_n025_2023_02_22',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+files_MAR <- grep('nost_beta43_n025_2023_02_26',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)[1:6]
+
+tmp <- grep('nost_2022_11',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+files_MCAR = grep('mcar', tmp, value = T)[1:6]
+
+### Get the results!
+res_MCAR = combine_results_wrapper(files_MCAR, methods = c("y_pred_CCA_WF","y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), results_by_point = F)
+
+res_MAR = combine_results_wrapper(files_MAR, methods = c("y_pred_CCA_WF","y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), results_by_point = F)
+
+res_MNAR = combine_results_wrapper(files_MNAR, methods = c("y_pred_CCA_WF","y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), results_by_point = F)
+
+save(res_MAR, res_MCAR, res_MNAR, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/results_WF_3MGP_09202023.RData')
+
+#
+#### 9/19/2023: Testing simulation-level results ####
 files <- grep('beta6_n025_20230603',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 
+{
 load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar01_car331_beta6_n025_20230603/sim_results_p0.1_mcar_1(50).RData")
 
 # cutting to 9 (it's confusing to have a list of 20 with 20 facilities)
@@ -22,11 +42,11 @@ df = imputed_list[[1]]$df_miss
 
 imputed_list = lapply(imputed_list, '[[', 1)
 
-#res = calculate_metrics_by_sim(df, imp_vec = c('y_pred_WF','y_pred_CCA_CAR', 'y_pred_CCA_freqGLMepi'), imputed_only = F)
+#res = calculate_metrics_by_sim(df, methods = c('y_pred_WF','y_pred_CCA_CAR', 'y_pred_CCA_freqGLMepi'), imputed_only = F)
 
-res = calculate_metrics(imputed_list, imp_vec = c('y_pred_WF','y_pred_CCA_CAR'), date = NULL, min_date = '2020-01-01', results_by_point = T)
+res = calculate_metrics(imputed_list, methods = c('y_pred_WF','y_pred_CCA_CAR'), date = NULL, min_date = '2020-01-01', results_by_point = T)
 
-res2 = calculate_metrics_by_point(imputed_list, imp_vec = c('y_pred_WF','y_pred_CCA_CAR'), min_date = '2020-01-01', imputed_only = F)
+res2 = calculate_metrics_by_point(imputed_list, methods = c('y_pred_WF','y_pred_CCA_CAR'), min_date = '2020-01-01', imputed_only = F)
 
 identical(res$date, res2$date)
 identical(res$facility, res2$facility)
@@ -35,8 +55,19 @@ identical(res$facility, res2$facility)
 identical(res$bias, res2$bias)
 identical(res$outbreak_detection10, res2$outbreak_detection10)
 identical(res$coverage95, res2$coverage95)
+}
+# ok it's all good. DELETE
 
-# ok it's all good. DELTE
+res = combine_results_wrapper(files, methods = c("y_pred_WF","y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), results_by_point = F)
+
+tt <- sapply(imputed_list, function(xx){
+  return(any(grepl('freqGLMepi', names(xx$df_miss))))
+})
+
+
+p1 <- plot_all_methods(res = res, fix_axis = list(F, F, F, F), add_lines = list(0.95, F, F, F), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), methods = c("y_pred_WF","y_pred_CCA_CAR", 'y_pred_CCA_freqGLMepi'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP')
+
+p2 <- plot_all_methods(files, fix_axis = list(F, F, F, F), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), methods = c("y_pred_WF","y_pred_CCA_CAR"), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = T)
 
 #
 #### 7/26/2023: Comparing the CAR n.sample and thinning performance ####
@@ -77,7 +108,7 @@ tmp[,c(1,8:11)]
 tmp = res_df %>% filter(param == 'rho.S')
 tmp[,c(1,8:11)]
 
-res = combine_results_wrapper(files, imp_vec = c("y_pred_CAR_none", "y_pred_CAR_WF1", "y_pred_CAR_WF10", "y_pred_CAR_WF100", "y_pred_CAR_constant"), rename_vec = c('none', 'WF_1' ,'WF_10', 'WF_100', 'constant'))
+res = combine_results_wrapper(files, methods = c("y_pred_CAR_none", "y_pred_CAR_WF1", "y_pred_CAR_WF10", "y_pred_CAR_WF100", "y_pred_CAR_constant"), rename_vec = c('none', 'WF_1' ,'WF_10', 'WF_100', 'constant'))
 
 plot_all_methods(res = res, fix_axis = F)
 
@@ -90,17 +121,17 @@ plot_all_methods(res = res2, fix_axis = F)
 #### 7/09/2023: Comparing R values ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
-res_full = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+res_full = combine_results_wrapper(files, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
 
 res100 <- lapply(1:10, function(ii){
   seq = (1 + (ii-1)*100):(ii*100)
-  tmp = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), subset_results = seq)
+  tmp = combine_results_wrapper(files, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), subset_results = seq)
   return(tmp)
 })
 
 res200 <- lapply(1:5, function(ii){
   seq = (1 + (ii-1)*200):(ii*200)
-  tmp = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), subset_results = seq)
+  tmp = combine_results_wrapper(files, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), subset_results = seq)
   return(tmp)
 })
 
@@ -157,7 +188,7 @@ median(df$y) # 107
 load(dir(files[1], full.names = T)[1])
 df2 = imputed_list[[1]]$df_miss
 plot_facility_fits(df2, 
-                   imp_vec = c('y_pred_WF', 'y_pred_CCA_CAR'), 
+                   methods = c('y_pred_WF', 'y_pred_CCA_CAR'), 
                    imp_names = c('WF', 'CAR'),
                    outbreak_points = c(3,5,10))
 
@@ -175,12 +206,12 @@ plot_facility_fits(df, outbreak_points = c(3,5,10))
 #### 6/05/2023: Analyzing CAR DGP facility AND district results ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
 
-res = combine_results_wrapper(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
-res_dst = combine_results_wrapper(files, imp_vec = c("y_pred_WF"), rename_vec = c('WF'), district_results = T)
+res = combine_results_wrapper(files, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+res_dst = combine_results_wrapper(files, methods = c("y_pred_WF"), rename_vec = c('WF'), district_results = T)
 
-tt <- plot_all_methods(res = res, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), fix_axis = F, rename_vec = c('WF','CAR'))
+tt <- plot_all_methods(res = res, methods = c("y_pred_WF", "y_pred_CCA_CAR"), fix_axis = F, rename_vec = c('WF','CAR'))
 
-tt2 <- plot_all_methods(res = res_dist, imp_vec = c("y_pred_WF"), rename_vec = c('WF'), fix_axis = F)
+tt2 <- plot_all_methods(res = res_dist, methods = c("y_pred_WF"), rename_vec = c('WF'), fix_axis = F)
 
 
 
@@ -279,7 +310,7 @@ files <- grep('20230517',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Res
 files1 <- grep('car331', files, value = T)
 files2 <- grep('car731', files, value = T)
 
-tt <- plot_all_methods(files, imp_vec = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), fix_axis = F)
+tt <- plot_all_methods(files, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), fix_axis = F)
 
 #### Analyzing the missingness pattern ####
 plot_missingness <- function(df_miss){

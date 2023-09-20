@@ -255,6 +255,22 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
   return(df)
 }
 
+# Check names from methods and output list
+method_name_check <- function(lst, methods){
+  err = F
+  for(m in methods){
+    chk <- sapply(lst, function(xx) any(grepl(m, colnames(xx))))
+    if(any(chk == FALSE)){
+      err = T
+      print(sprintf('The method %s is not found in %s of the results list', m, sum(!chk)))
+    }
+  }
+  if(err){
+    print(colnames(lst[[1]]))
+    stop('incorrect methods specified')
+  }
+}
+
 ### Check that the names of the simulation outcomes are there. This is to avoid running a super long simulation and then find out I didn't return all the results
 outcome_name_checker <- function(res, models = c('WF','CAR','freqGLM'), quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   cols <- c('district','date','y','y_true','y_exp','y_var')
@@ -376,8 +392,8 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   }
 }
 
-### Takes in a list of files and/or directories. For each of these, pulls in the results using "combine_results" and then combines these results all together.
-combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), subset_results = NULL){
+### Takes in a list of files and/or directories. For each of these, pulls in the data using "combine_results" and then computes the metrics for these results together.
+combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), subset_results = NULL, results_by_point = F){
   res <- NULL
   
   if(district_results){
@@ -421,7 +437,11 @@ combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_
       })
     }
     
-    tmp <- calculate_metrics_by_point(lst_full[[output]], imp_vec = imp_vec, imputed_only = F, rm_ARna = F, use_point_est = F, min_date = '2020-01-01', district_results = district_results) 
+    # Check that the names match
+    method_name_check(lst_full[[output]], methods)
+    
+    # Calculate the metrics
+    tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, use_point_est = F, date = '2020-01-01', district_results = district_results) 
     #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
     tmp$prop_missing = as.numeric(p)/10
     
@@ -433,8 +453,8 @@ combine_results_wrapper <- function(files, district_results = F, imp_vec = c("y_
   
   # replace the names
   if(!is.null(rename_vec)){
-    for(i in 1:length(imp_vec)){
-      res$method = gsub(imp_vec[i], rename_vec[i], res$method)
+    for(i in 1:length(methods)){
+      res$method = gsub(methods[i], rename_vec[i], res$method)
     }
     
     # make a factor so the ordering in the plots stays
@@ -2389,14 +2409,14 @@ plot_results <- function(res, subset = NULL){
   return(plot_final)
 }
 
-plot_county_imputations <- function(df, imp_vec, color_vec, title = 'Aggregated County Imputations', labels = NULL){
+plot_county_imputations <- function(df, methods, color_vec, title = 'Aggregated County Imputations', labels = NULL){
   # set the labels for the plot
   if(is.null(labels)){
-    labels = imp_vec
+    labels = methods
   }
   
   # rename columns of df to make it easier
-  for(col in imp_vec){
+  for(col in methods){
     ind = grep(col, colnames(df))
     if(length(ind) != 1){browser()}
     colnames(df)[ind] = col
@@ -2405,8 +2425,8 @@ plot_county_imputations <- function(df, imp_vec, color_vec, title = 'Aggregated 
   # initialize the data frame to store final results
   df_f = NULL
   
-  for(j in 1:length(imp_vec)){
-    col = imp_vec[j]
+  for(j in 1:length(methods)){
+    col = methods[j]
     
     # create the imputed outcome
     df$imputed_outcome = df$indicator_count_ari_total
@@ -2422,7 +2442,7 @@ plot_county_imputations <- function(df, imp_vec, color_vec, title = 'Aggregated 
   }
   
   # ordering the method to be consistent and for the labeling
-  df_f$method = factor(df_f$method, levels = imp_vec)
+  df_f$method = factor(df_f$method, levels = methods)
   
   # plot them all!
   p1 <- ggplot(data = df_f, aes(x = date, y = y, group = method, color = method)) + 
@@ -2433,15 +2453,15 @@ plot_county_imputations <- function(df, imp_vec, color_vec, title = 'Aggregated 
   return(p1)
 }
 
-plot_county_fits_from_fac <- function(df, imp_vec, color_vec, title = 'Aggregated County Fits', labels = NULL){
+plot_county_fits_from_fac <- function(df, methods, color_vec, title = 'Aggregated County Fits', labels = NULL){
   
   # set the labels for the plot
   if(is.null(labels)){
-    labels = imp_vec
+    labels = methods
   }
   
   # # rename columns of df to make it easier
-  # for(col in imp_vec){
+  # for(col in methods){
   #   ind = grep(col, colnames(df))
   #   if(length(ind) != 1){browser()}
   #   colnames(df)[ind] = col
@@ -2450,8 +2470,8 @@ plot_county_fits_from_fac <- function(df, imp_vec, color_vec, title = 'Aggregate
   # initialize the data frame to store final results
   df_f = NULL
 
-  for(j in 1:length(imp_vec)){
-    col = imp_vec[j]
+  for(j in 1:length(methods)){
+    col = methods[j]
 
     # aggregate by date
     tmp = df %>%
@@ -2463,7 +2483,7 @@ plot_county_fits_from_fac <- function(df, imp_vec, color_vec, title = 'Aggregate
   }
   
   # ordering the method to be consistent and for the labeling
-  df_f$method = factor(df_f$method, levels = imp_vec)
+  df_f$method = factor(df_f$method, levels = methods)
   
   # plot them all!
   p1 <- ggplot(data = df_f, aes(x = date, y = y, group = method, color = method)) + 
@@ -2474,14 +2494,14 @@ plot_county_fits_from_fac <- function(df, imp_vec, color_vec, title = 'Aggregate
   return(p1)
 }
 
-plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
+plot_imputations <- function(df, methods, color_vec, fac_list = NULL){
   # get facility list if not supplied
   if(is.null(fac_list)){
     fac_list = unique(df$facility)
   }
   
   # rename columns of df to make it easier
-  for(col in imp_vec){
+  for(col in methods){
     ind = grep(col, colnames(df))
     if(length(ind) != 1){browser()}
     colnames(df)[ind] = col
@@ -2503,8 +2523,8 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
     # # p1 <- suppressWarnings(ggplot(tmp, aes(x = date, y = indicator_count_ari_total)) + 
     #                           geom_line() +
     #                           ggtitle(sprintf('%s (%0.1f %% M)', f, 100*mean(is.na(tmp$indicator_count_ari_total)))))
-    for(j in 1:length(imp_vec)){
-      col = imp_vec[j]
+    for(j in 1:length(methods)){
+      col = methods[j]
       tmp[!is.na(tmp$indicator_count_ari_total),col] = NA
       
       # filling in surrounding points to imputations to connect lines
@@ -2525,12 +2545,12 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
       # replace surrounding values for plotting
       tmp[ind_list, col] = tmp$indicator_count_ari_total[ind_list]
       
-      tmp2 = tmp %>% dplyr::select(date, y = imp_vec[j]) %>% mutate(method = col)
+      tmp2 = tmp %>% dplyr::select(date, y = methods[j]) %>% mutate(method = col)
       df_f = rbind(df_f, tmp2)
       
       #scale_colour_manual(name="Error Bars",values=cols)
-      #p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j]), color = color_vec[j]))
-      # p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = imp_vec[j], color = color_vec[j])))
+      #p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = methods[j]), color = color_vec[j]))
+      # p1 = suppressWarnings(p1 + geom_line(data = tmp, aes_string(x = 'date', y = methods[j], color = color_vec[j])))
     }
     
     #browser()
@@ -2557,20 +2577,20 @@ plot_imputations <- function(df, imp_vec, color_vec, fac_list = NULL){
 
 # HERE! FOR COMMENTING PURPOSES. HAVENT COMMENTED THE FUNCTIONS ABOVE
 
-plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, title = 'County-Level Predictions'){
+plot_county_fits <- function(df, methods, color_vec, imp_names = NULL, PIs = T, title = 'County-Level Predictions'){
   df = as.data.frame(df)
   
   # if no imputation names given, use the ones in the imputation vector
   if(is.null(imp_names)){
-    imp_names = imp_vec
+    imp_names = methods
   }
   
   # initialize data frame for this county
   df_c = NULL
   
   # pull estimates for each method
-  for(j in 1:length(imp_vec)){
-    col = imp_vec[j]
+  for(j in 1:length(methods)){
+    col = methods[j]
     
     # get the lower and upper bounds
     tmp = df[,c('date',paste0(col,'_0.5'),paste0(col, '_0.025'),paste0(col, '_0.975'))] 
@@ -2604,9 +2624,9 @@ plot_county_fits <- function(df, imp_vec, color_vec, imp_names = NULL, PIs = T, 
 }
 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
-# Also can plot the raw values if no imputations are provided (imp_vec is NULL)
+# Also can plot the raw values if no imputations are provided (methods is NULL)
 ### Parameters
-plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec = NULL, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', outbreak_points = NULL, ...){
+plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec = NULL, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', outbreak_points = NULL, ...){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -2616,7 +2636,7 @@ plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec =
   
   # if no imputation names given, use the ones in the imputation vector
   if(is.null(imp_names)){
-    imp_names = imp_vec
+    imp_names = methods
   }
   
   # initialize plotting
@@ -2628,12 +2648,12 @@ plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec =
     iter = iter + 1
     tmp = df %>% filter(facility == f)
     
-    if(!is.null(imp_vec)){
+    if(!is.null(methods)){
       # initialize data frame for this facility
       df_f = NULL
       
-      for(j in 1:length(imp_vec)){
-        col = imp_vec[j]
+      for(j in 1:length(methods)){
+        col = methods[j]
         
         # get the lower and upper bounds
         tmp2 = tmp[,c('date',col,paste0(col, '_0.025'),paste0(col, '_0.975'))] 
@@ -2739,56 +2759,6 @@ plot_facility_fits <- function(df, imp_vec = NULL, imp_names = NULL, color_vec =
   return(cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1)))
 }
 
-
-# plot a set of metrics for a list of simulation runs
-plot_metrics_bysim <- function(imputed_list, imp_vec, rename_vec = NULL, color_vec = c('red','blue'), imputed_only = T){
-  
-  warning('this function incorrectly aggregates by simulation, not by data point, so dont trust these results')
-  
-  # get the metrics from each simulation run
-  res_full = NULL
-  for(r in 1:length(imputed_list)){
-    tmp <- calculate_metrics(imputed_list[[r]], imp_vec, imputed_only = imputed_only)
-    tmp$r = r
-    res_full <- rbind(res_full, tmp)
-  }
-  
-  # convert to long form
-  long = tidyr::gather(res_full, method, value, y_pred_harmonic:y_CARBayes_ST)
-  
-  # replace the names
-  if(!is.null(rename_vec)){
-    for(i in 1:length(imp_vec)){
-      long$method = gsub(imp_vec[i], rename_vec[i],long$method)
-    }
-  }
-  
-  plot_list = list()
-  # plot each metric
-  for(i in 1:length(unique(long$metric))){
-    
-    m = unique(long$metric)[i]
-    
-    tmp2 = long %>% filter(metric == m)
-    
-    p1 <- ggplot(tmp2, aes(x = method, y = value, fill = method)) +  #, color = method)
-      geom_violin(position="dodge", alpha=0.5) + 
-      geom_jitter(position = position_jitter(0.2)) + 
-      scale_color_manual(values = color_vec) +
-      scale_fill_manual(values = color_vec) + 
-      theme_bw() + 
-      theme(legend.position = 'none') +
-      ggtitle(m)
-    
-    plot_list[[i]] = p1
-  }
-  
-  # make the final plot
-  final_plot <- plot_grid(plotlist = plot_list)
-  
-  return(final_plot)
-}
-
 # process the imputed list for metric calculations
 clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL, rm_ARna = F, imputed_only = F){
   # filter to only be greater than the specified date
@@ -2822,7 +2792,7 @@ clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL
 }
 
 # calculate the metrics across simulations
-calculate_metrics <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes_ST"), results_by_point = F, date = '2020-01-01', min_date = NULL, rm_ARna = F, imputed_only = F,  use_point_est = F, k = NULL, district_results = F){
+calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes_ST"), results_by_point = F, date = '2020-01-01', min_date = NULL, rm_ARna = F, imputed_only = F,  use_point_est = F, k = NULL, district_results = F){
 
   if(results_by_point){
     # getting the results for each point across all simulations
@@ -2853,7 +2823,13 @@ calculate_metrics <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes
   
   # get the expected y values and the variance associated with them
   y_exp = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_exp']))
-  y_var = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_var']))
+  y_var = tryCatch({
+    y_var = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_var']))
+  }, error = function(e){
+    warning('making var(Y) = E(Y). This DOES NOT hold under the CAR DGP')
+    y_var = y_exp
+  })
+  
   
   # calculate the outbreak values
   y_outbreak3 <- y_exp + 3*sqrt(y_var)
@@ -2868,9 +2844,8 @@ calculate_metrics <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes
   num_missing = apply(y_missing, 1, function(xx) sum(!is.na(xx)))
   }
   
-  
   df = NULL
-  for(method in imp_vec){
+  for(method in methods){
     lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
     upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
     lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
@@ -2929,109 +2904,8 @@ calculate_metrics <- function(imputed_list, imp_vec = c("y_pred_WF", "y_CARBayes
   return(df)
 }
 
-
-# plot the metrics by individual data points across simulated imputations
-plot_metrics_by_point <- function(imputed_list, imp_vec = c('y_pred_WF', 'y_CARBayes_ST'), rename_vec = NULL, color_vec = c('red','blue'), imputed_only = F, min_missing = 5, min_date = NULL, rm_ARna = F, use_point_est = F, violin_points = F, max_intW_lim = NULL, metric_list = c('bias','absolute_bias','MAPE','RMSE','coverage50','coverage95','interval_width','prop_interval_width'), dotted_line = T, res = NULL, outbreak_date = '2020-01-01'){
-  
-  if(!is.null(min_date)){
-    imputed_only = F
-    print('setting imputed only to false because of the minimum date specification')
-  }
-  
-  # get the metrics from each simulation run
-  if(is.null(res)){
-    res = calculate_metrics_by_point(imputed_list, imp_vec = imp_vec, min_date = min_date, imputed_only = imputed_only, rm_ARna = rm_ARna, use_point_est = use_point_est)
-  }
-
-  if(all(res$num_missing < min_missing) & imputed_only){
-    stop('all points are not missing enough (check min_missing)')
-  }else if(any(res$num_missing < min_missing) & imputed_only){
-    # remove the data points that werent missing enough
-    ind = which(res$num_missing < min_missing)
-    res = res[-ind,]
-    
-    print(sprintf('removing %s data points because they werent missing %s times', length(ind), min_missing))
-  }
-  
-  # convert to long form
-  long = tidyr::gather(res, metric, value, bias:point_sd)
-  
-  # replace the names
-  if(!is.null(rename_vec)){
-    for(i in 1:length(imp_vec)){
-      long$method = gsub(imp_vec[i], rename_vec[i],long$method)
-    }
-    
-    # make a factor so the ordering in the plots stays
-    long$method=  factor(long$method, levels = rename_vec)
-  }
-  
-  long = long %>% 
-    filter(metric %in% metric_list)
-  
-  plot_list = list()
-  # plot each metric
-  for(i in 1:length(metric_list)){
-    
-    m = metric_list[i]
-    
-    tmp2 = long %>% filter(metric == m)
-    
-    if(grepl('outbreak', m)){
-      tmp2 <- tmp2 %>% 
-        filter(date == outbreak_date)
-    }
-    
-    p1 <- ggplot(tmp2, aes(x = method, y = value, fill = method)) +  #, color = method)
-      geom_violin(position="dodge", alpha=0.5) + 
-      scale_color_manual(values = color_vec) +
-      scale_fill_manual(values = color_vec) + 
-      theme_bw() + 
-      theme(axis.title.x = element_blank(),
-            axis.text.x = element_blank()) +
-      ggtitle(m)
-    
-    # stash the legend
-    if(i == 1){
-      legend = get_legend(p1 + theme(legend.position = 'bottom'))
-    }
-    
-    # remove the legend for this plot
-    p1 <- p1 + theme(legend.position = 'none')
-    
-    if(violin_points){
-      p1 <- p1 + geom_jitter(position = position_jitter(0.1))
-    }
-    
-    if(m == 'bias'){
-      p1 <- p1 + geom_hline(yintercept = 0)
-    }else if(m == 'coverage50'){
-      p1 <- p1 + geom_hline(yintercept = 0.5) + ylim(0,1)
-    }else if(m == 'coverage95'){
-      p1 <- p1 + geom_hline(yintercept = 0.95) + ylim(0,1)
-    }else if(m == 'interval_width'){
-      tt = long %>% filter(method != 'glmFreq_epi', metric == 'interval_width')
-      if(is.null(max_intW_lim)){
-        max_intW_lim = round(1.3*max(tt$value, na.rm = T))
-      }
-      p1 = p1 + ylim(c(0, max_intW_lim))
-    }
-    
-    if(dotted_line){
-      p1 <- p1 + geom_vline(xintercept = 1.5, linetype = 'dotted')
-    }
-    
-    plot_list[[i]] = p1
-  }
-  
-  # make the final plot
-  final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = 2), legend, ncol = 1, rel_heights = c(10,1))
-  
-  return(final_plot)
-}
-
 # plot all methods against each other
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar_quants = c(0.25, 0.75), metrics = c('bias', 'RMSE', 'coverage95', 'interval_width', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 4), add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = NULL, rows = 2, title = NULL, ...){
   if(is.null(res)){
     if(!is.null(files)){
       res <- combine_results_wrapper(files,  ...)
@@ -3052,82 +2926,48 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar
                      xend = seq(0.05, max(res$prop_missing) + 0.05, by = 0.1),
                      stripe = stripes)
   
+  # rename the metrics
+  if(!is.null(metric_rename)){
+    for(i in 1:length(metrics)){
+      colnames(res)[which(colnames(res) == metrics[i])] <- metric_rename[i]
+    }
+    metrics <- metric_rename
+  }
+  
   plot_list = list()
   i = 0
   for(metric in metrics){
     i = i + 1
     
     # aggregate the results by the metric and quantile of plots
-    if(grepl('outbreak_detection', metric)){
-      tmp <- res %>%
-        filter(date == '2020-01-01') %>%
-        group_by(method, prop_missing) %>% 
-        summarize(median = median(get(metric)),
-                  lower = stats::quantile(get(metric), probs = bar_quants[1]),
-                  upper = stats::quantile(get(metric), probs = bar_quants[2]))
-    }else{
-      tmp <- res %>%
-        group_by(method, prop_missing) %>% 
-        summarize(median = median(get(metric)),
-                  lower = stats::quantile(get(metric), probs = bar_quants[1]),
-                  upper = stats::quantile(get(metric), probs = bar_quants[2])) 
-    }
+    tmp <- res %>%
+      group_by(method, prop_missing) %>% 
+      summarize(median = median(get(metric)),
+                lower = stats::quantile(get(metric), probs = bar_quants[1]),
+                upper = stats::quantile(get(metric), probs = bar_quants[2])) 
     
     tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
     
+    # plot!
     p1 <- ggplot() + 
+      # plot the background shading
       geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
+      # plot the median points
       geom_point(data = tmp, aes(x = prop_missing, y = median, color = method, shape = method), position = position_dodge(width = 0.1)) +
-      # geom_errorbar(data = tmp, aes(x = prop_missing, y = median, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) +
+      # plot the error bars
       geom_errorbar(data = tmp, aes(x = prop_missing, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) + 
       labs(x = 'proportion missing') + 
       guides(alpha = 'none') +
-      theme_bw()
+      theme_bw() + 
+      ylab(metric)
     
-    # fixing the axis ranges
-    if(metric == 'bias'){
-      p1 <- p1 + geom_hline(yintercept = 0)  +
-        ylab('bias')
-      if(fix_axis[1]){
-        p1 <- p1 + 
-          ylim(c(-2, 2))
-      }
-    }else if(metric == 'RMSE'){
-      p1 <- p1 +
-        ylab('RMSE')
-      if(fix_axis[2]){
-        p1 <- p1 + ylim(c(0, 20)) 
-      }
-    }else if(metric == 'coverage95'){
-      p1 <- p1 + geom_hline(yintercept = 0.95) +
-        ylab('coverage-95')
-      if(fix_axis[3]){
-        p1 <- p1 + ylim(c(0.8, 1))
-      }
-    }else if(metric == 'interval_width'){
-      p1 <- p1 +
-        ylab('interval width')
-      if(fix_axis[4]){
-        p1 <- p1 + ylim(c(0, 70))
-      }
-    }else if(metric == 'outbreak_detection3'){
-      p1 <- p1 +
-        ylab('outbreak detection-3')
-      if(fix_axis[5]){
-        p1 <- p1 + ylim(c(0.5,1))
-      }
-    }else if(metric == 'outbreak_detection5'){
-      p1 <- p1 +
-        ylab('outbreak detection-5')
-      if(fix_axis[6]){
-        p1 <- p1 + ylim(c(0.8,1))
-      }
-    }else if(metric == 'outbreak_detection10'){
-      p1 <- p1 +
-        ylab('outbreak detection-10')
-      if(fix_axis[7]){
-        p1 <- p1 + ylim(c(0.9,1))
-      }
+    # fix axis limits
+    if(!is.logical(fix_axis[[i]])){
+      p1 <- p1 + fix_axis[[i]]
+    }
+    
+    if(!is.logical(add_lines[[i]])){
+      p1 <- p1 + geom_hline(yintercept = add_lines[[i]])
     }
     
     legend = get_legend(p1 + theme(legend.position = 'bottom'))
@@ -3136,7 +2976,14 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 7), bar
     plot_list[[i]] <- p1
   }
   
-  final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = 2), legend, ncol = 1, rel_heights = c(10,1))
+  final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = rows), legend, ncol = 1, rel_heights = c(10,1))
+  
+  if(!is.null(title)){
+    title_plot <- ggplot() + 
+      labs(title = title) + 
+      theme_bw()
+    final_plot <- plot_grid(title_plot, final_plot, ncol = 1, rel_heights = c(0.2 - 0.05*rows,1))
+  }
   
   return(final_plot)
 }
