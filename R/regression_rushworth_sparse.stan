@@ -72,7 +72,7 @@ parameters {
   real<lower=0> tau2; // CAR variance parameter
   real<lower=0, upper=1> rho; // spatial correlation
   real<lower=0, upper=1> alpha; // temporal correlation
-  vector[N] phi; // CAR parameter in vector form (not necessary for this implementation but I'll do it anyway).
+  vector[N] phi; // CAR parameter in vector form
   vector[p] beta;  // log of rate parameter
 }
 transformed parameters {

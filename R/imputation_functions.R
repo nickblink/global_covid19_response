@@ -157,6 +157,64 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   return(df)
 }
 
+# prep the data for fitting the stan model
+prep_stan_data_rushworth_sparse <- function(df, formula){
+  N = nrow(df)
+  N_T <- length(unique(df$date))
+  N_F <- length(unique(df$facility))
+  
+  # check the order the data frame
+  df2 <- df %>% arrange(facility, date)
+  if(!identical(df, df2)){
+    stop('the data frame is not properly ordered by date and facility')
+  }
+  
+  #W_star = make_district_W2_matrix(df)
+  W = make_district_adjacency(df)
+  W_n = sum(W)/2
+  
+  # make the complete model matrix
+  df2 <- df; df2$y[is.na(df2$y)] <- 0
+  X = model.matrix(formula, data = df2)
+  
+  # get the outcome
+  y = df$y
+  
+  # missingness data
+  N_miss = sum(is.na(y))
+  N_obs = sum(!is.na(y))
+  ind_miss = which(is.na(y))
+  ind_obs = which(!is.na(y))
+  y_obs = y[ind_obs]
+  
+  # compute the priors
+  lm_fit <- glm(formula, family = 'poisson', data = df)
+  coef_mat <- summary(lm_fit)$coefficients
+  prior_mean_beta <- coef_mat[,1]
+  sigma_beta = 10*vcov(lm_fit)
+  
+  # make the stan data frame
+  stan_data <- list(
+    N = N, # number of observations
+    p = ncol(X), # number of variables
+    N_F = N_F, # number of facilities
+    N_T = N_T, # number of time points
+    N_miss = N_miss,
+    N_obs = N_obs,
+    ind_miss = ind_miss,
+    ind_obs = ind_obs,
+    X = X, # design matrix
+    y_obs = y_obs, # outcome variable 
+    mu = prior_mean_beta, # prior mean
+    Sigma = sigma_beta, # prior variance
+    #W_star = W_star, 
+    W = W,
+    W_n = W_n,
+    I = diag(1.0, N_F))
+  
+  return(stan_data)
+}
+
 # get the district and facility list from a data frame
 get_district_facilities <- function(df){
   tt = unique(df[,c('district','facility')])
@@ -912,7 +970,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, MALA = T){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 1000, n.sample = 2000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, MALA = T, MCMC_sampler = 'stan'){
 
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -969,35 +1027,73 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
     stop('please input a proper prior value (WF, constant, none)')
   }
   
-  
   # run CAR Bayes
-  chain1 <- ST.CARar(formula = formula_col, 
-                     family = "poisson",
-                     data = df, W = W, 
-                     prior.mean.beta = prior_mean_beta,
-                     prior.var.beta = prior_var_beta,
-                     burnin = burnin, 
-                     n.sample = n.sample,
-                     thin = thin, 
-                     AR = AR, 
-                     verbose = F,
-                     MALA = MALA)
+  if(MCMC_sampler == 'CARBayesST'){
+    chain1 <- ST.CARar(formula = formula_col, 
+                       family = "poisson",
+                       data = df, W = W, 
+                       prior.mean.beta = prior_mean_beta,
+                       prior.var.beta = prior_var_beta,
+                       burnin = burnin, 
+                       n.sample = n.sample,
+                       thin = thin, 
+                       AR = AR, 
+                       verbose = F,
+                       MALA = MALA)
     
-  browser()
-  
-  # check that the prior names matched the CAR fitted names
-  if(prior == 'WF'){
-    if(!(identical(rownames(coef_mat), rownames(chain1$summary.results)[1:160]))){
-      stop('error in WF prior and CAR formula name mismatch')
+    # check that the prior names matched the CAR fitted names
+    if(prior == 'WF'){
+      if(!(identical(rownames(coef_mat), rownames(chain1$summary.results)[1:160]))){
+        stop('error in WF prior and CAR formula name mismatch')
+      }
     }
+    
+    beta_df = as.data.frame(chain1$samples$beta)
+    colnames(beta_df) <- setdiff(gsub('\\(|\\)', '', row.names(chain1$summary.results)), c('tau2', 'rho.S','rho.T'))
+    
+    model_chain <- list(
+      fitted_mean = chain1$fitted.values,
+      fitted = chain1$samples$fitted,
+      beta = beta_df,
+      phi = chain1$samples$phi,
+      rho = chain1$samples$rho,
+      tau2 = chain1$samples$tau2
+    )
+    
+  }else if(MCMC_sampler == 'stan'){
+    stan_data <- prep_stan_data_rushworth_sparse(df, formula_col)
+    stan_fit <- stan(file = "R/regression_rushworth_sparse.stan",
+               data = stan_data, 
+               iter = n.sample, 
+               warmup = burnin,
+               chains = 1, 
+               init = '0',
+               cores = 1)
+    
+    # extract out the important features from the model
+    stan_out <- extract(stan_fit)
+    
+    beta_df <- as.data.frame(stan_out$beta)
+    colnames(beta_df) <- gsub('\\(|\\)', '', colnames(stan_data$X))
+    
+    model_chain = list(
+      fitted_mean = apply(stan_out$y_exp, 2, mean),
+      fitted = stan_out$y_exp,
+      beta = beta_df,
+      phi = stan_out$phi,
+      rho = stan_out$rho,
+      tau2 = stan_out$tau2
+    )
+  }else{
+    stop('input a proper MCMC sampler')
   }
   
-  df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
+  df[,paste0(col, '_CARBayes_ST')] = model_chain$fitted_mean
   
   # Poisson sample the fitted values for the posterior predictive distribution
   if(prediction_sample){
     # pull the fitted values and randomly select prediction values based on the Poisson distribution
-    tt = chain1$samples$fitted
+    tt = model_chain$fitted
     tt = apply(tt, 2, function(xx) rpois(n = length(xx), lambda = xx))
     
     # get the quantiles of fitted values 
@@ -1012,7 +1108,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
   }else{
     # get the quantiles of fitted values 
     quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
-    fitted_quants = t(apply(chain1$samples$fitted, 2, function(xx){
+    fitted_quants = t(apply(model_chain$fitted, 2, function(xx){
       quantile(xx, probs = quant_probs)
     }))
     fitted_quants = as.data.frame(fitted_quants)
@@ -1026,7 +1122,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
   mat = as.matrix(sparseMatrix(i = 1:nrow(df), j = match(df$date, dates), x = 1))
   
   # condense the fitted value samples to each date
-  date_fits = chain1$samples$fitted %*% mat
+  date_fits = model_chain$fitted %*% mat
   
   # get the quantiles at the county level
   fitted_quants_C = t(apply(date_fits, 2, function(xx){
@@ -1054,7 +1150,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
   }else if(return_type == 'model'){
     return(chain1)
   }else if(return_type == 'all'){
-    lst = list(facility_df = df, county_df = df_county, model_chain = chain1)
+    lst = list(facility_df = df, county_df = df_county, model_chain = model_chain)
     return(lst)
   }
 }
@@ -1096,7 +1192,8 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   # make a train set to fit on
   train <- df %>%
-    filter(date <= train_end_date)
+    filter(date <= train_end_date) %>%
+    arrange(facility, date)
   
   # fit the model!
   res <- CARBayes_fitting(train, col, ...)
@@ -1108,21 +1205,27 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   #### the rest is for future model prediction
   # pull out the summary statistics
-  summary_stats <- res$model_chain$summary.results
+  # summary_stats <- res$model_chain$summary.results
   
   # pull out parameter values
-  betas <- as.data.frame(res$model_chain$samples$beta)
-  colnames(betas) <- setdiff(gsub('\\(|\\)', '', row.names(res$model_chain$summary.results)), c('tau2', 'rho.S','rho.T'))
+  # betas <- as.data.frame(res$model_chain$samples$beta)
+  # colnames(betas) <- setdiff(gsub('\\(|\\)', '', row.names(res$model_chain$summary.results)), c('tau2', 'rho.S','rho.T'))
+   
+  betas <- res$model_chain$beta
   
-  phi <- res$model_chain$samples$phi
-  rho <- res$model_chain$samples$rho
-  tau2 <- res$model_chain$samples$tau2
+  phi <- res$model_chain$phi
+  rho <- res$model_chain$rho
+  tau2 <- res$model_chain$phi
+  browser()
   
   # set the R_posterior
   if(is.null(R_posterior)){
     R_posterior = nrow(betas)
   }else if(R_posterior > nrow(betas)){
     stop('cant sample more posterior predictions than the original model fit returns')
+  }else{
+    # havent implemented yet
+    browser()
   }
   
   # group the betas into their separate facility values

@@ -182,7 +182,24 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if('CAR' %in% models){
     print('running CARBayes')
     return_list <- tryCatch({
-      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 2000, n.sample = 4000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
+      #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      # colnames(res$df) <- gsub('CAR', 'AHHHH', colnames(res$df))
+      return_list[['df_miss']] <- res$df
+      return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
+      return_list[['CAR_summary']] <- res$summary_stats
+      return_list
+    }, error = function(e){
+      print(e)
+      return_list[['errors']][['CARBayes']] <- rbind(return_list[['errors']][['CARBayes']], data.frame(i, error = e[[1]]))
+      return_list
+    })
+  }
+  
+  if('CARstan' %in% models){
+    print('running CARBayes')
+    return_list <- tryCatch({
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 250, n.sample = 500, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
       #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
@@ -210,7 +227,7 @@ system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })
 
-res <- one_run(lst, 1, models = 'CAR')
+res <- one_run(lst, 1, models = c('CAR', 'CARstan'))
 
 true_betas <- lst$betas
 
