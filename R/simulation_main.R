@@ -97,7 +97,7 @@ if(file.exists(results_file)){
 }
 
 # Simulate the data
-if(DGP == 'nost'){
+if(DGP == 'nRost'){
   lst <- simulate_data(district_sizes = c(4, 6, 10), 
                        R = R, 
                        end_date = '2020-12-01', 
@@ -209,6 +209,8 @@ set.seed(1)
 system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })
+
+res <- one_run(lst, 1, models = 'CAR')
 
 true_betas <- lst$betas
 

@@ -912,7 +912,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, S_glm_debug = F, QR_debug = F, MALA = T){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, MALA = T){
 
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -969,60 +969,21 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
     stop('please input a proper prior value (WF, constant, none)')
   }
   
-  if(QR_debug){
-    X = model.matrix(formula_col, df)
-    N = nrow(X)
-    qr_comp = qr(X)
-    Q = qr.Q(qr_comp)*sqrt(N-1)
-    R = qr.R(qr_comp)/sqrt(N-1)
-    Q = as.data.frame(Q)
-    colnames(Q) = colnames(X)
-    Q$y = df$y
-
-    # run CAR Bayes
-    chain1 <- ST.CARar(formula = 'y ~ .', 
-                       family = "poisson",
-                       data = Q, W = W, 
-                       prior.mean.beta = prior_mean_beta,
-                       prior.var.beta = prior_var_beta,
-                       burnin = burnin, 
-                       n.sample = n.sample,
-                       thin = thin, 
-                       AR = AR, 
-                       verbose = F,
-                       MALA = MALA)
-    lst = list(model_chain = chain1)
-    return(lst)
-  }
   
-  
-  if(S_glm_debug){
-    print('running S_glm_debug')
-    chain1 <- CARBayes::S.glm(formula = formula_col, 
-                       family = "poisson",
-                       data = df, 
-                       prior.mean.beta = prior_mean_beta,
-                       prior.var.beta = prior_var_beta,
-                       burnin = burnin, 
-                       n.sample = n.sample,
-                       thin = thin, verbose = T)
-    lst = list(model_chain = chain1)
-    return(lst)
-  }else{
-    # run CAR Bayes
-    chain1 <- ST.CARar(formula = formula_col, 
-                       family = "poisson",
-                       data = df, W = W, 
-                       prior.mean.beta = prior_mean_beta,
-                       prior.var.beta = prior_var_beta,
-                       burnin = burnin, 
-                       n.sample = n.sample,
-                       thin = thin, 
-                       AR = AR, 
-                       verbose = F,
-                       MALA = MALA)
+  # run CAR Bayes
+  chain1 <- ST.CARar(formula = formula_col, 
+                     family = "poisson",
+                     data = df, W = W, 
+                     prior.mean.beta = prior_mean_beta,
+                     prior.var.beta = prior_var_beta,
+                     burnin = burnin, 
+                     n.sample = n.sample,
+                     thin = thin, 
+                     AR = AR, 
+                     verbose = F,
+                     MALA = MALA)
     
-  }
+  browser()
   
   # check that the prior names matched the CAR fitted names
   if(prior == 'WF'){
@@ -1116,15 +1077,15 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   if(is.null(predict_start_date)){
     dates = df %>% 
-      filter(date > train_end_date) %>%
-      select(date) %>%
+      dplyr::filter(date > train_end_date) %>%
+      dplry::select(date) %>%
       unique() %>%
       .$date
     predict_start_date = min(dates)
   }else{
     dates = df %>% 
-      filter(date >= predict_start_date) %>%
-      select(date) %>%
+      dplyr::filter(date >= predict_start_date) %>%
+      dplyr::select(date) %>%
       unique() %>%
       .$date
   }
