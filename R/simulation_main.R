@@ -19,6 +19,8 @@ inputs <- c('0.1', '6', 'n0.25', 'mcar', 'CAR', '0.3', '0.3', '1', '10','5','tes
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
+### Get parameters (for home and cluster)
+{
 # pull parameters into proper format
 p <- as.numeric(inputs[[1]])
 b0_mean <- as.numeric(strsplit(inputs[[2]], '/')[[1]])
@@ -76,27 +78,6 @@ if(job_id < num_jobs){
   seq <- (floor(R/num_jobs)*(job_id - 1) + 1):R
 }
 
-# set up the output folder
-date <- gsub('-','_', Sys.Date())
-if(output_path == 'na'){
-  output_path <- sprintf('results/%s%s_%s_%s', missingness, gsub('\\.','',p), DGP, date)
-}else{
-  output_path <- sprintf('results/%s', output_path)
-}
-
-if(!file.exists(output_path)){
-  dir.create(output_path, recursive = T)
-}
-results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i).RData', output_path, p, missingness, job_id, num_jobs)
-
-if(file.exists(results_file)){
-  iter = 0
-  while(file.exists(results_file)){
-    iter = iter + 1
-    results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i)(%i).RData', output_path, p, missingness, job_id, num_jobs, iter)
-  }
-}
-
 # Simulate the data
 if(DGP == 'nRost'){
   lst <- simulate_data(district_sizes = c(4, 6, 10), 
@@ -120,15 +101,43 @@ if(DGP == 'nRost'){
 
 print('data made')
 
+# initialize the error catcher for each run
+errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
+               WF = data.frame(i = NULL, error = NULL),
+               CARBayesST = data.frame(i = NULL, error = NULL),
+               CARstan = data.frame(i = NULL, error = NULL))
+
+}
+
+### File saving (for cluster only)
+{
+# set up the output folder
+date <- gsub('-','_', Sys.Date())
+if(output_path == 'na'){
+  output_path <- sprintf('results/%s%s_%s_%s', missingness, gsub('\\.','',p), DGP, date)
+}else{
+  output_path <- sprintf('results/%s', output_path)
+}
+
+if(!file.exists(output_path)){
+  dir.create(output_path, recursive = T)
+}
+results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i).RData', output_path, p, missingness, job_id, num_jobs)
+
+if(file.exists(results_file)){
+  iter = 0
+  while(file.exists(results_file)){
+    iter = iter + 1
+    results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i)(%i).RData', output_path, p, missingness, job_id, num_jobs, iter)
+  }
+}
+
 # save the data
 if(job_id == 1){
   save(lst, file = paste0(output_path, '/simulated_data.RData'))
 }
 
-# initialize the error catcher for each run
-errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
-                 WF = data.frame(i = NULL, error = NULL),
-                 CARBayes = data.frame(i = NULL, error = NULL))
+}
 
 # function to run all models for a specific dataset
 one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
@@ -192,7 +201,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
       return_list
     }, error = function(e){
       print(e)
-      return_list[['errors']][['CARBayes']] <- rbind(return_list[['errors']][['CARBayes']], data.frame(i, error = e[[1]]))
+      return_list[['errors']][['CARBayesST']] <- rbind(return_list[['errors']][['CARBayesST']], data.frame(i, error = e[[1]]))
       return_list
     })
   }
@@ -209,7 +218,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
       return_list
     }, error = function(e){
       print(e)
-      return_list[['errors']][['CARBayes']] <- rbind(return_list[['errors']][['CARBayes']], data.frame(i, error = e[[1]]))
+      return_list[['errors']][['CARstan']] <- rbind(return_list[['errors']][['CARstan']], data.frame(i, error = e[[1]]))
       return_list
     })
   }

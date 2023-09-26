@@ -1071,6 +1071,8 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
                init = '0',
                cores = 1)
     
+    browser()
+    
     # extract out the important features from the model
     stan_out <- extract(stan_fit)
     
