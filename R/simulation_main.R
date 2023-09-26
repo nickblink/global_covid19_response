@@ -6,6 +6,7 @@ library(lubridate)
 library(ggplot2)
 library(doRNG)
 library(doParallel)
+library(rstan)
 
 source('R/imputation_functions.R')
 
@@ -182,7 +183,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if('CAR' %in% models){
     print('running CARBayes')
     return_list <- tryCatch({
-      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 2000, n.sample = 4000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
       #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
       # colnames(res$df) <- gsub('CAR', 'AHHHH', colnames(res$df))
       return_list[['df_miss']] <- res$df

@@ -1056,7 +1056,8 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
       fitted = chain1$samples$fitted,
       beta = beta_df,
       phi = chain1$samples$phi,
-      rho = chain1$samples$rho,
+      rho = chain1$samples$rho[,'rho.S'],
+      alpha = chain1$samples$rho[,'rho.T'],
       tau2 = chain1$samples$tau2
     )
     
@@ -1082,6 +1083,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
       beta = beta_df,
       phi = stan_out$phi,
       rho = stan_out$rho,
+      alpha = stan_out$alpha,
       tau2 = stan_out$tau2
     )
   }else{
@@ -1215,8 +1217,8 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   phi <- res$model_chain$phi
   rho <- res$model_chain$rho
+  alpha = res$model_chain$alpha
   tau2 <- res$model_chain$phi
-  browser()
   
   # set the R_posterior
   if(is.null(R_posterior)){
@@ -1275,7 +1277,7 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   # make the spatio-temporal precision matrices
   covar_mats <- lapply(1:R_posterior, function(ii){
-    Q = make_precision_mat(df, rho = rho[ii,'rho.S'], W2)
+    Q = make_precision_mat(df, rho = rho[ii], W2)
     
     tryCatch({
       V = tau2[ii]*solve(Q)
@@ -1287,8 +1289,11 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
     return(V)
   })
   
+  browser()
+  
   # make R sampled sets of data
   phi_lst = lapply(1:R_posterior, function(i){
+    print(i)
     ### get the spatio-temporal random effects
     # initialize phi
     phi = matrix(0, nrow = length(dates), ncol = length(facilities))
@@ -1298,8 +1303,8 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
     phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, ncol(phi)), Sigma = covar_mats[[i]])
     
     # cycle through other time steps, using auto-correlated priors
-    for(i in 2:length(dates)){
-      phi[i,] = MASS::mvrnorm(n = 1, mu = rho[i, 'rho.T']*phi[i-1,], Sigma = covar_mats[[i]])
+    for(t in 2:length(dates)){
+      phi[t,] = MASS::mvrnorm(n = 1, mu = alpha[i]*phi[t-1,], Sigma = covar_mats[[i]])
     }
     
     # convert to matching format
