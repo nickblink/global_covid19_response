@@ -1217,8 +1217,8 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   phi <- res$model_chain$phi
   rho <- res$model_chain$rho
-  alpha = res$model_chain$alpha
-  tau2 <- res$model_chain$phi
+  alpha <- res$model_chain$alpha
+  tau2 <- res$model_chain$tau2
   
   # set the R_posterior
   if(is.null(R_posterior)){
@@ -1289,11 +1289,8 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
     return(V)
   })
   
-  browser()
-  
   # make R sampled sets of data
   phi_lst = lapply(1:R_posterior, function(i){
-    print(i)
     ### get the spatio-temporal random effects
     # initialize phi
     phi = matrix(0, nrow = length(dates), ncol = length(facilities))
@@ -1400,9 +1397,9 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   # return list of results
   if(return_chain){
-    res_lst <- list(df = df, district_df = district_df, summary_stats = summary_stats, model_chain = res$model_chain)
+    res_lst <- list(df = df, district_df = district_df, model_chain = res$model_chain)
   }else{
-    res_lst <- list(df = df, district_df = district_df, summary_stats = summary_stats)
+    res_lst <- list(df = df, district_df = district_df)
   }
   
   return(res_lst)

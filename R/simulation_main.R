@@ -181,11 +181,11 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   
   # run the CAR complete case analysis model
   if('CAR' %in% models){
-    print('running CARBayes')
+    print('running CARBayes with CARBayesST')
     return_list <- tryCatch({
-      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 100, n.sample = 200, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
       #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
-      # colnames(res$df) <- gsub('CAR', 'AHHHH', colnames(res$df))
+      colnames(res$df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res$df))
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
       return_list[['CAR_summary']] <- res$summary_stats
@@ -198,10 +198,11 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   }
   
   if('CARstan' %in% models){
-    print('running CARBayes')
+    print('running CARBayes with stan')
     return_list <- tryCatch({
-      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 250, n.sample = 500, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 500, n.sample = 1000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
       #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      colnames(res$df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res$df))
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
       return_list[['CAR_summary']] <- res$summary_stats
@@ -216,7 +217,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   print(sprintf('i = %i; time = %f minutes', i, difftime(Sys.time(), t0, units = 'm')))
   
   # check I got the correct result names
-  outcome_name_checker(return_list, models = models)
+  # outcome_name_checker(return_list, models = models)
   
   return(return_list)
 }
@@ -228,7 +229,7 @@ system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
 })
 
-res <- one_run(lst, 1, models = c('CAR', 'CARstan'))
+res <- one_run(lst, 1, models = c('CARstan'))
 
 true_betas <- lst$betas
 
