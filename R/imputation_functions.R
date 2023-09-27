@@ -156,9 +156,8 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   tmp = cbind(y.counts[,'date',drop = F], as.data.frame(as.matrix(y.counts[,-1])%*%W)) %>% 
     tidyr::gather(facility, y.neighbors, -date)
   tmp$facility = factor(tmp$facility, levels = levels(df$facility))
-  df = merge(df, test, by = c('date','facility'))
+  df = merge(df, tmp, by = c('date','facility'))
   
-  print('out')
   return(df)
 }
 
@@ -704,8 +703,8 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
         
         # store the model results to return
         model_res = list()
-        model_res[[xx]][['beta_hat']] <- beta_hat
-        model_res[[xx]][['beta_vcov']] <- beta_vcov
+        model_res[[as.character(xx)]][['beta_hat']] <- beta_hat
+        model_res[[as.character(xx)]][['beta_vcov']] <- beta_vcov
         
         # bootstrap 
         sapply(1:R_PI, function(r){
@@ -1930,11 +1929,8 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   df$y_imp[na.ind] <- rpois(n = length(na.ind), df$y_pred_freqGLMepi[na.ind])
   
   # add the neighbors and auto-regressive
-  print(str(df$facility))
   df = add_autoregressive(df, 'y_imp') %>%
     add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors, W = W)
-  
-  browser()
   
   ### Run freqGLM_epidemic model iteratively
   iter = 1
@@ -1968,7 +1964,6 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       # get the convergence of each facility
       convergence = sapply(tmp, function(xx) (xx[[2]]$convergence == 0))
 
-      browser()
       # combine into one data frame
       df = do.call('rbind', lapply(tmp, '[[', 1)) %>% arrange(facility, date)
     }else{
