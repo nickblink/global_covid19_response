@@ -155,7 +155,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   }
   
   # initializing the return list
-  return_list <- list(df_miss = df_miss, district_df = lst$district_list[[i]], errors = errors, WF_betas = NULL, CAR_summary = NULL)
+  return_list <- list(df_miss = df_miss, district_df = lst$district_list[[i]], errors = errors)
   rm(df_miss)
   
   # run the freqGLM_epi complete case analysis
@@ -192,12 +192,11 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if('CAR' %in% models){
     print('running CARBayes with CARBayesST')
     return_list <- tryCatch({
-      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 100, n.sample = 200, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 5000, n.sample = 10000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
       #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
       colnames(res$df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res$df))
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
-      return_list[['CAR_summary']] <- res$summary_stats
       return_list
     }, error = function(e){
       print(e)
@@ -209,12 +208,12 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CAR')){
   if('CARstan' %in% models){
     print('running CARBayes with stan')
     return_list <- tryCatch({
-      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 500, n.sample = 1000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
+      res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 1000, n.sample = 2000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
       #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
       colnames(res$df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res$df))
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
-      return_list[['CAR_summary']] <- res$summary_stats
+      return_list[['CARstan_ESS']] <- res$ESS
       return_list
     }, error = function(e){
       print(e)
@@ -235,10 +234,10 @@ set.seed(1)
 
 # run the models for each simulation dataset
 system.time({
-  imputed_list <- foreach(i=seq) %dorng% one_run(lst, i)
+  imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CAR', 'CARstan'))
 })
 
-res <- one_run(lst, 1, models = c('CARstan'))
+res <- one_run(lst, i, models = c('freq', 'WF', 'CAR', 'CARstan'))
 
 true_betas <- lst$betas
 
