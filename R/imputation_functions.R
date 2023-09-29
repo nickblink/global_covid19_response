@@ -1870,7 +1870,7 @@ fit_freqGLMepi_nnls <- function(df, num_inits = 10, verbose = T, target_col = 'y
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
+freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, family = 'poisson', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -1908,18 +1908,32 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   uni_group = unique(df$facility)
   
   # run the individual model for each group.
-  tmp <- lapply(uni_group, function(xx) {
-    tt <- df %>% filter(facility == xx)
-    
-    # run the model
-    mod_col <- MASS::glm.nb(formula_col, data = tt)
-    
-    # update predictions
-    tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
-    
-    return(tt)
-  })
-  
+  if(family == 'poisson'){
+    tmp <- lapply(uni_group, function(xx) {
+      tt <- df %>% filter(facility == xx)
+      
+      # run the model
+      mod_col <- glm(formula_col, family = 'poisson', data = tt)
+      
+      # update predictions
+      tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
+      
+      return(tt)
+    })
+  }
+  else if(family == 'negative_binomial'){
+    tmp <- lapply(uni_group, function(xx) {
+      tt <- df %>% filter(facility == xx)
+      
+      # run the model
+      mod_col <- MASS::glm.nb(formula_col, data = tt)
+      
+      # update predictions
+      tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
+      
+      return(tt)
+    })
+  }
   # combine into one data frame
   df = do.call('rbind',tmp)
   

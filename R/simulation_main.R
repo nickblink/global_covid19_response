@@ -245,7 +245,7 @@ system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'))
 })
 
-res <- one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 100), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000))
+res <- one_run(lst, i, models = c('freq'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000))
 
 true_betas <- lst$betas
 
