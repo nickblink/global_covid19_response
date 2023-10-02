@@ -6,9 +6,9 @@ library(ggplot2)
 library(doRNG)
 library(doParallel)
 library(rstan)
-library(bayestestR)
+# library(bayestestR)
 
-source('../imputation_functions.R')
+source('imputation_functions.R')
 
 #
 #### data creation ####
@@ -514,9 +514,13 @@ prep_stan_data_rushworth_sparse <- function(df, formula){
   # order the data frame
   df <- df %>% arrange(date, facility)
   
-  #W_star = make_district_W2_matrix(df)
+  # W_star = make_district_W2_matrix(df)
   W = make_district_adjacency(df)
   W_n = sum(W)/2
+  W2 = make_district_W2_matrix(df)
+  
+  # get eigenvalues for determinant calculation
+  lambda = eigen(W2 - diag(1, nrow(W2)))$values
   
   # make the complete model matrix
   df2 <- df; df2$y[is.na(df2$y)] <- 0
@@ -560,7 +564,8 @@ prep_stan_data_rushworth_sparse <- function(df, formula){
     #W_star = W_star, 
     W = W,
     W_n = W_n,
-    I = diag(1.0, N_F))
+    I = diag(1.0, N_F),
+    lambda = lambda)
   
   return(stan_data)
 }
