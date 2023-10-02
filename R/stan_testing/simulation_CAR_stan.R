@@ -502,7 +502,7 @@ load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/m8_ru
 
 shinystan::launch_shinystan(m8)
 
-#### Now with (incomplete) Rushworth sparse encoding ####
+#### Now with Rushworth sparse encoding ####
 df = df_miss
 formula = as.formula("y ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3")
 

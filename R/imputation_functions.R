@@ -15,7 +15,9 @@ get_p_from_name <- function(file){
 make_district_adjacency <- function(df, scale_by_num_neighbors = F){
   
   # get the adjacency matrix
-  D2 = df %>% dplyr::select(district, facility) %>% distinct()
+  D2 = df %>% dplyr::select(district, facility) %>% 
+    distinct() %>%
+    arrange(facility)
   W = full_join(D2, D2, by = 'district') %>%
     filter(facility.x != facility.y) %>%
     dplyr::select(-district) %>%
@@ -107,7 +109,7 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   if(lag == 0){
     print('WARNING: not doing a lag of 1 on the neighbors, so not using the same model as in the papers')
   }
-  
+
   # remove the neighbor column
   if('y.neighbors' %in% colnames(df)){
     df$y.neighbors = NULL
@@ -121,6 +123,7 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   # get the counts for each facility 
   y.counts <- df %>% 
     dplyr::select(date, facility, UQ(target_col)) %>%
+    arrange(facility) %>%
     tidyr::spread(facility,get(target_col)) %>% 
     arrange(date)
   
@@ -150,11 +153,70 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   }
   
   # merge back into original data frame
-  df = cbind(y.counts[,'date',drop = F], as.data.frame(as.matrix(y.counts[,-1])%*%W)) %>% 
-    tidyr::gather(facility, y.neighbors, -date) %>%
-    merge(df, by = c('date','facility'))
+  tmp = cbind(y.counts[,'date',drop = F], as.data.frame(as.matrix(y.counts[,-1])%*%W)) %>% 
+    tidyr::gather(facility, y.neighbors, -date)
+  tmp$facility = factor(tmp$facility, levels = levels(df$facility))
+  df = merge(df, tmp, by = c('date','facility'))
   
   return(df)
+}
+
+# prep the data for fitting the stan model
+prep_stan_data_rushworth_sparse <- function(df, formula){
+  N = nrow(df)
+  N_T <- length(unique(df$date))
+  N_F <- length(unique(df$facility))
+  
+  # check the order the data frame
+  df2 <- df %>% arrange(facility, date)
+  if(!identical(df, df2)){
+    stop('the data frame is not properly ordered by date and facility')
+  }
+  
+  #W_star = make_district_W2_matrix(df)
+  W = make_district_adjacency(df)
+  W_n = sum(W)/2
+  
+  # make the complete model matrix
+  df2 <- df; df2$y[is.na(df2$y)] <- 0
+  X = model.matrix(formula, data = df2)
+  
+  # get the outcome
+  y = df$y
+  
+  # missingness data
+  N_miss = sum(is.na(y))
+  N_obs = sum(!is.na(y))
+  ind_miss = which(is.na(y))
+  ind_obs = which(!is.na(y))
+  y_obs = y[ind_obs]
+  
+  # compute the priors
+  lm_fit <- glm(formula, family = 'poisson', data = df)
+  coef_mat <- summary(lm_fit)$coefficients
+  prior_mean_beta <- coef_mat[,1]
+  sigma_beta = 10*vcov(lm_fit)
+  
+  # make the stan data frame
+  stan_data <- list(
+    N = N, # number of observations
+    p = ncol(X), # number of variables
+    N_F = N_F, # number of facilities
+    N_T = N_T, # number of time points
+    N_miss = N_miss,
+    N_obs = N_obs,
+    ind_miss = ind_miss,
+    ind_obs = ind_obs,
+    X = X, # design matrix
+    y_obs = y_obs, # outcome variable 
+    mu = prior_mean_beta, # prior mean
+    Sigma = sigma_beta, # prior variance
+    #W_star = W_star, 
+    W = W,
+    W_n = W_n,
+    I = diag(1.0, N_F))
+  
+  return(stan_data)
 }
 
 # get the district and facility list from a data frame
@@ -641,8 +703,8 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
         
         # store the model results to return
         model_res = list()
-        model_res[[xx]][['beta_hat']] <- beta_hat
-        model_res[[xx]][['beta_vcov']] <- beta_vcov
+        model_res[[as.character(xx)]][['beta_hat']] <- beta_hat
+        model_res[[as.character(xx)]][['beta_vcov']] <- beta_vcov
         
         # bootstrap 
         sapply(1:R_PI, function(r){
@@ -912,7 +974,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 20000, n.sample = 40000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, S_glm_debug = F, QR_debug = F, MALA = T){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 1000, n.sample = 2000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, MALA = T, MCMC_sampler = 'stan'){
 
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -969,47 +1031,8 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
     stop('please input a proper prior value (WF, constant, none)')
   }
   
-  if(QR_debug){
-    X = model.matrix(formula_col, df)
-    N = nrow(X)
-    qr_comp = qr(X)
-    Q = qr.Q(qr_comp)*sqrt(N-1)
-    R = qr.R(qr_comp)/sqrt(N-1)
-    Q = as.data.frame(Q)
-    colnames(Q) = colnames(X)
-    Q$y = df$y
-
-    # run CAR Bayes
-    chain1 <- ST.CARar(formula = 'y ~ .', 
-                       family = "poisson",
-                       data = Q, W = W, 
-                       prior.mean.beta = prior_mean_beta,
-                       prior.var.beta = prior_var_beta,
-                       burnin = burnin, 
-                       n.sample = n.sample,
-                       thin = thin, 
-                       AR = AR, 
-                       verbose = F,
-                       MALA = MALA)
-    lst = list(model_chain = chain1)
-    return(lst)
-  }
-  
-  
-  if(S_glm_debug){
-    print('running S_glm_debug')
-    chain1 <- CARBayes::S.glm(formula = formula_col, 
-                       family = "poisson",
-                       data = df, 
-                       prior.mean.beta = prior_mean_beta,
-                       prior.var.beta = prior_var_beta,
-                       burnin = burnin, 
-                       n.sample = n.sample,
-                       thin = thin, verbose = T)
-    lst = list(model_chain = chain1)
-    return(lst)
-  }else{
-    # run CAR Bayes
+  # run CAR Bayes
+  if(MCMC_sampler == 'CARBayesST'){
     chain1 <- ST.CARar(formula = formula_col, 
                        family = "poisson",
                        data = df, W = W, 
@@ -1022,21 +1045,65 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
                        verbose = F,
                        MALA = MALA)
     
-  }
-  
-  # check that the prior names matched the CAR fitted names
-  if(prior == 'WF'){
-    if(!(identical(rownames(coef_mat), rownames(chain1$summary.results)[1:160]))){
-      stop('error in WF prior and CAR formula name mismatch')
+    # check that the prior names matched the CAR fitted names
+    if(prior == 'WF'){
+      if(!(identical(rownames(coef_mat), rownames(chain1$summary.results)[1:160]))){
+        stop('error in WF prior and CAR formula name mismatch')
+      }
     }
+    
+    beta_df = as.data.frame(chain1$samples$beta)
+    colnames(beta_df) <- setdiff(gsub('\\(|\\)', '', row.names(chain1$summary.results)), c('tau2', 'rho.S','rho.T'))
+    
+    model_chain <- list(
+      fitted_mean = chain1$fitted.values,
+      fitted = chain1$samples$fitted,
+      beta = beta_df,
+      phi = chain1$samples$phi,
+      rho = chain1$samples$rho[,'rho.S'],
+      alpha = chain1$samples$rho[,'rho.T'],
+      tau2 = chain1$samples$tau2
+    )
+    
+  }else if(MCMC_sampler == 'stan'){
+    stan_data <- prep_stan_data_rushworth_sparse(df, formula_col)
+    stan_fit <- stan(file = "R/regression_rushworth_sparse.stan",
+               data = stan_data, 
+               iter = n.sample, 
+               warmup = burnin,
+               chains = 1, 
+               init = '0',
+               cores = 1)
+    
+    # extract the effective sample size
+    ESS = summary(stan_fit, pars = c('tau2','rho','alpha','beta'))$summary[, "n_eff"]
+    
+    # extract out the important features from the model
+    stan_out <- extract(stan_fit)
+    
+    beta_df <- as.data.frame(stan_out$beta)
+    colnames(beta_df) <- gsub('\\(|\\)', '', colnames(stan_data$X))
+    
+    model_chain = list(
+      fitted_mean = apply(stan_out$y_exp, 2, mean),
+      fitted = stan_out$y_exp,
+      beta = beta_df,
+      phi = stan_out$phi,
+      rho = stan_out$rho,
+      alpha = stan_out$alpha,
+      tau2 = stan_out$tau2,
+      ESS = ESS
+    )
+  }else{
+    stop('input a proper MCMC sampler')
   }
   
-  df[,paste0(col, '_CARBayes_ST')] = chain1$fitted.values
+  df[,paste0(col, '_CARBayes_ST')] = model_chain$fitted_mean
   
   # Poisson sample the fitted values for the posterior predictive distribution
   if(prediction_sample){
     # pull the fitted values and randomly select prediction values based on the Poisson distribution
-    tt = chain1$samples$fitted
+    tt = model_chain$fitted
     tt = apply(tt, 2, function(xx) rpois(n = length(xx), lambda = xx))
     
     # get the quantiles of fitted values 
@@ -1051,7 +1118,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
   }else{
     # get the quantiles of fitted values 
     quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)
-    fitted_quants = t(apply(chain1$samples$fitted, 2, function(xx){
+    fitted_quants = t(apply(model_chain$fitted, 2, function(xx){
       quantile(xx, probs = quant_probs)
     }))
     fitted_quants = as.data.frame(fitted_quants)
@@ -1065,7 +1132,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
   mat = as.matrix(sparseMatrix(i = 1:nrow(df), j = match(df$date, dates), x = 1))
   
   # condense the fitted value samples to each date
-  date_fits = chain1$samples$fitted %*% mat
+  date_fits = model_chain$fitted %*% mat
   
   # get the quantiles at the county level
   fitted_quants_C = t(apply(date_fits, 2, function(xx){
@@ -1093,7 +1160,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
   }else if(return_type == 'model'){
     return(chain1)
   }else if(return_type == 'all'){
-    lst = list(facility_df = df, county_df = df_county, model_chain = chain1)
+    lst = list(facility_df = df, county_df = df_county, model_chain = model_chain)
     return(lst)
   }
 }
@@ -1116,15 +1183,15 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   if(is.null(predict_start_date)){
     dates = df %>% 
-      filter(date > train_end_date) %>%
-      select(date) %>%
+      dplyr::filter(date > train_end_date) %>%
+      dplry::select(date) %>%
       unique() %>%
       .$date
     predict_start_date = min(dates)
   }else{
     dates = df %>% 
-      filter(date >= predict_start_date) %>%
-      select(date) %>%
+      dplyr::filter(date >= predict_start_date) %>%
+      dplyr::select(date) %>%
       unique() %>%
       .$date
   }
@@ -1135,7 +1202,8 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   # make a train set to fit on
   train <- df %>%
-    filter(date <= train_end_date)
+    filter(date <= train_end_date) %>%
+    arrange(facility, date)
   
   # fit the model!
   res <- CARBayes_fitting(train, col, ...)
@@ -1146,22 +1214,21 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   }
   
   #### the rest is for future model prediction
-  # pull out the summary statistics
-  summary_stats <- res$model_chain$summary.results
+  betas <- res$model_chain$beta
   
-  # pull out parameter values
-  betas <- as.data.frame(res$model_chain$samples$beta)
-  colnames(betas) <- setdiff(gsub('\\(|\\)', '', row.names(res$model_chain$summary.results)), c('tau2', 'rho.S','rho.T'))
-  
-  phi <- res$model_chain$samples$phi
-  rho <- res$model_chain$samples$rho
-  tau2 <- res$model_chain$samples$tau2
+  phi <- res$model_chain$phi
+  rho <- res$model_chain$rho
+  alpha <- res$model_chain$alpha
+  tau2 <- res$model_chain$tau2
   
   # set the R_posterior
   if(is.null(R_posterior)){
     R_posterior = nrow(betas)
   }else if(R_posterior > nrow(betas)){
     stop('cant sample more posterior predictions than the original model fit returns')
+  }else{
+    # havent implemented yet
+    browser()
   }
   
   # group the betas into their separate facility values
@@ -1211,7 +1278,7 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   # make the spatio-temporal precision matrices
   covar_mats <- lapply(1:R_posterior, function(ii){
-    Q = make_precision_mat(df, rho = rho[ii,'rho.S'], W2)
+    Q = make_precision_mat(df, rho = rho[ii], W2)
     
     tryCatch({
       V = tau2[ii]*solve(Q)
@@ -1234,8 +1301,8 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
     phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, ncol(phi)), Sigma = covar_mats[[i]])
     
     # cycle through other time steps, using auto-correlated priors
-    for(i in 2:length(dates)){
-      phi[i,] = MASS::mvrnorm(n = 1, mu = rho[i, 'rho.T']*phi[i-1,], Sigma = covar_mats[[i]])
+    for(t in 2:length(dates)){
+      phi[t,] = MASS::mvrnorm(n = 1, mu = alpha[i]*phi[t-1,], Sigma = covar_mats[[i]])
     }
     
     # convert to matching format
@@ -1329,11 +1396,14 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
     res$district_df = merge(input_district_df, res$district_df, by = c('district','date'))
   }
   
-  # return list of results
+  res_lst <- list(df = df, district_df = district_df)
+  
   if(return_chain){
-    res_lst <- list(df = df, district_df = district_df, summary_stats = summary_stats, model_chain = res$model_chain)
-  }else{
-    res_lst <- list(df = df, district_df = district_df, summary_stats = summary_stats)
+    res_lst[['model_chain']] <- res$model_chain
+  }
+  
+  if(list(...)$MCMC_sampler == 'stan'){
+    res_lst[['ESS']] <- res$model_chain$ESS
   }
   
   return(res_lst)
@@ -1796,339 +1866,11 @@ fit_freqGLMepi_nnls <- function(df, num_inits = 10, verbose = T, target_col = 'y
 #   max_iter: number of iterations of imputation
 #   tol: tolerance of the converage of imputed values
 #   individual_facility_models: fit each facility separately
-#   prediction_intervals: whether to do prediction intervals and how to do them. Options are c('none','parametric_bootstrap','bootstrap','stationary_bootstrap')
-#   R_PI: number of bootstrap iterations if doing so
-#   quant_probs: the quantiles of the bootstrap to store in the data frame
-#   verbose: printing updates
-freqGLMepi_imputation = function(df, max_iter = 1, tol = 1e-4, individual_facility_models = T,  prediction_intervals = 'stationary_bootstrap', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), refit_boot_outliers = F, verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, smart_boot_init = T, nnls = T){
-  
-  if(prediction_intervals %in% c('parametric_bootstrap','bootstrap')){
-    print(sprintf('WARNING: Not recommended to use %s prediction intervals', prediction_intervals))
-  }
-  # check that we have the right columns
-  if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
-    stop('make sure the data has y (with NAs) and y_true')
-  }
-  
-  # set fitting function to be regular (exponentiated spatial and temporal parameters) or non-negative least squares 
-  if(nnls){
-    fit_function <- fit_freqGLMepi_nnls
-    model_function <- model.mean.exp
-  }else{
-    fit_function <- fit_freqGLMepi
-    model_function <- model.mean
-  }
-  
-  y_pred_list = list()
-  
-  ### Do initial filling of y
-  # setting up the formula
-  formula_col = as.formula(sprintf("y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"))
-  
-  # the unique facility groups
-  uni_group = unique(df$facility)
-  
-  # run the individual model for each group.
-  tmp <- lapply(uni_group, function(xx) {
-    tt <- df %>% filter(facility == xx)
-    
-    # run the model
-    mod_col <- MASS::glm.nb(formula_col, data = tt)
-    
-    # update predictions
-    tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
-    
-    return(tt)
-  })
-  
-  # combine into one data frame
-  df = do.call('rbind',tmp)
-  
-  # filling in missing values by randomly sampling mean prediction from Poisson
-  df$y_imp = df$y
-  na.ind = which(is.na(df$y))
-  df$y_imp[na.ind] <- rpois(n = length(na.ind), df$y_pred_freqGLMepi[na.ind])
-  
-  # add the neighbors and auto-regressive
-  df = add_autoregressive(df, 'y_imp') %>%
-    add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors)
-  
-  ### Run freqGLM_epidemic model iteratively
-  iter = 1
-  y_pred_list[[1]] = df$y_pred_freqGLMepi
-  prop_diffs = c(1)
-  while(prop_diffs[length(prop_diffs)] > tol & iter <= max_iter){
-    iter = iter + 1
-
-    if(individual_facility_models){
-      # run the individual model for each group.
-      tmp <- lapply(uni_group, function(xx) {
-        # subset data
-        tt <- df %>% filter(facility == xx)
-        
-        # fit the model
-        params = fit_function(tt, verbose = verbose, init = optim_init[[xx]])
-        
-        # update y_pred
-        tt$y_pred_freqGLMepi = model_function(tt, params$par)
-        
-        return(list(df = tt, params = params))
-      })
-      
-      # get matrix of the parameter estimates
-      parmat = sapply(tmp, function(xx) xx[[2]]$par)
-      
-      # naming the parameter columns and rows
-      rownames(parmat) = names(tmp[[1]]$params$par)
-      colnames(parmat) = uni_group
-      
-      # get the convergence of each facility
-      convergence = sapply(tmp, function(xx) (xx[[2]]$convergence == 0))
-      
-      # combine into one data frame
-      df = do.call('rbind', lapply(tmp, '[[', 1)) %>% arrange(facility, date)
-    }else{
-      # fit the model
-      parmat = fit_function(df)$par
-      
-      # update y_pred 
-      df$y_pred_freqGLMepi = model_function(df, parmat)
-      
-    }
-    
-    # store the predictions for this iteration
-    y_pred_list[[iter]] = df$y_pred_freqGLMepi
-    
-    if(length(na.ind) == 0){
-      if(verbose){print('only running one iteration because there is no missingness')}
-      break
-    }
-    
-    # update y_imp
-    na.ind.2 = intersect(na.ind, which(!is.na(df$y_pred_freqGLMepi)))
-    df$y_imp[na.ind.2] <- rpois(n = length(na.ind.2), df$y_pred_freqGLMepi[na.ind.2])
-    
-    # compare y_imps
-    prop_diffs = c(prop_diffs, mean(abs(y_pred_list[[iter]][na.ind] - y_pred_list[[iter-1]][na.ind])/y_pred_list[[iter-1]][na.ind], na.rm = T))
-    
-    # update the neighbors and auto-regressive
-    df = add_autoregressive(df, 'y_imp') %>%
-      add_neighbors(., 'y_imp')
-    
-    # update
-    if(iter %% 10 == 0 & verbose){
-      print(iter)
-      if(individual_facility_models){
-        print(parmat)
-      }else{
-        print(params$par)
-      }
-      
-    }
-  }
-  
-  if(prop_diffs[length(prop_diffs)] < tol){
-    print(sprintf('convergence reached in %s iterations', iter))
-  }
-  
-  num_errors = 0
-  if(prediction_intervals == 'parametric_bootstrap'){
-    warning('havent solved issue with non-positive-definite estimation of covariance')
-    # estimate the variance of the MLEs
-    V_list = list()
-    
-    # parametric bootstrap for prediction intervals
-    # 1) For each facility,
-    tmp <- lapply(1:length(uni_group), function(i) {
-      # subset data
-      tt <- df %>% filter(facility == uni_group[i])
-      
-      # get the coefficients and compute the variance
-      coef_hat = parmat[,i]
-
-      coef_vcov = tryCatch({freqGLMepi_variance(param_vec = parmat[,i], tt)
-      }, error = function(e){
-        return(NULL)
-      })
-      
-      if(is.null(coef_vcov)){
-        print('NULL!')
-        return(NULL)
-      }
-      
-      print('CALLING HAND-CALCULATED VARIANCE!')
-      freqGLMepi_variance_testing(param_vec = parmat[,i], tt)
-      #vcov_lst = freqGLMepi_variance(param_vec = parmat[,i], tt)
-      # coef_vcov = vcov_lst$variance
-      # 
-      # # if not positive definite return an error
-      # if(!vcov_lst$pos_def){
-      #   return(NULL)
-      # }
-      
-      # bootstrap 
-      sim.boot <- tryCatch({
-        sapply(1:R_PI, function(r){
-        
-        # sample coefficients and get the mean
-        coef_boot <- MASS::mvrnorm(1,coef_hat,coef_vcov)
-        pred_boot <- model_function(tt, coef_boot)
-        
-        pred_boot[which(is.na(pred_boot))] <- 1
-        x = rpois(n = nrow(tt), pred_boot)
-        
-        return(x)})
-        },
-        error = function(e){
-          return(-1)
-        })
-
-      if(length(sim.boot) == 1 | any(is.na(sim.boot))){
-        return(NULL)
-      }
-    
-      # get the quantiles and store them
-      fitted_quants = t(apply(sim.boot, 1, function(xx){
-        quantile(xx, probs = quant_probs)
-      }))
-      fitted_quants = as.data.frame(fitted_quants)
-      colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
-      
-      # combine the final results and return
-      tt = cbind(tt, fitted_quants)
-      tmp_lst = list(tt, sim.boot, coef_vcov)
-      return(tmp_lst)
-    })
-    
-    num_errors = sum(sapply(tmp, function(xx) is.null(xx[[1]])))
-    vcov_list = lapply(tmp, function(xx) xx[[3]])
-    df <- do.call('rbind',lapply(tmp,'[[',1))
-
-  }else if(prediction_intervals == 'bootstrap'){
-    warning('for bootstrap, only doing 1 initial value for optimization and only doing Nelder Mead')
-    warning('for bootstrap, not testing for outliers')
-    # 1) For each facility,
-    tmp <- lapply(1:length(uni_group), function(i) {
-      # subset data
-      tt <- df %>% filter(facility == uni_group[i])
-      
-      # bootstrap 
-      sapply(1:R_PI, function(r){
-        
-        # resample the data
-        tt_boot = sample_n(tt, size = nrow(tt), replace = T)
-        
-        # fit the model
-        params = fit_function(tt_boot, BFGS = F, num_inits = 1, verbose = verbose)
-        
-        # update y_pred sampled from the full data frame tt
-        x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
-        
-        # test for outliers and then re-fit params (sometimes convergence can lead to crazy results)
-        if(refit_boot_outliers){
-          fit_iter = 1
-          while(any(x > 10*median(x, na.rm = T), na.rm = T) & fit_iter <= 3){
-            
-            if(verbose){
-              print(sort(x))
-              print('rerunning fitting')
-            }
-            params = fit_function(tt_boot, BFGS = F, num_inits = 10^(fit_iter), verbose = verbose)
-            x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
-            
-            fit_iter = fit_iter + 1
-          }
-          
-          # check if we still have outliers
-          if(any(x > 10*median(x, na.rm = T), na.rm = T)){
-            print('outlier found for one bootstrap iteration')
-          }
-        }
-        
-        return(x)
-        
-      }) -> sim.boot
-      
-      # get the quantiles and store them
-      fitted_quants = t(apply(sim.boot, 1, function(xx){
-        quantile(xx, probs = quant_probs, na.rm = T)
-      }))
-      fitted_quants = as.data.frame(fitted_quants)
-      colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
-      
-      # combine the final results and return
-      tt = cbind(tt, fitted_quants)
-      tmp_lst = list(tt, sim.boot)
-      return(tmp_lst)
-    })
-    
-    df <- do.call('rbind',lapply(tmp,'[[',1))
-  }else if(prediction_intervals == 'stationary_bootstrap'){
-    
-    tmp <- lapply(1:length(uni_group), function(i) {
-      # subset data
-      tt <- df %>% filter(facility == uni_group[i])
-      
-      ## function wrapper to predict values from the model
-      if(smart_boot_init){
-        # start the initialization at the values from the main model
-        predict_function <- function(xx){
-          # fit model on bootstrapped data set
-          params = fit_function(xx, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])
-          
-          # predict model on original data set
-          x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
-          return(x)
-        }
-      }else{
-        predict_function <- function(xx){
-          # fit model on bootstrapped data set
-          params = fit_function(xx, BFGS = F, num_inits = 1, verbose = verbose)
-          
-          # predict model on original data set
-          x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
-          return(x)
-        }
-      }
-      
-      # run the stationary bootstrap
-      sim.boot <- boot::tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
-      
-      # get the quantiles and store them
-      fitted_quants = t(apply(sim.boot, 2, function(xx){
-        quantile(xx, probs = quant_probs, na.rm = T)
-      }))
-      fitted_quants = as.data.frame(fitted_quants)
-      colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
-      
-      # combine the final results and return
-      tt = cbind(tt, fitted_quants)
-      tmp_lst = list(tt, sim.boot)
-      return(tmp_lst)
-    })
-    
-    # combining the final data frame
-    df <- do.call('rbind',lapply(tmp,'[[',1))
-    
-    # for returning
-    vcov_list = NULL
-  }
-  
-  # prep data to return
-  return_lst = list(df = df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs, num_errors = num_errors, vcov_list = vcov_list)
-  return(return_lst)
-}
-
-### Given data with missing values, fits the freqGLMepi model on all data points
-#   df: data
-#   max_iter: number of iterations of imputation
-#   tol: tolerance of the converage of imputed values
-#   individual_facility_models: fit each facility separately
 
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
+freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, family = 'poisson', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -2166,18 +1908,32 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   uni_group = unique(df$facility)
   
   # run the individual model for each group.
-  tmp <- lapply(uni_group, function(xx) {
-    tt <- df %>% filter(facility == xx)
-    
-    # run the model
-    mod_col <- MASS::glm.nb(formula_col, data = tt)
-    
-    # update predictions
-    tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
-    
-    return(tt)
-  })
-  
+  if(family == 'poisson'){
+    tmp <- lapply(uni_group, function(xx) {
+      tt <- df %>% filter(facility == xx)
+      
+      # run the model
+      mod_col <- glm(formula_col, family = 'poisson', data = tt)
+      
+      # update predictions
+      tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
+      
+      return(tt)
+    })
+  }
+  else if(family == 'negative_binomial'){
+    tmp <- lapply(uni_group, function(xx) {
+      tt <- df %>% filter(facility == xx)
+      
+      # run the model
+      mod_col <- MASS::glm.nb(formula_col, data = tt)
+      
+      # update predictions
+      tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
+      
+      return(tt)
+    })
+  }
   # combine into one data frame
   df = do.call('rbind',tmp)
   
@@ -2221,7 +1977,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       
       # get the convergence of each facility
       convergence = sapply(tmp, function(xx) (xx[[2]]$convergence == 0))
-      
+
       # combine into one data frame
       df = do.call('rbind', lapply(tmp, '[[', 1)) %>% arrange(facility, date)
     }else{
