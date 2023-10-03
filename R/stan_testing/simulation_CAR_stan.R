@@ -456,6 +456,7 @@ m8 <- stan(file = "regression_rushworth.stan", data = stan_data,
            init = '0',
            cores = min(parallel::detectCores(), 4))
 
+
 stan_est = extract(m8, pars = 'beta', permuted = F)
 ESS <- effective_sample(m8)
 ESS[grep('beta', ESS[,1]),]
@@ -580,6 +581,23 @@ m9 <- stan(file = "regression_rushworth_sparse.stan", data = stan_data,
            init = '0',
            cores = min(parallel::detectCores(), 4))
 
+## Comparing precision mat
+tt <- extract(m9)
+identical(tt$log_det_eigs, tt$log_detQ)
+sum((tt$log_det_eigs - tt$log_detQ)^2) 
+# ok so they are the same for all intents and purposes. Nice
+
+m9.2 <- stan(file = "regression_rushworth_sparse.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 200, 
+           warmup = 100,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+# With precision mat calc - 236 seconds total?
+# ok obviously the eigsdet2 is slower because I have to calculate the determinant way more times. Does log1p make a difference?
+## BEFORE changing the precision matrix calculation
 # 310s warm-up, 126s sampling, 436s total for the incomplete version
 # 165s warm-up, 298s samping, 464s total for complete version
 # why so slow? And why the inconsistency of time? Is that just randomness?

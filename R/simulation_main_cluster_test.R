@@ -1,3 +1,4 @@
+library(rstan)
 library(MASS)
 library(CARBayesST)
 library(Matrix)
@@ -6,7 +7,6 @@ library(lubridate)
 library(ggplot2)
 library(doRNG)
 library(doParallel)
-library(rstan)
 
 source('R/imputation_functions.R')
 rstan_options(auto_write = TRUE)
@@ -16,9 +16,9 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('0.1', '6', 'n0.25', 'mcar', 'CAR', '0.3', '0.3', '1', '10','5','test','1')
-inputs <- commandArgs(trailingOnly = TRUE)
-print(inputs)
+inputs <- c('0.1', '6', 'n0.25', 'mcar', 'CAR', '0.3', '0.3', '1', '5','5','test','1')
+
+.libPaths(c())
 
 ### Get parameters (for home and cluster)
 {
@@ -246,7 +246,7 @@ system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'))
 })
 
-res <- one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000))
+res <- one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 20), MCMC_params = list(burnin.stan = 100, n.sample.stan = 200, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
 
 true_betas <- lst$betas
 

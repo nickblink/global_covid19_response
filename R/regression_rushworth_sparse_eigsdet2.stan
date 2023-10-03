@@ -15,10 +15,10 @@ functions {
   * @return Log probability density of CAR prior up to additive constant
   */
   real sparse_car_lpdf(vector phi_star, real tau2, real rho, int[,] W_sparse, 
-  vector D_sparse, real log_det_Q, int n, int W_n) {
+  vector D_sparse, vector lambda, int n, int W_n) {
       row_vector[n] phit_D; // phi' * D
       row_vector[n] phit_W; // phi' * W
-      vector[n] ldet_terms;
+	  vector[n+1] ldet_terms;
     
       phit_D = (phi_star .* D_sparse)';
       phit_W = rep_row_vector(0, n);
@@ -26,8 +26,13 @@ functions {
         phit_W[W_sparse[i, 1]] = phit_W[W_sparse[i, 1]] + phi_star[W_sparse[i, 2]];
         phit_W[W_sparse[i, 2]] = phit_W[W_sparse[i, 2]] + phi_star[W_sparse[i, 1]];
       }
-    
-      return 0.5 * (log_det_Q - (1/tau2) * (rho * (phit_D * phi_star) - rho * (phit_W * phi_star) + (1 - rho)*dot_self(phi_star)));
+	  
+	  ldet_terms[n+1] = -n*log(tau2);
+	  for (i in 1:n){
+		ldet_terms[i] = log1p(rho*lambda[i]);
+	  }
+
+      return 0.5 * (sum(ldet_terms) - (1/tau2) * (rho * (phit_D * phi_star) - rho * (phit_W * phi_star) + (1 - rho)*dot_self(phi_star)));
   }
 }data {
   int<lower=0> p; // number of variables
@@ -46,6 +51,7 @@ functions {
   matrix<lower=0, upper = 1>[N_F, N_F] W; //adjacency matrix
   int W_n; // Number of adjacency pairs
   matrix[N_F,N_F] I; // Identity matrix
+  vector[N_F] lambda; // the eigenvalues of the D - W - I matrix
 }
 transformed data {
   int W_sparse[W_n, 2];   // adjacency pairs
@@ -66,7 +72,6 @@ transformed data {
     }
   }
   for (i in 1:N_F) D_sparse[i] = sum(W[i]); // Compute the sparse representation of D
-  real det_D_sparse = determinant(diag_matrix(D_sparse));
 }
 parameters {
   // int<lower=0> y_miss[N_miss];
@@ -77,28 +82,32 @@ parameters {
   vector[p] beta;  // log of rate parameter
 }
 transformed parameters {
-  matrix[N_F,N_F] Q; // Leroux precision matrix
-  //Q = (1/tau2)*(rho*W_star + (1 - rho)*I); 
-  Q = (1/tau2)*(rho*(diag_matrix(D_sparse) - W) + (1 - rho)*I); 
+  // variable declarations
   vector[N_obs] observed_est;
+  //real log_det_eigs;
+  //real log_detQ;
+  vector[N] phi_star;
+  //matrix[N_F,N_F] Q; // Leroux precision matrix
+  
+  // variable calculations
   observed_est = (X*beta)[ind_obs] + phi[ind_obs];
-  real log_detQ = (rho/tau2)^N_F*det_D_sparse;
-  vector[N] phi_star = phi;
+  phi_star = phi;
   // center the phi_star values from a random walk with temporal correlation alpha
   for (t in 2:N_T){
     phi_star[((t-1)*N_F+1):(t*N_F)] = phi[((t-1)*N_F+1):(t*N_F)] - alpha*phi[((t-2)*N_F+1):((t-1)*N_F)];
   }
+  //log_detQ = -N_F*log(tau2);
+  //for (i in 1:N_F){
+//	log_detQ += log(1 + rho*lambda[i]);
+  //}
 }
 model {
   beta ~ multi_normal(mu, Sigma); // beta prior
-  //y ~ poisson_log(X*beta + phi); // likelihood
-  y_obs ~ poisson_log(observed_est);
-  //phi[1:N_F] ~ multi_normal_prec(rep_vector(0.0, N_F), Q); // MRF initial prior
-  phi_star[1:N_F] ~ sparse_car(tau2, rho, W_sparse, D_sparse, log_detQ, N_F, W_n);
-  //phi[1:N_F] ~ sparse_car(tau2, rho, W_sparse, D_sparse, lambda, n, W_n)
+  y_obs ~ poisson_log(observed_est); // likelihood
+  phi_star[1:N_F] ~ sparse_car(tau2, rho, W_sparse, D_sparse, lambda, N_F, W_n); // first time point CAR prior
+  // CAR prior for successive time points
   for (t in 2:N_T) {
-    phi_star[((t-1)*N_F+1):(t*N_F)] ~ sparse_car(tau2, rho, W_sparse, D_sparse, log_detQ, N_F, W_n);
-    //phi[((t-1)*N_F+1):(t*N_F)] ~ //multi_normal_prec(alpha*phi[((t-2)*N_F+1):((t-1)*N_F)], Q); // CAR prior with RF process and Leroux spatial correlation
+    phi_star[((t-1)*N_F+1):(t*N_F)] ~ sparse_car(tau2, rho, W_sparse, D_sparse, lambda, N_F, W_n);
   }
 }
 generated quantities {
