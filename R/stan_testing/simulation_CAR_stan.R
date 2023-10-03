@@ -612,3 +612,99 @@ tt = tt[grep('tau2|rho|alpha|beta', rownames(tt)),]
 head(tt)
 plot(density(tt))
 # so on average 5% off.
+
+#### Now with and without determinant calculation (for speed testing) ####
+
+df = df_miss
+formula = as.formula("y ~ facility + facility*year + facility*cos1 + facility*sin1 + facility*cos2 + facility*sin2 + facility*cos3 + facility*sin3")
+
+prep_stan_data_rushworth_sparse <- function(df, formula){
+  N = nrow(df)
+  N_T <- length(unique(df$date))
+  N_F <- length(unique(df$facility))
+  
+  # order the data frame
+  df <- df %>% arrange(date, facility)
+  
+  #W_star = make_district_W2_matrix(df)
+  W = make_district_adjacency(df)
+  W_n = sum(W)/2
+  
+  # make the complete model matrix
+  df2 <- df; df2$y[is.na(df2$y)] <- 0
+  X = model.matrix(formula, data = df2)
+  
+  # get the outcome
+  y = df$y
+  
+  # # comparing missingness.
+  # if(!identical(as.integer(rownames(X_obs)), which(!is.na(df$y)))){
+  #   stop('mismatch of model matrix and df missing rows')
+  # }
+  
+  # missingness data
+  N_miss = sum(is.na(y))
+  N_obs = sum(!is.na(y))
+  ind_miss = which(is.na(y))
+  ind_obs = which(!is.na(y))
+  y_obs = y[ind_obs]
+  
+  # compute the priors
+  lm_fit <- glm(formula, family = 'poisson', data = df)
+  coef_mat <- summary(lm_fit)$coefficients
+  prior_mean_beta <- coef_mat[,1]
+  sigma_beta = 10*vcov(lm_fit)
+  
+  # make the stan data frame
+  stan_data <- list(
+    N = N, # number of observations
+    p = ncol(X), # number of variables
+    N_F = N_F, # number of facilities
+    N_T = N_T, # number of time points
+    N_miss = N_miss,
+    N_obs = N_obs,
+    ind_miss = ind_miss,
+    ind_obs = ind_obs,
+    X = X, # design matrix
+    y_obs = y_obs, # outcome variable 
+    mu = prior_mean_beta, # prior mean
+    Sigma = sigma_beta, # prior variance
+    #W_star = W_star, 
+    W = W,
+    W_n = W_n,
+    I = diag(1.0, N_F))
+  
+  return(stan_data)
+}
+
+stan_data <- prep_stan_data_rushworth_sparse(df, formula)
+
+m1 <- stan(file = "regression_rushworth_sparse_nodet.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 2000, 
+           warmup = 1000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+# ok I got hella errors, no surprise there, because my stuff blew up. But it did run in total 104s
+
+m2 <- stan(file = "regression_rushworth_sparse.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 2000, 
+           warmup = 1000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+# 456s total. 
+
+m3 <- stan(file = "regression_rushworth_sparse_baddet.stan", data = stan_data, 
+           # Below are optional arguments
+           iter = 2000, 
+           warmup = 1000,
+           chains = 1, 
+           init = '0',
+           cores = min(parallel::detectCores(), 4))
+
+# 111s
