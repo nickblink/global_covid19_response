@@ -411,6 +411,7 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     if(any(object_sizes < .9*mean(object_sizes))){
       ind <- which(object_sizes < .9*mean(object_sizes))
       warning(sprintf('there are %s out of %s object sizes less than half the mean size. That shouldnt be. Removing them', length(ind), length(check_lst)))
+      browser()
       if(length(ind) > 0.05*length(check_lst)){
         stop('too many files of incomplete size.')
       }else{
@@ -1902,7 +1903,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   
   ### Do initial filling of y
   # setting up the formula
-  formula_col = as.formula(sprintf("y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"))
+  formula_col = as.formula("y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3")
   
   # the unique facility groups
   uni_group = unique(df$facility)
@@ -2111,6 +2112,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     
     return(df_tmp$y_pred)
   })
+  browser()
   
   # combine into a data frame
   pred_boots <- do.call('cbind', pred_boots)

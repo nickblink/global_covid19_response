@@ -10,6 +10,23 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 10/04/2023: Investigating freqGLMepi in CAR DGP ####
+files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+files1 <- grep('car331', files, value = T)
+
+res <- combine_results_wrapper(files = files1, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+# from 6 to 26 object sizes less than half...why?
+
+res2 <- combine_results_wrapper(files = files1, methods = c("y_pred_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR', 'freqGLM'))
+# also from 6 to 26. Why did I think freqGLMepi was so bad?
+
+res <- combine_results_wrapper(files = files2, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
+
+## The data I need to test this.
+# load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar0_car331_beta6_n025_20230603/simulated_data.RData" )
+
+#
 #### 9/20/2023 (Kiko's bday!): Getting groups of results ####
 ### Get the file names
 files_MNAR <- grep('nost_beta43_n025_2023_02_22',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
@@ -317,10 +334,12 @@ mean(vars)
 
 #
 #### 5/22/2023: CAR DGP results ####
-files <- grep('20230517',dir('C:/Users/Admin-Dell/Dropbox/Nick_Cranston/HSPH/Research/Hedt_Synd_Surveillance_Project/results', full.names = T), value = T)
+files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 
 files1 <- grep('car331', files, value = T)
 files2 <- grep('car731', files, value = T)
+
+res <- combine_results_wrapper(files = files1, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'))
 
 tt <- plot_all_methods(files, methods = c("y_pred_WF", "y_pred_CCA_CAR"), rename_vec = c('WF','CAR'), fix_axis = F)
 
