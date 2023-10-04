@@ -155,7 +155,9 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
   # merge back into original data frame
   tmp = cbind(y.counts[,'date',drop = F], as.data.frame(as.matrix(y.counts[,-1])%*%W)) %>% 
     tidyr::gather(facility, y.neighbors, -date)
-  tmp$facility = factor(tmp$facility, levels = levels(df$facility))
+  if(is.factor(df$facility)){
+    tmp$facility = factor(tmp$facility, levels = levels(df$facility))  
+  }
   df = merge(df, tmp, by = c('date','facility'))
   
   return(df)
@@ -1884,6 +1886,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   df_test <- df %>%
     filter(date > train_end_date)
   df_test$y_imp <- NA
+  df_test$y_pred_freqGLMepi <- NA
   df <- df %>%
     filter(date <= train_end_date)
   
@@ -1946,7 +1949,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   # add the neighbors and auto-regressive
   df = add_autoregressive(df, 'y_imp') %>%
     add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors, W = W)
-  
+
   ### Run freqGLM_epidemic model iteratively
   iter = 1
   y_pred_list[[1]] = df$y_pred_freqGLMepi
@@ -2024,7 +2027,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   if(prop_diffs[length(prop_diffs)] < tol){
     print(sprintf('convergence reached in %s iterations', iter))
   }
-    
+  
   ### run the stationary bootstrap
   param_boots <- lapply(1:length(uni_group), function(i) {
     # subset data
@@ -2041,7 +2044,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       
       return(params$par)
     }
-
+    
     # run the stationary bootstrap and return the parameters from each fit
     sim_boot <- boot::tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
     
@@ -2112,7 +2115,6 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     
     return(df_tmp$y_pred)
   })
-  browser()
   
   # combine into a data frame
   pred_boots <- do.call('cbind', pred_boots)
@@ -2130,6 +2132,9 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   # set the prediction to the median
   df_combined$y_pred_CCA_freqGLMepi <- df_combined$y_pred_CCA_freqGLMepi_0.5
 
+  # remove the ambiguous "y_pred" column
+  df_combined$y_pred <- NULL
+  
   # prep data to return
   return_lst = list(df = df_combined, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
   return(return_lst)
