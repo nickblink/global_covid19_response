@@ -142,6 +142,9 @@ if(job_id == 1){
 
 # function to run all models for a specific dataset
 one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF_params = list(R_PI = 200), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000)){
+  
+  set.seed(i)
+  
   t0 <- Sys.time()
   print(sprintf('i = %i',i))
   df = lst$df_list[[i]]

@@ -77,7 +77,7 @@ if(job_id < num_jobs){
   seq <- (floor(R/num_jobs)*(job_id - 1) + 1):R
 }
 
-load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar0_car331_beta6_n025_20230603/simulated_data.RData" )
+load("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar0_car331_beta6_n025_20230603/simulated_data.RData" )
 
 print('data made')
 
@@ -191,7 +191,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
 set.seed(1)
 # lst_OG <- lst
 # lst_new <- lst
-i = 207
+i = 208
 df = lst$df_list[[i]]
 df$facility = factor(df$facility, levels = unique(df$facility))
 if(missingness == 'mcar'){
@@ -208,8 +208,13 @@ rm(df_miss)
 
 # run the freqGLM_epi complete case analysis
 freqGLMepi_list = freqGLMepi_CCA(return_list[['df_miss']], R_PI = 10, verbose = F)
+tt = freqGLMepi_list$df
 
-res <- one_run(lst, i, models = c('freq'), freqGLM_params = list(R_PI = 20), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000))
+# res <- one_run(lst, i, models = c('freq'), freqGLM_params = list(R_PI = 20), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000))
 
 true_betas <- lst$betas
 
+load("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar0_car331_beta6_n025_20230603/sim_results_p0.0_mcar_11(50).RData")
+
+df = imputed_list[[8]]$df_miss
+freqGLMepi_list = freqGLMepi_CCA(df, R_PI = 10, verbose = F)
