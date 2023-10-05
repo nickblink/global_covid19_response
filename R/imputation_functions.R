@@ -167,15 +167,16 @@ prep_stan_data_rushworth_sparse <- function(df, formula){
   N_T <- length(unique(df$date))
   N_F <- length(unique(df$facility))
   
-  # check the order the data frame
-  df2 <- df %>% arrange(facility, date)
-  if(!identical(df, df2)){
-    stop('the data frame is not properly ordered by date and facility')
-  }
+  # order the data frame
+  df <- df %>% arrange(date, facility)
   
-  #W_star = make_district_W2_matrix(df)
+  # W_star = make_district_W2_matrix(df)
   W = make_district_adjacency(df)
   W_n = sum(W)/2
+  W2 = make_district_W2_matrix(df)
+  
+  # get eigenvalues for determinant calculation
+  lambda = eigen(W2 - diag(1, nrow(W2)))$values
   
   # make the complete model matrix
   df2 <- df; df2$y[is.na(df2$y)] <- 0
@@ -183,6 +184,11 @@ prep_stan_data_rushworth_sparse <- function(df, formula){
   
   # get the outcome
   y = df$y
+  
+  # # comparing missingness.
+  # if(!identical(as.integer(rownames(X_obs)), which(!is.na(df$y)))){
+  #   stop('mismatch of model matrix and df missing rows')
+  # }
   
   # missingness data
   N_miss = sum(is.na(y))
@@ -214,7 +220,8 @@ prep_stan_data_rushworth_sparse <- function(df, formula){
     #W_star = W_star, 
     W = W,
     W_n = W_n,
-    I = diag(1.0, N_F))
+    I = diag(1.0, N_F),
+    lambda = lambda)
   
   return(stan_data)
 }
@@ -2112,7 +2119,6 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     
     return(df_tmp$y_pred)
   })
-  browser()
   
   # combine into a data frame
   pred_boots <- do.call('cbind', pred_boots)

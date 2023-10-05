@@ -146,6 +146,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
   print(sprintf('i = %i',i))
   df = lst$df_list[[i]]
   
+  set.seed(i)
    # add in missingness
   if(missingness == 'mcar'){
     df_miss = MCAR_sim(df, p = p, by_facility = T)
@@ -159,6 +160,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
   return_list <- list(df_miss = df_miss, district_df = lst$district_list[[i]], errors = errors, timing = list())
   rm(df_miss)
   
+  set.seed(i)
   # run the freqGLM_epi complete case analysis
   if('freq' %in% models){
     t1 = Sys.time()
@@ -174,7 +176,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
     return_list[['timing']][['freq']] <- as.numeric(difftime(Sys.time(), t1, units = 'm'))
   }
   
-  
+  set.seed(i)
   # run the WF complete case analysis model
   if('WF' %in% models){
     t1 = Sys.time()
@@ -193,6 +195,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
     return_list[['timing']][['WF']] <- as.numeric(difftime(Sys.time(), t1, units = 'm'))
   }
   
+  set.seed(i)
   # run the CAR complete case analysis model
   if('CARBayesST' %in% models){
     t1 = Sys.time()
@@ -212,6 +215,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
     return_list[['timing']][['CARBayesST']] <- as.numeric(difftime(Sys.time(), t1, units = 'm'))
   }
   
+  set.seed(i)
   if('CARstan' %in% models){
     t1 = Sys.time()
     print('running CARBayes with stan')
@@ -239,14 +243,12 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
   return(return_list)
 }
 
-set.seed(1)
-
 # run the models for each simulation dataset
 system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'))
 })
 
-res <- one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000))
+# res <- one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 100, n.sample.stan = 200, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
 
 true_betas <- lst$betas
 
