@@ -247,6 +247,7 @@ date_facility_check <- function(imputed_list){
     date_fac_mat_new = imputed_list[[i]][, c("date", "facility")]
     date_fac_new = paste0(date_fac_mat_new[,1], '--', date_fac_mat[,2])
     if(!identical(date_fac_new, date_fac)){
+      browser()
       stop('mismatch in dates and facilities in the imputed list run')
     }
   }
@@ -327,19 +328,28 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
 }
 
 # Check names from methods and output list
-method_name_check <- function(lst, methods){
+method_name_check <- function(lst, methods, give_method_name_err = T){
   err = F
+  ind_rm = c()
   for(m in methods){
     chk <- sapply(lst, function(xx) any(grepl(m, colnames(xx))))
     if(any(chk == FALSE)){
       err = T
       print(sprintf('The method %s is not found in %s of the results list', m, sum(!chk)))
+      print(head(which(chk == F)))
+      ind_rm <- c(ind_rm, which(chk == F))
     }
   }
   if(err){
-    print(colnames(lst[[1]]))
-    stop('incorrect methods specified')
+    if(give_method_name_err){
+      print(colnames(lst[[1]]))
+      stop('incorrect methods specified')
+    }else{
+      lst <- lst[-ind_rm]
+      lst <- method_name_check(lst, methods, give_method_name_err = T)
+    }
   }
+  return(lst)
 }
 
 ### Check that the names of the simulation outcomes are there. This is to avoid running a super long simulation and then find out I didn't return all the results
@@ -389,63 +399,69 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     WF_lst <- error_lst <- true_betas <- NULL
   }else{
     df_lst <- lapply(lst_full, function(tmp) {tmp$df_miss})
+    #if('WF_betas' %in% names(lst_full[[1]])){
     WF_lst <- lapply(lst_full, function(tmp) {tmp$WF_betas})
+    #}
+    #if('CARstan_ESS' %in% names(lst_full[[1]])){
+    CARstan_ESS <- lapply(lst_full, function(tmp) {tmp$CARstan_ESS})
+    #}
+    
     if(district_results){
       district_lst <- lapply(lst_full, function(tmp) {tmp$district_df})
-    }else{
-      
     }
+    
     models = names(lst_full[[1]][[2]])
     error_lst <- NULL
     for(m in models){
       error_lst[[m]] <- do.call('rbind',lapply(lst_full, function(tmp) tmp$errors[[m]]))
     }
   }
-  
+
   # checking the size of the objects - can tell if there's an error
-  if(!ignore_size_err){
-    if(district_results == T){
-      check_lst <- district_lst
-    }else{
-      check_lst <- df_lst
-    }
-    object_sizes <- c()
-    for(i in 1:length(check_lst)){
-      obj <- object.size(check_lst[[i]])
-      object_sizes <- c(object_sizes, obj)
-      if(obj == 0){
-        stop(sprintf('object size is 0 at list value %i', i))
-      }
-    }
-    if(any(object_sizes < .9*mean(object_sizes))){
-      ind <- which(object_sizes < .9*mean(object_sizes))
-      warning(sprintf('there are %s out of %s object sizes less than half the mean size. That shouldnt be. Removing them', length(ind), length(check_lst)))
-      browser()
-      if(length(ind) > 0.05*length(check_lst)){
-        stop('too many files of incomplete size.')
-      }else{
-        check_lst = check_lst[-ind]
-      }
-    }
-    if(district_results == T){
-      district_lst <- check_lst
-    }else{
-      df_lst <- check_lst
+  if(district_results == T){
+    check_lst <- district_lst
+  }else{
+    check_lst <- df_lst
+  }
+  object_sizes <- c()
+  for(i in 1:length(check_lst)){
+    obj <- object.size(check_lst[[i]])
+    object_sizes <- c(object_sizes, obj)
+    if(obj == 0 & !ignore_size_err){
+      stop(sprintf('object size is 0 at list value %i', i))
     }
   }
-
-  print(sprintf('num files: %i, length of list: %s', length(files), length(lst_full)))
+  if(any(object_sizes < .9*mean(object_sizes))){
+    ind <- which(object_sizes < .9*mean(object_sizes))
+    warning(sprintf('there are %s out of %s object sizes less than half the mean size. That shouldnt be. Removing them', length(ind), length(check_lst)))
+    print(head(ind))
+    if((length(ind) > 0.05*length(check_lst)) & !ignore_size_err){
+      stop('too many files of incomplete size.')
+    }else{
+      check_lst = check_lst[-ind]
+    }
+  }
+  print(sprintf('num files: %i. %s out of %s simulation results kept', length(files), length(check_lst), length(lst_full)))
+  
+  if(district_results == T){
+    district_lst <- check_lst
+  }else{
+    df_lst <- check_lst
+  }
+  
   
   if(district_results){
     res_lst <- list(district_lst = district_lst, 
                     error_lst = error_lst, 
                     WF_lst = WF_lst,
-                    params = params)
+                    params = params,
+                    CARstan_ESS = CARstan_ESS)
   }else{
     res_lst <- list(df_lst = df_lst, 
          error_lst = error_lst, 
          WF_lst = WF_lst,
-         params = params)
+         params = params,
+         CARstan_ESS = CARstan_ESS)
   }
   
   # doing this because deprecated results didnt have true betas
@@ -465,7 +481,8 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
 }
 
 ### Takes in a list of files and/or directories. For each of these, pulls in the data using "combine_results" and then computes the metrics for these results together.
-combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), subset_results = NULL, results_by_point = F){
+combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F, ...){ 
+  # subset_results = NULL,
   res <- NULL
   
   if(district_results){
@@ -489,11 +506,20 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     
     # if a directory, combine results. If already combined, load them
     if(dir.exists(file)){
-      lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL, district_results = district_results, subset_results = subset_results)
+      lst_full <- combine_results(input_folder = file, return_lst = T, results_file = NULL, district_results = district_results, ...)#, subset_results = subset_results, ignore_size)
     }else{
       load(file)
     }
     
+    # Check that the names match
+    lst_full[[output]] <- method_name_check(lst_full[[output]], methods, give_method_name_err = give_method_name_err)
+    
+    
+    if(return_unprocessed){
+      res = c(res, lst_full)
+      next
+    }
+  
     if(district_results){
       date_district_check(lst_full$district_lst)
     }else{
@@ -508,9 +534,6 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
         df
       })
     }
-    
-    # Check that the names match
-    method_name_check(lst_full[[output]], methods)
     
     # Calculate the metrics
     tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, use_point_est = F, date = '2020-01-01', district_results = district_results) 
@@ -1072,7 +1095,8 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
       phi = chain1$samples$phi,
       rho = chain1$samples$rho[,'rho.S'],
       alpha = chain1$samples$rho[,'rho.T'],
-      tau2 = chain1$samples$tau2
+      tau2 = chain1$samples$tau2,
+      CARBayesST_summary = chain1$summary.results
     )
     
   }else if(MCMC_sampler == 'stan'){
@@ -1414,6 +1438,10 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
   
   if(list(...)$MCMC_sampler == 'stan'){
     res_lst[['ESS']] <- res$model_chain$ESS
+  }
+  
+  if(list(...)$MCMC_sampler == 'CARBayesST'){
+    res_lst[['CARBayesST_summary']] <- res$model_chain$CARBayesST_summary
   }
   
   return(res_lst)

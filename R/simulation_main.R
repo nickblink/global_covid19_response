@@ -205,10 +205,14 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
     print('running CARBayes with CARBayesST')
     return_list <- tryCatch({
       res <- CARBayes_wrapper(return_list[['df_miss']], burnin = MCMC_params[['burnin.CARBayesST']], n.sample = MCMC_params[['n.sample.CARBayesST']], prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
-      #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      # rename the columns
       colnames(res$df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res$df))
+      colnames(res$district_df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res$district_df))
+      
+      # update the results list
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
+      return_list[['CAR_summary']] <- res$CARBayesST_summary
       return_list
     }, error = function(e){
       print(e)
@@ -224,8 +228,12 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
     print('running CARBayes with stan')
     return_list <- tryCatch({
       res <- CARBayes_wrapper(return_list[['df_miss']], burnin = MCMC_params[['burnin.stan']], n.sample = MCMC_params[['n.sample.stan']], prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
-      #res <- CARBayes_wrapper(return_list[['df_miss']], burnin = 10000, n.sample = 20000, prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01')
+      
+      # rename the columns
       colnames(res$df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res$df))
+      colnames(res$district_df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res$district_df))
+      
+      # update the results list
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
       return_list[['CARstan_ESS']] <- res$ESS
@@ -251,7 +259,8 @@ system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'))
 })
 
-# res <- one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 100, n.sample.stan = 200, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
+# res <- one_run(lst, 1, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 100, n.sample.stan = 200, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
+# res <- one_run(lst, 1, models = c('CARBayesST'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 100, n.sample.stan = 200, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
 
 true_betas <- lst$betas
 

@@ -10,6 +10,38 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### 10/6/2023: Results from (incomplete) CAR DGP comparing different CAR methods ####
+### Timing
+files <- grep('2023_10_05',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+res <- combine_results_wrapper(files = files, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARBayesST','y_CARstan'), rename_vec = c('WF','freqGLM','CARBayes','CARstan'))
+
+plot_all_methods(res = res, fix_axis = list(F, F, F, F), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP: MCAR')
+
+
+load(dir(files, full.names = T)[1])
+tt = imputed_list[[5]]$df_miss
+# ok it's not in there. Is this a memory issue? Ya probably
+
+### Timing
+timing = data.table::rbindlist(lapply(imputed_list, '[[', 4))
+timing = timing[-c(5,8,9),]
+colMeans(timing)
+apply(timing, 2, median)
+apply(timing, 2, sd)
+
+### ESS of CARstan
+res <- combine_results_wrapper(files = files, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARBayesST','y_CARstan'), rename_vec = c('WF','freqGLM','CARBayes','CARstan'), give_method_name_err = F, ignore_size_err = T, return_unprocessed = T)
+
+ESS = do.call('rbind',(res$CARstan_ESS))
+min(colMeans(ESS))
+min(ESS)
+# Alright this is all good. 
+
+### District level
+res <- combine_results_wrapper(files = files, methods = c("y_pred_WF"), rename_vec = c('WF'), give_method_name_err = F, ignore_size_err = T, district_results = T)
+
+#
 #### 10/04/2023: Investigating freqGLMepi in CAR DGP ####
 files <- grep('20230603',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 
