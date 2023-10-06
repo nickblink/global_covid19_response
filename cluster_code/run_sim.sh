@@ -2,7 +2,7 @@
 #SBATCH -p short
 #SBATCH -t 0-10:00
 #SBATCH -c 10
-#SBATCH --mem=20G
+#SBATCH --mem=40G
 #SBATCH --mail-type=END
 #SBATCH -x compute-f-17-[09-25]
 #SBATCH -e errors_outputs/%x_%A_%a.sim.err

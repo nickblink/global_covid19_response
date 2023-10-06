@@ -829,10 +829,6 @@ WF_CCA <- function(df, district_df = NULL, train_end_date = '2019-12-01', ...){
   tmp$y[tmp$date > train_end_date] <- NA
   
   res <- WF_imputation(tmp, ...)
-  
-  # if(!is.null(district_df)){
-  #   res$district_df = merge(district_df, res$district_df, by = c('district','date'))
-  # }
 
   # store the results and return the original y values
   # This is because the y values in 2020 are returned as NA from WF_imputation
@@ -1206,7 +1202,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, ...){
+CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, ...){
   
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
@@ -1425,10 +1421,6 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
     
     district_df = rbind(district_df, tt)
   }
-  
-  # if(!is.null(input_district_df)){
-  #   res$district_df = merge(input_district_df, res$district_df, by = c('district','date'))
-  # }
   
   res_lst <- list(df = df, district_df = district_df)
   
@@ -1908,11 +1900,14 @@ fit_freqGLMepi_nnls <- function(df, num_inits = 10, verbose = T, target_col = 'y
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_CCA = function(df, input_district_df = NULL, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, family = 'poisson', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
+freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, family = 'poisson', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
   }
+  
+  # get districts and facilities
+  dist_fac <- get_district_facilities(df)
   
   # convert to proper format
   train_end_date <- as.Date(train_end_date)
@@ -2086,19 +2081,6 @@ freqGLMepi_CCA = function(df, input_district_df = NULL, train_end_date = '2019-1
     # match the parameter names
     colnames(sim_boot) <- names(fit_function(tt, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])$par)
     
-    #output.sim <- apply(sim.boot, 1, function(xx) <- predict_freqEpi(df, df_test, xx, nnls, W))
-    
-    # # get the quantiles and store them
-    # fitted_quants = t(apply(sim.boot, 2, function(xx){
-    #   quantile(xx, probs = quant_probs, na.rm = T)
-    # }))
-    # fitted_quants = as.data.frame(fitted_quants)
-    # colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
-    # 
-    # # combine the final results and return
-    # tt = cbind(tt, fitted_quants)
-    # tmp_lst = list(tt, sim.boot)
-    # return(tmp_lst)
     return(sim_boot)
   })
   names(param_boots) <- uni_group
@@ -2171,39 +2153,23 @@ freqGLMepi_CCA = function(df, input_district_df = NULL, train_end_date = '2019-1
   df_combined$y_pred <- NULL
   
   ### Make the district results
-  # initialize district results
-  district_df = NULL
+  district_df = data.frame(cbind(df_combined[,c('date','district')], pred_boots)) %>% 
+    group_by(date, district) %>%
+    summarize_all(sum)
   
-  # district-level analysis
-  for(d in names(dist_fac)){
-    tt = data.frame(district = d,
-                    date = dates)
-    facs = dist_fac[[d]]
-    
-    # get the sums by district: returns n x R data frame
-    sum_district = Reduce('+', lapply(facs, function(f){
-      predicted_vals[[f]]
-    }))
-    
-    # get the quantiles and store them
-    fitted_quants = t(apply(sum_district, 1, function(xx){
-      quantile(xx, probs = quant_probs)
-    }))
-    fitted_quants = as.data.frame(fitted_quants)
-    colnames(fitted_quants) = paste0(paste0(col, '_pred_CAR_'), quant_probs)
-    
-    # merge the quantiles back into data frame
-    tt = cbind(tt, fitted_quants)
-    
-    district_df = rbind(district_df, tt)
-  }
+  district_mat = district_df[,3:ncol(district_df)]
+  # get the quantiles and store them
+  fitted_quants = t(apply(district_df[,3:ncol(district_df)], 1, function(xx){
+    quantile(xx, probs = quant_probs, na.rm = T)
+  }))
+  fitted_quants = as.data.frame(fitted_quants)
+  colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
   
-  # if(!is.null(district_df)){
-  #   district_df = merge(district_df, res$district_df, by = c('district','date'))
-  # }
+  district_df = cbind(district_df[,c('date','district')], fitted_quants)
+  
   
   # prep data to return
-  return_lst = list(df = df_combined, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
+  return_lst = list(df = df_combined, district_df = district_df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
   return(return_lst)
 }
 

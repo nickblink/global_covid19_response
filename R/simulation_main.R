@@ -171,6 +171,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
     return_list <- tryCatch({
       freqGLMepi_list = freqGLMepi_CCA(return_list[['df_miss']], R_PI = freqGLM_params[['R_PI']], verbose = F)
       return_list[['df_miss']] <- freqGLMepi_list$df
+      return_list[['district_df']] <- merge(return_list[['district_df']], freqGLMepi_list$district_df, by = c('district','date'))
       return_list
     }, error = function(e){
       return_list[['errors']][['freqEpi']] <- rbind(return_list[['errors']][['freqEpi']], data.frame(i, error = e[[1]]))
@@ -231,8 +232,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
       
       # rename the columns
       colnames(res$df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res$df))
-      colnames(res$district_df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res$district_df))
-      
+      colnames(res$district_df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res$district_df))
       # update the results list
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
@@ -259,8 +259,8 @@ system.time({
   imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'))
 })
 
-# res <- one_run(lst, 1, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 100, n.sample.stan = 200, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
-res <- one_run(lst, 1, models = c('WF', 'CARstan'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 50, n.sample.stan = 100, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
+# res <- one_run(lst, 1, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 5), MCMC_params = list(burnin.stan = 20, n.sample.stan = 50, burnin.CARBayesST = 100, n.sample.CARBayesST = 200))
+# res <- one_run(lst, 1, models = c('freq'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 50, n.sample.stan = 100, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
 
 true_betas <- lst$betas
 
