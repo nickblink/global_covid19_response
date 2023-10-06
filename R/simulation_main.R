@@ -260,7 +260,7 @@ system.time({
 })
 
 # res <- one_run(lst, 1, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 100, n.sample.stan = 200, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
-# res <- one_run(lst, 1, models = c('CARBayesST'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 100, n.sample.stan = 200, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
+res <- one_run(lst, 1, models = c('WF', 'CARstan'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 50, n.sample.stan = 100, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
 
 true_betas <- lst$betas
 

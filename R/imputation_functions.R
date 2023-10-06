@@ -233,7 +233,7 @@ get_district_facilities <- function(df){
   tt = unique(df[,c('district','facility')])
   res_lst <- NULL
   for(i in 1:nrow(tt)){
-    res_lst[[tt[i,1]]] <- c(res_lst[[tt[i,1]]], tt[[i,2]])
+    res_lst[[tt[i,1]]] <- c(res_lst[[as.character(tt[i,1])]], as.character(tt[i,2]))
   }
   return(res_lst)
 }
@@ -830,9 +830,9 @@ WF_CCA <- function(df, district_df = NULL, train_end_date = '2019-12-01', ...){
   
   res <- WF_imputation(tmp, ...)
   
-  if(!is.null(district_df)){
-    res$district_df = merge(district_df, res$district_df, by = c('district','date'))
-  }
+  # if(!is.null(district_df)){
+  #   res$district_df = merge(district_df, res$district_df, by = c('district','date'))
+  # }
 
   # store the results and return the original y values
   # This is because the y values in 2020 are returned as NA from WF_imputation
@@ -1426,9 +1426,9 @@ CARBayes_wrapper <- function(df, input_district_df = NULL, R_posterior = NULL, t
     district_df = rbind(district_df, tt)
   }
   
-  if(!is.null(input_district_df)){
-    res$district_df = merge(input_district_df, res$district_df, by = c('district','date'))
-  }
+  # if(!is.null(input_district_df)){
+  #   res$district_df = merge(input_district_df, res$district_df, by = c('district','date'))
+  # }
   
   res_lst <- list(df = df, district_df = district_df)
   
@@ -1908,7 +1908,7 @@ fit_freqGLMepi_nnls <- function(df, num_inits = 10, verbose = T, target_col = 'y
 #   R_PI: number of bootstrap iterations if doing so
 #   quant_probs: the quantiles of the bootstrap to store in the data frame
 #   verbose: printing updates
-freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, family = 'poisson', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
+freqGLMepi_CCA = function(df, input_district_df = NULL, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, family = 'poisson', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
     stop('make sure the data has y (with NAs) and y_true')
@@ -2169,6 +2169,38 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
 
   # remove the ambiguous "y_pred" column
   df_combined$y_pred <- NULL
+  
+  ### Make the district results
+  # initialize district results
+  district_df = NULL
+  
+  # district-level analysis
+  for(d in names(dist_fac)){
+    tt = data.frame(district = d,
+                    date = dates)
+    facs = dist_fac[[d]]
+    
+    # get the sums by district: returns n x R data frame
+    sum_district = Reduce('+', lapply(facs, function(f){
+      predicted_vals[[f]]
+    }))
+    
+    # get the quantiles and store them
+    fitted_quants = t(apply(sum_district, 1, function(xx){
+      quantile(xx, probs = quant_probs)
+    }))
+    fitted_quants = as.data.frame(fitted_quants)
+    colnames(fitted_quants) = paste0(paste0(col, '_pred_CAR_'), quant_probs)
+    
+    # merge the quantiles back into data frame
+    tt = cbind(tt, fitted_quants)
+    
+    district_df = rbind(district_df, tt)
+  }
+  
+  # if(!is.null(district_df)){
+  #   district_df = merge(district_df, res$district_df, by = c('district','date'))
+  # }
   
   # prep data to return
   return_lst = list(df = df_combined, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
