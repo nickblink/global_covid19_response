@@ -10,6 +10,55 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### Processing CAR results ####
+files <- grep('2023_10_06',dir('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+files_331 = grep('car331', files, value = T)
+files_33025 = grep('car33025', files, value = T)
+
+res1 <- combine_results_wrapper(files = files_331, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARBayesST','y_CARstan'), rename_vec = c('WF','freqGLM','CARBayes','CARstan'))
+
+res2 <- combine_results_wrapper(files = files_33025, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARBayesST','y_CARstan'), rename_vec = c('WF','freqGLM','CARBayes','CARstan'))
+
+table(res1$params$tau2_DGP)
+table(res2$params$tau2_DGP)
+# Good
+
+plot_all_methods(res = res1$results, fix_axis = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=1): MCAR')
+
+plot_all_methods(res = res2$results, fix_axis = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1)),  add_lines = list(0.95, F, F, F), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=0.25): MCAR')
+
+
+res1_district <- combine_results_wrapper(files = files_331, district_results = T, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARBayesST','y_CARstan'), rename_vec = c('WF','freqGLM','CARBayes','CARstan'))
+
+res2_district <- combine_results_wrapper(files = files_33025, district_results = T, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARBayesST','y_CARstan'), rename_vec = c('WF','freqGLM','CARBayes','CARstan'))
+
+plot_all_methods(res = res1_district$results, fix_axis = list(ylim(0,1), ylim(0,1), ylim(0.3, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=1): MCAR')
+
+plot_all_methods(res = res2_district$results, fix_axis = list(ylim(0,1), ylim(0,1), ylim(0.3, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=.025): MCAR')
+
+#save(res1, res2, res1_district, res2_district, file = 'C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/results_CARDGP_10102023.RData')
+
+     
+#
+#### (one time run) Fix file naming ####
+files <- grep('2023_10_06',dir('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+res <- combine_results_wrapper(files = files, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARBayesST','y_CARstan'), rename_vec = c('WF','freqGLM','CARBayes','CARstan'))
+
+params = res$params
+
+ind <- grep('\\(1\\)', params$file)
+table(params$tau2_DGP[ind])
+table(params$tau2_DGP[-ind])
+
+# files_to_move = params$file[ind]
+# for(f in files_to_move){
+#   new_file = gsub('car331','car33025', f)
+#   new_file = gsub('\\(1\\)','', new_file)
+#   file.rename(f, new_file)
+# }
+
 #### 10/6/2023: Results from (incomplete) CAR DGP comparing different CAR methods ####
 ### Timing
 files <- grep('2023_10_05',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
