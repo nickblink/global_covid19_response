@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('0.1', '6', 'n0.25', 'mcar', 'CAR', '0.3', '0.3', '1', '10','5','test','1')
+inputs <- c('0.1', '6', 'n0.25', 'mnar', 'WF', '0.3', '0.3', '1', '10','5','test','1')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -65,8 +65,7 @@ if(missingness == 'mar'){
   params[['alpha_MAR']] <- 0.7
   params[['tau2_MAR']] <- 9
 }else if(missingness =='mnar'){
-  gamma = 1
-  params[['gamma']] <- gamma
+  params[['gamma']] <- 1
 }
 params[['R']] <- R
 params[['num_jobs']] <- num_jobs
@@ -80,7 +79,7 @@ if(job_id < num_jobs){
 }
 
 # Simulate the data
-if(DGP == 'nRost'){
+if(DGP == 'wf'){
   lst <- simulate_data(district_sizes = c(4, 6, 10), 
                        R = R, 
                        end_date = '2020-12-01', 
@@ -156,7 +155,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
   }else if(missingness == 'mar'){
     df_miss = MAR_spatiotemporal_sim(df, p = p, rho = params[['rho_MAR']], alpha = params[['alpha_MAR']], tau = params[['tau2_MAR']])
   }else{
-    df_miss <- MNAR_sim(df, p = p, direction = 'upper', gamma = gamma, by_facility = T)
+    df_miss <- MNAR_sim(df, p = p, direction = 'upper', gamma = params[['gamma']], by_facility = T)
   }
   
   # initializing the return list
@@ -172,6 +171,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
       freqGLMepi_list = freqGLMepi_CCA(return_list[['df_miss']], R_PI = freqGLM_params[['R_PI']], verbose = F)
       return_list[['df_miss']] <- freqGLMepi_list$df
       return_list[['district_df']] <- merge(return_list[['district_df']], freqGLMepi_list$district_df, by = c('district','date'))
+      return_list[['freqGLM_params']] <- freqGLMepi_list$param_results
       return_list
     }, error = function(e){
       return_list[['errors']][['freqEpi']] <- rbind(return_list[['errors']][['freqEpi']], data.frame(i, error = e[[1]]))
@@ -236,7 +236,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
       # update the results list
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
-      return_list[['CARstan_ESS']] <- res$ESS
+      return_list[['CARstan_summary']] <- res$CARstan_summary
       return_list
     }, error = function(e){
       print(e)
@@ -256,11 +256,10 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
 
 # run the models for each simulation dataset
 system.time({
-  imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARBayesST', 'CARstan'))
+  imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARstan'))
 })
 
-# res <- one_run(lst, 1, models = c('freq', 'WF', 'CARBayesST', 'CARstan'), freqGLM_params = list(R_PI = 5), MCMC_params = list(burnin.stan = 20, n.sample.stan = 50, burnin.CARBayesST = 100, n.sample.CARBayesST = 200))
-# res <- one_run(lst, 1, models = c('freq'), freqGLM_params = list(R_PI = 10), MCMC_params = list(burnin.stan = 50, n.sample.stan = 100, burnin.CARBayesST = 500, n.sample.CARBayesST = 1000))
+# res <- one_run(lst, 1, freqGLM_params = list(R_PI = 5), MCMC_params = list(burnin.stan = 20, n.sample.stan = 50, burnin.CARBayesST = 100, n.sample.CARBayesST = 200))
 
 true_betas <- lst$betas
 

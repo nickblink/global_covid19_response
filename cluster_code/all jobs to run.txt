@@ -1,0 +1,54 @@
+(1) WF DGP; MCAR MISSINGNESS; p = 0..0.5
+(2) WF DGP; MAR MISSINGNESS; p = 0..0.5
+(3) WF DGP; MNAR MISSINGNESS; p = 0..0.5
+
+(4) FREQGLM DGP (params?); MCAR MISSINGNESS; p = 0..0.5
+
+ALREADY RUN (as of 10/13/2023):
+CAR DGP (0.3, 0.3, 1); MCAR MISSINGNESS; p = 0..0.5
+CAR DGP (0.3, 0.3, 0.25); MCAR MISSINGNESS; p = 0..0.5
+
+EXTRA (NOT NECESSARY)
+FREQGLM DGP; MNAR MISSINGNESS; p = 0..0.5
+FREQGLM DGP; MAR MISSINGNESS; p = 0..0.5
+CAR DGP; MNAR MISSINGNESS; p = 0..0.5
+CAR DGP; MAR MISSINGNESS; p = 0..0.5
+
+(1) WF DGP; MCAR MISSINGNESS; p = 0..0.5
+sbatch --array=1-50 -J MCAR_WF_p0 run_sim.sh 0 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar0_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J MCAR_WF_p01 run_sim.sh 0.1 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar01_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J MCAR_WF_p02 run_sim.sh 0.2 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar02_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J MCAR_WF_p03 run_sim.sh 0.3 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar03_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J MCAR_WF_p04 run_sim.sh 0.4 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar04_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J MCAR_WF_p05 run_sim.sh 0.5 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar05_WF_beta6_n025_2023_10_11
+
+(2) WF DGP; MAR MISSINGNESS; p = 0..0.5
+# sbatch --array=1-50 -J mar_WF_p0 run_sim.sh 0 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar0_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mar_WF_p01 run_sim.sh 0.1 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar01_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mar_WF_p02 run_sim.sh 0.2 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar02_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mar_WF_p03 run_sim.sh 0.3 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar03_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mar_WF_p04 run_sim.sh 0.4 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar04_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mar_WF_p05 run_sim.sh 0.5 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar05_WF_beta6_n025_2023_10_11
+
+(3) WF DGP; MNAR MISSINGNESS; p = 0..0.5
+# sbatch --array=1-50 -J mnar_WF_p0 run_sim.sh 0 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar0_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mnar_WF_p01 run_sim.sh 0.1 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar01_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mnar_WF_p02 run_sim.sh 0.2 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar02_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mnar_WF_p03 run_sim.sh 0.3 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mnar_WF_p04 run_sim.sh 0.4 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar04_WF_beta6_n025_2023_10_11
+
+sbatch --array=1-50 -J mnar_WF_p05 run_sim.sh 0.5 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar05_WF_beta6_n025_2023_10_11

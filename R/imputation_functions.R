@@ -403,6 +403,7 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     WF_lst <- lapply(lst_full, function(tmp) {tmp$WF_betas})
     #}
     #if('CARstan_ESS' %in% names(lst_full[[1]])){
+    browser()
     CARstan_ESS <- lapply(lst_full, function(tmp) {tmp$CARstan_ESS})
     #}
     
@@ -1105,14 +1106,17 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
                init = '0',
                cores = 1)
     
-    # extract the effective sample size
-    ESS = summary(stan_fit, pars = c('tau2','rho','alpha','beta'))$summary[, "n_eff"]
-    
     # extract out the important features from the model
     stan_out <- extract(stan_fit)
     
+    # pull out the beta params
     beta_df <- as.data.frame(stan_out$beta)
-    colnames(beta_df) <- gsub('\\(|\\)', '', colnames(stan_data$X))
+    model_col_names <- gsub('\\(|\\)', '', colnames(stan_data$X))
+    colnames(beta_df) <- model_col_names
+    
+    # pull out the summary values
+    stan_summary = summary(stan_fit, pars = c('tau2','rho','alpha','beta'))$summary
+    rownames(stan_summary)[grep('beta', rownames(stan_summary))] <- model_col_names
     
     model_chain = list(
       fitted_mean = apply(stan_out$y_exp, 2, mean),
@@ -1122,7 +1126,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fi
       rho = stan_out$rho,
       alpha = stan_out$alpha,
       tau2 = stan_out$tau2,
-      ESS = ESS
+      CARstan_summary = stan_summary
     )
   }else{
     stop('input a proper MCMC sampler')
@@ -1429,7 +1433,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   }
   
   if(list(...)$MCMC_sampler == 'stan'){
-    res_lst[['ESS']] <- res$model_chain$ESS
+    res_lst[['CARstan_summary']] <- res$model_chain$CARstan_summary
   }
   
   if(list(...)$MCMC_sampler == 'CARBayesST'){
@@ -2083,7 +2087,43 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     
     return(sim_boot)
   })
-  names(param_boots) <- uni_group
+  names(param_boots) <- as.character(uni_group)
+  
+  # get the parameter results from the bootstrap
+  param_results <- do.call('rbind', lapply(as.character(uni_group), function(fac){
+    tt <- param_boots[[as.character(fac)]]
+    tmp <- data.frame(t(apply(tt, 2, function(col) {
+        #mean(col)
+      vec = c(mean(col), quantile(col, probs = c(.025,0.25,0.5,0.75,0.975), na.rm = T))
+      names(vec) <- c('mean', paste0('Q_', names(vec)[-1]))
+      vec
+    })))
+    tmp$param = rownames(tmp)
+    tmp$facility = fac
+    tmp
+  }))
+  param_results <- param_results[,c(8,7,1:6)]
+  rownames(param_results) <- NULL
+  
+  # create long form of estimated parameters
+  tmp = parmat %>%
+    as.data.frame(.) %>%
+    mutate(param = rownames(.)) 
+  par_long = NULL
+  for(i in 1:ncol(tmp)){
+    par_long = rbind(par_long,
+                     data.frame(facility = colnames(tmp)[i],
+                                param = tmp$param, 
+                                full_estimate = tmp[,i]))
+  }
+
+  # merge them!
+  param_results = merge(param_results, par_long, by = c('facility','param'))
+  
+  # rename columns appropriately
+  param_results$param = gsub('y.neighbors','rho',
+                             gsub('y.AR1', 'alpha',
+                                  gsub('B','',param_results$param)))
   
   # combine the data sets and split by facility
   df_combined <- rbind(df[,colnames(df_test)], df_test) %>%
@@ -2167,9 +2207,9 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   
   district_df = cbind(district_df[,c('date','district')], fitted_quants)
   
-  
   # prep data to return
-  return_lst = list(df = df_combined, district_df = district_df, params = parmat, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
+  return_lst = list(df = df_combined, district_df = district_df, param_results = param_results, convergence = convergence, y_pred_list = y_pred_list, prop_diffs = prop_diffs)
+
   return(return_lst)
 }
 

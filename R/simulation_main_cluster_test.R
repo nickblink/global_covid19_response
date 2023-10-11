@@ -1,4 +1,3 @@
-library(rstan)
 library(MASS)
 library(CARBayesST)
 library(Matrix)
@@ -7,6 +6,7 @@ library(lubridate)
 library(ggplot2)
 library(doRNG)
 library(doParallel)
+library(rstan)
 
 source('R/imputation_functions.R')
 rstan_options(auto_write = TRUE)
@@ -17,8 +17,6 @@ registerDoParallel(cores = 20)
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
 inputs <- c('0.1', '6', 'n0.25', 'mcar', 'CAR', '0.3', '0.3', '1', '5','5','test','1')
-
-.libPaths(c())
 
 ### Get parameters (for home and cluster)
 {
