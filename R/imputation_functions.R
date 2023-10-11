@@ -379,12 +379,20 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   load(files[1])
 
   lst_full <- imputed_list
+  params_list <- list()
+  tmp <- list(params); names(tmp) = files[1]
+  params_list <- c(params_list, tmp)
 
   rm(imputed_list)
   for(i in 2:length(files)){
     load(files[i])
     lst_full <- c(lst_full, imputed_list)
+    tmp <- list(params); names(tmp) = files[i]
+    params_list <- c(params_list, tmp)
   }
+  
+  # combine the parameters
+  param_mat = data.table::rbindlist(params_list, idcol = 'file')
   
   if(!is.null(subset_results)){
     lst_full = lst_full[subset_results]
@@ -455,14 +463,14 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     res_lst <- list(district_lst = district_lst, 
                     error_lst = error_lst, 
                     WF_lst = WF_lst,
-                    params = params,
-                    CARstan_ESS = CARstan_ESS)
+                    CARstan_ESS = CARstan_ESS,
+                    params = param_mat)
   }else{
     res_lst <- list(df_lst = df_lst, 
          error_lst = error_lst, 
          WF_lst = WF_lst,
-         params = params,
-         CARstan_ESS = CARstan_ESS)
+         CARstan_ESS = CARstan_ESS,
+         params = param_mat)
   }
   
   # doing this because deprecated results didnt have true betas
@@ -483,8 +491,10 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
 
 ### Takes in a list of files and/or directories. For each of these, pulls in the data using "combine_results" and then computes the metrics for these results together.
 combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F, ...){ 
-  # subset_results = NULL,
+  
+  # initialize results catchers
   res <- NULL
+  params <- NULL
   
   if(district_results){
     print('getting district level results')
@@ -511,6 +521,9 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     }else{
       load(file)
     }
+    tmp = lst_full$params
+    tmp$dir = file
+    params = rbind(params, tmp)
     
     # Check that the names match
     lst_full[[output]] <- method_name_check(lst_full[[output]], methods, give_method_name_err = give_method_name_err)
@@ -557,7 +570,8 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     res$method =  factor(res$method, levels = rename_vec)
   }
   
-  return(res)
+  res_lst = list(results = res, params = params)
+  return(res_lst)
 }
 
 # pulls out the CAR parameter estimates from an imputed list and organizes them
@@ -2740,11 +2754,24 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
   return(df)
 }
 
-# plot all methods against each other
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = rep(T, 4), add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = NULL, rows = 2, title = NULL, ...){
+#### plot all methods against each other
+### Inputs:
+## files: Files to pull the results from. Calls these if "res" is null
+## res: the results from the simulation runs
+## fix_axis: a list/vector containing y limits. Can be of the form list(ylim(0,1), F, ylim(0.9,1), F)
+## add_lines: a vector of where to add horizontal lines in plots (if F no lines are added)
+## bar_quants: the outer quantiles of the metric results
+## metrics: which metrics to plot
+## metric_rename: a vector of what to ttile the metrics
+## rows: number of rows of resulting plots
+## title: title of overall plot
+## ...: params to be passed into "combine_results_wrapper"
+
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = NULL, rows = 2, title = NULL, ...){
   if(is.null(res)){
     if(!is.null(files)){
-      res <- combine_results_wrapper(files,  ...)
+      tmp <- combine_results_wrapper(files,  ...)
+      res = tmp$results
     }else{
       stop('need files if not providing results')
     }
