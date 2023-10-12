@@ -15,7 +15,8 @@ b1_mean = -0.25
 
 system.time({
   lst_WF <- simulate_data(district_sizes = c(4, 6, 10), 
-                       R = 1, 
+                       R = 10,
+                       seq = 5:10,
                        end_date = '2020-12-01',
                        type = 'WF',
                        b0_mean = b0_mean, 
@@ -80,3 +81,17 @@ ggplot(data = df, aes(x = date, y = y, color = method)) +
   facet_wrap(~facility, scales = 'free')
 
 ggsave(filename = 'figures/DGP_comparison_10122023.png', width = 10, height = 6)
+
+
+# TIMING THIS ISH
+system.time({
+  lst_freq <- simulate_data(district_sizes = c(4, 6, 10),
+                            R = 50, 
+                            end_date = '2020-12-01',
+                            b0_mean = 5, 
+                            b1_mean = b1_mean,
+                            type = 'freqGLM',
+                            rho = 0.3, 
+                            alpha = 0.3)
+})
+# 521s. Ok

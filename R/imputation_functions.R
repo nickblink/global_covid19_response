@@ -411,8 +411,7 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     WF_lst <- lapply(lst_full, function(tmp) {tmp$WF_betas})
     #}
     #if('CARstan_ESS' %in% names(lst_full[[1]])){
-    browser()
-    CARstan_ESS <- lapply(lst_full, function(tmp) {tmp$CARstan_ESS})
+    CARstan_summary <- lapply(lst_full, function(tmp) {tmp$CARstan_summary})
     #}
     
     if(district_results){
@@ -463,13 +462,13 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     res_lst <- list(district_lst = district_lst, 
                     error_lst = error_lst, 
                     WF_lst = WF_lst,
-                    CARstan_ESS = CARstan_ESS,
+                    CARstan_summary = CARstan_summary,
                     params = param_mat)
   }else{
     res_lst <- list(df_lst = df_lst, 
          error_lst = error_lst, 
          WF_lst = WF_lst,
-         CARstan_ESS = CARstan_ESS,
+         CARstan_summary = CARstan_summary,
          params = param_mat)
   }
   
@@ -548,14 +547,14 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
         df
       })
     }
-    
+
     # Calculate the metrics
     tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, use_point_est = F, date = '2020-01-01', district_results = district_results) 
     #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
     tmp$prop_missing = as.numeric(p)/10
     
-    tmp$b0_mean <- paste(as.character(lst_full$params$b0_mean), collapse = '/')
-    tmp$b1_mean <- paste(as.character(lst_full$params$b1_mean), collapse = '/')
+    #tmp$b0_mean <- paste(as.character(lst_full$params$b0_mean), collapse = '/')
+    #tmp$b1_mean <- paste(as.character(lst_full$params$b1_mean), collapse = '/')
     
     res <- rbind(res, tmp)
   }
@@ -2994,9 +2993,9 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25
 }
 
 simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10, type = 'WF', ...){
-
-  # set seed
-  set.seed(seed)
+  
+  # set seed so the betas are always the same
+  set.seed(10)
   
   # set up data frame
   df = initialize_df(district_sizes, ...)
@@ -3021,6 +3020,9 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   # initialize list of data frames
   df_lst = list()
   district_lst = list()
+  
+  # set seed for the data generation
+  set.seed(seed)
   
   # simulate the data according to the DGP
   if(type == 'WF'){
@@ -3073,6 +3075,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       district_lst[[i]] = district
       
     }
+
   }else if(type == 'CAR'){
     
     rho = list(...)$rho
@@ -3115,6 +3118,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
 
     # checking ordering of facilities matches
     if(!identical(colnames(V), as.character(facilities))){
+      browser()
       stop('names of covariances and facilities dont match')
     }
     
@@ -3124,7 +3128,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
     df$sigma2_marginal = dV[matid]
     
     # make R sampled sets of data
-    df_lst = lapply(1:R, function(r){
+    df_lst = lapply(seq, function(r){
       ### get the spatio-temporal random effects
       # initialize phi
       phi = matrix(0, nrow = length(dates), ncol = length(facilities))
@@ -3515,7 +3519,7 @@ MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau = 1, by_fa
     filter(date <= max_missing_date)
   
   # get all facility names
-  facilities = unique(df$facility) %>% sort()
+  facilities = as.character(unique(df$facility))
   
   # get all dates
   dates = unique(df$date) %>% sort()
@@ -3533,6 +3537,7 @@ MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau = 1, by_fa
   
   # checking ordering of facilities matches
   if(!identical(colnames(V), facilities)){
+    browser()
     stop('names of covariances and facilities dont match')
   }
   

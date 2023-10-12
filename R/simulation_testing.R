@@ -10,6 +10,39 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### Combining WF results - all missingness ####
+files <- grep('2023_10_11',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+## Pull in MCAR results
+files_MCAR = grep('mcar', files, value = T)
+
+res_MCAR <- combine_results_wrapper(files = files_MCAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+res_MCAR$results$sim = 'WF_DGP(b0=6,b1=-0.25);MCAR' 
+
+res_MCAR_district <- combine_results_wrapper(files = files_MCAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), district_results = T)
+
+res_MCAR_district$results$sim = 'WF_DGP(b0=6,b1=-0.25);MCAR' 
+
+## Pull in MNAR results
+files_MNAR = grep('mnar', files, value = T)
+
+res_MNAR <- combine_results_wrapper(files = files_MNAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+res_MNAR$results$sim = 'WF_DGP(b0=6,b1=-0.25);MNAR' 
+
+res_MNAR_district <- combine_results_wrapper(files = files_MNAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), district_results = T)
+
+res_MNAR_district$results$sim = 'WF_DGP(b0=6,b1=-0.25);MNAR' 
+
+## Join these together
+res_facility = rbind(res_MCAR$results, res_MNAR$results)
+res_district = rbind(res_MCAR_district$results, res_MNAR_district$results)
+
+
+
+
+#
 #### Processing CAR results ####
 files <- grep('2023_10_06',dir('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 

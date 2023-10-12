@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('0.1', '6', 'n0.25', 'mnar', 'freqGLM', '0.3', '0.3', '1', '10','5','test','1')
+inputs <- c('0.1', '6', 'n0.25', 'mar', 'wf', '0.3', '0.3', '1', '20','10','test','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -72,22 +72,27 @@ params[['num_jobs']] <- num_jobs
 params[['job_id']] <- job_id
 
 # get sequence of simulation iterations to run
+# (deprecated - now I just simulate R_new # of data frames)
 if(job_id < num_jobs){
   seq <- (floor(R/num_jobs)*(job_id - 1) + 1):(floor(R/num_jobs)*job_id)
 }else{
   seq <- (floor(R/num_jobs)*(job_id - 1) + 1):R
 }
 
+R_new = length(seq)
+
 # Simulate the data
 if(DGP == 'wf'){
   lst <- simulate_data(district_sizes = c(4, 6, 10), 
-                       R = R, 
+                       R = R_new, 
+                       seed = job_id,
                        end_date = '2020-12-01', 
                        b0_mean = b0_mean, 
                        b1_mean = b1_mean)
 }else if(DGP == 'car'){
   lst <- simulate_data(district_sizes = c(4, 6, 10),
-                       R = R, 
+                       R = R_new, 
+                       seed = job_id,
                        end_date = '2020-12-01',
                        b0_mean = b0_mean, 
                        b1_mean = b1_mean,
@@ -97,7 +102,8 @@ if(DGP == 'wf'){
                        tau2 = tau2_DGP)
 }else if(DGP == 'freqglm'){
   lst <- simulate_data(district_sizes = c(4, 6, 10),
-                       R = R, 
+                       R = R_new, 
+                       seed = job_id,
                        end_date = '2020-12-01',
                        b0_mean = b0_mean, 
                        b1_mean = b1_mean,
@@ -265,7 +271,8 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
 
 # run the models for each simulation dataset
 system.time({
-  imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARstan'))
+  #imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARstan'))
+  imputed_list <- foreach(i=1:R_new) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARstan'))
 })
 
 # res <- one_run(lst, 1, freqGLM_params = list(R_PI = 5), MCMC_params = list(burnin.stan = 20, n.sample.stan = 50, burnin.CARBayesST = 100, n.sample.CARBayesST = 200))
