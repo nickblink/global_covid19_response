@@ -73,6 +73,7 @@ res_CAR33025_district$results$sim_long = 'CAR_DGP(0.3,0.3,0.25,b0=6,b1=-0.25);MC
 res_facility = rbind(res_MCAR$results, res_MNAR$results, res_CAR331$results, res_CAR33025$results)
 res_district = rbind(res_MCAR_district$results, res_MNAR_district$results, res_CAR331_district$results, res_CAR33025_district$results)
 
+save(res_facility, res_district, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10122023.RData')
 
 #
 #### Processing CAR results ####
