@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('0.1', '6', 'n0.25', 'mnar', 'WF', '0.3', '0.3', '1', '10','5','test','1')
+inputs <- c('0.1', '6', 'n0.25', 'mnar', 'freqGLM', '0.3', '0.3', '1', '10','5','test','1')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -95,6 +95,15 @@ if(DGP == 'wf'){
                        rho = rho_DGP, 
                        alpha = alpha_DGP, 
                        tau2 = tau2_DGP)
+}else if(DGP == 'freqglm'){
+  lst <- simulate_data(district_sizes = c(4, 6, 10),
+                       R = R, 
+                       end_date = '2020-12-01',
+                       b0_mean = b0_mean, 
+                       b1_mean = b1_mean,
+                       type = 'freqGLM',
+                       rho = rho_DGP, 
+                       alpha = alpha_DGP)
 }else{
   stop('unrecognized data generating process')
 }

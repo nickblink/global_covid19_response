@@ -3198,6 +3198,97 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       return(district)
     })
     
+  }else if(type == 'freqGLM'){
+    rho = list(...)$rho
+    alpha = list(...)$alpha
+    
+    # get the adjacency matrix
+    W <- make_district_adjacency(df, scale_by_num_neighbors = T)
+    
+    # add in the mean effects because these are the same for all simulations
+    df = do.call('rbind', lapply(facilities, function(xx){
+      tmp = df %>% filter(facility == xx)
+      
+      # keep the 1 for intercepts
+      X = tmp %>% 
+        mutate(intercept = 1) %>%
+        dplyr::select(intercept, year, cos1, sin1, cos2, sin2, cos3, sin3)
+      
+      # error checking
+      if(!identical(colnames(betas), colnames(X))){
+        browser()
+      }
+      
+      # make the 8x1 beta vector for this facility
+      beta_f = t(betas[xx,,drop = F])
+      
+      # get mean prediction from linear model
+      tmp$mu = (as.matrix(X)%*%beta_f)[,1]
+      
+      return(tmp)
+    }))
+    
+    df$y_exp = df$y_var = df$y = NA
+    
+    # make R sampled sets of data
+    df_lst = lapply(1:R, function(r){
+      # # Y1_exp = Y1_var = XB[1]
+      # for(f in facilities){
+      #   tmp <- df %>% filter(facility == f, date == min(dates))
+      #   tmp$y_exp = 
+      # }
+      
+      ### Get the first time point values
+      ind = which(df$date == min(dates))
+      
+      # the adjustment accounts for the fact that there aren't additive auto-regressive and spatial terms at the first time point.
+      # this adjustment comes from the sum of a geometric series (since this is roughly the effect that the spatial and autoregressive terms approach as we increase the time series)
+      adjustment = 1 + rho/(1-rho) + alpha/(1-alpha)
+      df$y_exp[ind] = df$y_var[ind] = adjustment*exp(df$mu[ind])
+      df$y[ind] = rpois(length(ind), df$y_exp[ind])
+      
+      # update the neighbors and auto-regressive terms
+      df <- add_autoregressive(df, 'y') %>%
+        add_neighbors(., 'y', scale_by_num_neighbors = T, W = W)
+      
+      ### remaining time points
+      for(d in dates[-1]){
+        # get the subset of dates
+        ind = which(df$date == d)
+        
+        # get the mean estimates for these dates
+        df$y_exp[ind] = df$y_var[ind] = exp(df$mu[ind]) + 
+          alpha*df$y.AR1[ind] + rho*df$y.neighbors[ind]
+        
+        # predict!
+        df$y[ind] = rpois(length(ind), df$y_exp[ind])
+        # 
+        # for(f in facilities){
+        #   df_tmp = df %>% filter(date == d, facility == f)
+        #   
+        #   model.mean.exp(df_tmp, c(alpha, rho, betas[f,]))
+        # }
+        
+        # update the neighbors and auto-regressive terms
+        df <- add_autoregressive(df, 'y') %>%
+          add_neighbors(., 'y', scale_by_num_neighbors = T, W = W)
+      }
+      # ggplot(df, aes(x = date, y = y)) + 
+      #   geom_line() + 
+      #   facet_wrap(~facility)
+      df
+    })
+
+    # group the results by district
+    district_lst <- lapply(df_lst, function(df){
+      district <- df %>%
+        group_by(district, date) %>%
+        summarize(y_exp = sum(y_exp),
+                  y_var = sum(y_var),
+                  y = sum(y),
+                  y_true = sum(y))
+      district
+    })
   }else{
     stop('please input a proper type')
   }
