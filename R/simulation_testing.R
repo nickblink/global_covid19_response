@@ -10,6 +10,88 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### All sorts of plots! ####
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10122023.RData')
+
+table(res_district$sim, res_district$prop_missing)
+table(res_facility$sim, res_facility$prop_missing)
+# CAR_33025   CAR_331   freqGLM    WF_MAR   WF_MCAR   WF_MNAR
+
+## facility plots of the CAR methods stacked
+{
+  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'CAR_331'), fix_axis = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=1): MCAR; facility-level')
+  
+  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'CAR_33025'), fix_axis = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=0.25): MCAR; facility-level')
+  
+  cowplot::plot_grid(p1, p2, nrow = 2)
+  # ggsave('figures/CAR_facility_plots_10132023.png', height = 5, width = 10)
+}
+
+## district plots of the CAR methods stacked
+{
+  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'CAR_331'), fix_axis = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=1): MCAR; district-level')
+  
+  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'CAR_33025'), fix_axis = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=0.25): MCAR; district-level')
+  
+  cowplot::plot_grid(p1, p2, nrow = 2)
+  #ggsave('figures/CAR_district_plots_10132023.png', height = 5, width = 10)
+}
+
+## facility plots of the 3 WF methods stacked
+{
+  WF_ylims = list(ylim(0.5,1), ylim(0.5,1), ylim(0.5, 1), ylim(0.5,1))
+  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; facility-level')
+  
+  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MAR; facility-level')
+  
+  p3 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MNAR; facility-level')
+  
+  cowplot::plot_grid(p1, p2, p3, nrow = 3)
+  # ggsave('figures/WF_facility_plots_10132023.png', height = 7.5, width = 10)
+}
+
+## district plots of the 3 WF methods stacked
+{
+  WF_ylims = list(ylim(0.25,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1))
+  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; district-level')
+  
+  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MAR; district-level')
+  
+  p3 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MNAR; district-level')
+  
+  cowplot::plot_grid(p1, p2, p3, nrow = 3)
+  # ggsave('figures/WF_district_plots_10132023.png', height = 7.5, width = 10)
+}
+
+## facility plots of WF, CAR, freqGLM stacked
+{
+  DGP_ylims = list(ylim(0.25,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1))
+  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; facility-level')
+  
+  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'freqGLM'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'freqGLM DGP: MCAR; facility-level')
+  
+  p3 <- plot_all_methods(res = res_facility %>% filter(sim == 'CAR_33025', method != 'CARBayes'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP  (rho=0.3; alpha=0.3; tau2=0.25): MCAR; facility-level')
+  
+  cowplot::plot_grid(p1, p2, p3, nrow = 3)
+  #ggsave('figures/DGP_facility_comparison_plots_10132023.png', height = 7.5, width = 10)
+}
+
+## district plots of WF, CAR, freqGLM stacked
+{
+  DGP_ylims = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1))
+  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MCAR'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; district-level')
+  
+  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'freqGLM'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'freqGLM DGP: MCAR; district-level')
+  
+  p3 <- plot_all_methods(res = res_district %>% filter(sim == 'CAR_33025', method != 'CARBayes'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP  (rho=0.3; alpha=0.3; tau2=0.25): MCAR; district-level')
+  
+  cowplot::plot_grid(p1, p2, p3, nrow = 3)
+  #ggsave('figures/DGP_district_comparison_plots_10132023.png', height = 7.5, width = 10)
+}
+
+
+
+#
 #### Combining all results (WF w/ MCAR, MAR, MNAR; freqGLM MCAR; CAR_331 MCAR, CAR_33025 MCAR) ####
 files <- grep('2023_10_11',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 
@@ -69,11 +151,55 @@ res_CAR33025_district$results$sim = 'CAR_33025'
 res_CAR33025_district$results$sim_long = 'CAR_DGP(0.3,0.3,0.25,b0=6,b1=-0.25);MCAR' 
 }
 
-## Join these together
-res_facility = rbind(res_MCAR$results, res_MNAR$results, res_CAR331$results, res_CAR33025$results)
-res_district = rbind(res_MCAR_district$results, res_MNAR_district$results, res_CAR331_district$results, res_CAR33025_district$results)
+## Pull in MAR results
+{
+  files <- grep('2023_10_12',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+  files_MAR = grep('mar', files, value = T)
+  
+  res_MAR <- combine_results_wrapper(files = files_MAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+  
+  res_MAR$results$sim = 'WF_MAR' 
+  res_MAR$results$sim_long = 'WF_DGP(b0=6,b1=-0.25);MAR' 
+  
+  res_MAR_district <- combine_results_wrapper(files = files_MAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), district_results = T)
+  
+  res_MAR_district$results$sim = 'WF_MAR' 
+  res_MAR_district$results$sim_long = 'WF_DGP(b0=6,b1=-0.25);MAR' 
+}
+# had to remove a few results, but not enough to warrant concern (between 1-2/1000)
 
-save(res_facility, res_district, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10122023.RData')
+## Pull in freqGLM results 
+{
+  files <- grep('2023_10_12',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+  files_freqGLM <- grep('freqglm', files, value = T)
+  
+  res_freqGLM <- combine_results_wrapper(files = files_freqGLM, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+  
+  res_freqGLM$results$sim = 'freqGLM' 
+  res_freqGLM$results$sim_long = 'freqGLM_DGP(b0=5,b1=-0.25);MCAR' 
+  
+  res_freqGLM_district <- combine_results_wrapper(files = files_freqGLM, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), district_results = T)
+  
+  res_freqGLM_district$results$sim = 'freqGLM' 
+  res_freqGLM_district$results$sim_long = 'WF_DGP(b0=5,b1=-0.25);MCAR' 
+}
+
+## Join these together
+res_facility = rbind(res_MCAR$results, res_MNAR$results, res_CAR331$results, res_CAR33025$results, res_freqGLM$results, res_MAR$results)
+res_district = rbind(res_MCAR_district$results, res_MNAR_district$results, res_CAR331_district$results, res_CAR33025_district$results, res_freqGLM_district$results, res_MAR_district$results)
+
+## Copy WF MCAR p = 0 to MAR p = 0 and MNAR p = 0 (since these are all the same)
+tmp = res_facility %>% filter(sim == 'WF_MCAR', prop_missing == 0)
+tmp2 = tmp; tmp2$sim = 'WF_MAR'
+tmp3 = tmp; tmp3$sim = 'WF_MNAR'
+res_facility = rbind(res_facility, tmp2, tmp3)
+
+tmp = res_district %>% filter(sim == 'WF_MCAR', prop_missing == 0)
+tmp2 = tmp; tmp2$sim = 'WF_MAR'
+tmp3 = tmp; tmp3$sim = 'WF_MNAR'
+res_district = rbind(res_district, tmp2, tmp3)
+
+# save(res_facility, res_district, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10122023.RData')
 
 #
 #### Processing CAR results ####
