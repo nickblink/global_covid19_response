@@ -53,7 +53,7 @@ params <- list()
 params[['p']] <- p
 params[['missingness']] <- missingness
 params[['DGP']] <- DGP
-if(DGP == 'car'){
+if(DGP == 'car' | DGP == 'freqglm'){
   params[['rho_DGP']] <- rho_DGP
   params[['alpha_DGP']] <- alpha_DGP
   params[['tau2_DGP']] <- tau2_DGP
