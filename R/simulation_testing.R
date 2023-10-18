@@ -10,8 +10,46 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### Analyzing results by point ####
+files <- grep('2023_10_11',dir('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+## Pull in MCAR results
+files_MCAR = grep('mcar', files, value = T)
+
+res_MCAR <- combine_results_wrapper(files = files_MCAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), results_by_point = T)
+  
+tt = res_MCAR$results
+
+tmp = tt %>% filter(prop_missing == 0, method == 'CARstan')
+View(tmp)
+
+tmp2 = tt %>% filter(prop_missing == 0.5, method == 'CARstan')
+View(tmp2)
+
+p1 <- plot_all_methods(res = res_MCAR$results, fix_axis = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; facility-level')
+
+
+files <- grep('2023_10_12',dir('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+files_freqGLM <- grep('freqglm', files, value = T)
+
+res_freqGLM <- combine_results_wrapper(files = files_freqGLM, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), results_by_point = T)
+
+tt = res_freqGLM$results
+
+tmp3 = tt %>% filter(prop_missing == 0.5, method == 'CARstan')
+View(tmp3)
+
+## Time to look at some betas
+dir(files_MCAR[1], full.names = T)[1] -> tmp
+load(tmp)
+imputed_list[[1]]$WF_betas
+imputed_list[[2]]$WF_betas
+
+
+#
 #### All sorts of plots! ####
 load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10122023.RData')
+#load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10122023.RData')
 
 table(res_district$sim, res_district$prop_missing)
 table(res_facility$sim, res_facility$prop_missing)
@@ -93,7 +131,7 @@ table(res_facility$sim, res_facility$prop_missing)
 
 #
 #### Combining all results (WF w/ MCAR, MAR, MNAR; freqGLM MCAR; CAR_331 MCAR, CAR_33025 MCAR) ####
-files <- grep('2023_10_11',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+files <- grep('2023_10_11',dir('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 
 ## Pull in MCAR results
 {

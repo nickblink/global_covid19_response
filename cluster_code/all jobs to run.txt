@@ -67,3 +67,10 @@ sbatch --array=1-50 -J MCAR_freqGLM_p03 run_sim.sh 0.3 5 n0.25 mcar freqglm 0.3 
 sbatch --array=1-50 -J MCAR_freqGLM_p04 run_sim.sh 0.4 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar04_freqGLM_beta5_n025_2023_10_12
 
 sbatch --array=1-50 -J MCAR_freqGLM_p05 run_sim.sh 0.5 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar05_freqGLM_beta5_n025_2023_10_12
+
+(5) Debugging with different cluster sizes
+sbatch --array=1-50 -J MCAR_debug_WF_p0 run_sim_size_debug.sh 0 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar0_WF_size_debug_beta6_n025_2023_10_18
+
+sbatch --array=1-50 -J MCAR_debug_freqGLM_p0 run_sim_size_debug.sh 0 6 n0.25 mcar freqGLM 0.3 0.3 1 1000 50 mcar0_freqGLM_size_debug_beta6_n025_2023_10_18
+
+sbatch --array=1-50 -J MCAR_debug_freqGLM_p0 run_sim_size_debug.sh 0 6 n0.25 mcar CAR 0.3 0.3 1 1000 50 mcar0_CAR_size_debug_beta6_n025_2023_10_18
