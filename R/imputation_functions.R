@@ -2766,7 +2766,7 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
 ## title: title of overall plot
 ## ...: params to be passed into "combine_results_wrapper"
 
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = NULL, rows = 2, title = NULL, ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, ...){
   if(is.null(res)){
     if(!is.null(files)){
       tmp <- combine_results_wrapper(files,  ...)
@@ -2893,58 +2893,58 @@ plot_CAR_params <- function(files = NULL, res_df = NULL, expected = data.frame(p
 #
 ##### Simulation functions #####
 # function to simulate data
-simulate_imputation <- function(df, col, p = 0.1, group = NULL){
-  set.seed(1)
-  # if not worrying about the grouping of randomization
-  
-  # set the true value to null for the df
-  df[,paste0(col, '_true')] = as.integer(NA)
-  
-  if(is.null(group)){
-    # get the number of data points to impute
-    num_impute = round(p*nrow(df)) - sum(is.na(df[,col]))
-    
-    if(num_impute <= 0){
-      warning('skipping imputation. Already too many missing')
-      return(df)
-    }
-    
-    # sample the indices to impute
-    ind_sample = sample(setdiff(1:nrow(df), which(is.na(df[,col]))), num_impute)
-    
-    # store the true value of the values to replace
-    df[ind_sample, paste0(col, '_true')] <- df[ind_sample, col]
-    
-    # replace the values with NAs
-    df[ind_sample, col] = NA
-    
-  }else{
-    # doing grouping
-    uni_group = df %>% pull(UQ(group)) %>% unique()
-    
-    # apply to each group
-    tmp <- lapply(uni_group, function(xx) {
-      tt <- df %>% filter(get(group) == xx)
-      num_impute = round(p*nrow(tt)) - sum(is.na(tt[,col]))
-      if(num_impute <= 0){
-        print(sprintf('skipping imputation for %s', xx))
-        return(tt)
-      }
-      ind_sample = sample(setdiff(1:nrow(tt), which(is.na(tt[,col]))), num_impute) 
-      tt[ind_sample, paste0(col, '_true')] <- tt[ind_sample, col]
-      tt[ind_sample, col] = NA
-      return(tt)
-    })
-    
-    # collapse results
-    df <- data.table::rbindlist(tmp)
-  }
-  
-  return(df)
-}
+# simulate_imputation <- function(df, col, p = 0.1, group = NULL){
+#   set.seed(1)
+#   # if not worrying about the grouping of randomization
+#   
+#   # set the true value to null for the df
+#   df[,paste0(col, '_true')] = as.integer(NA)
+#   
+#   if(is.null(group)){
+#     # get the number of data points to impute
+#     num_impute = round(p*nrow(df)) - sum(is.na(df[,col]))
+#     
+#     if(num_impute <= 0){
+#       warning('skipping imputation. Already too many missing')
+#       return(df)
+#     }
+#     
+#     # sample the indices to impute
+#     ind_sample = sample(setdiff(1:nrow(df), which(is.na(df[,col]))), num_impute)
+#     
+#     # store the true value of the values to replace
+#     df[ind_sample, paste0(col, '_true')] <- df[ind_sample, col]
+#     
+#     # replace the values with NAs
+#     df[ind_sample, col] = NA
+#     
+#   }else{
+#     # doing grouping
+#     uni_group = df %>% pull(UQ(group)) %>% unique()
+#     
+#     # apply to each group
+#     tmp <- lapply(uni_group, function(xx) {
+#       tt <- df %>% filter(get(group) == xx)
+#       num_impute = round(p*nrow(tt)) - sum(is.na(tt[,col]))
+#       if(num_impute <= 0){
+#         print(sprintf('skipping imputation for %s', xx))
+#         return(tt)
+#       }
+#       ind_sample = sample(setdiff(1:nrow(tt), which(is.na(tt[,col]))), num_impute) 
+#       tt[ind_sample, paste0(col, '_true')] <- tt[ind_sample, col]
+#       tt[ind_sample, col] = NA
+#       return(tt)
+#     })
+#     
+#     # collapse results
+#     df <- data.table::rbindlist(tmp)
+#   }
+#   
+#   return(df)
+# }
 
 initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = '2019-12-01', ...){
-  facilities = unlist(lapply(1:length(district_sizes), function(xx) {paste0(toupper(letters[xx]), 1:district_sizes[xx])}))
+  facilities = unlist(lapply(1:length(district_sizes), function(xx) {paste0(toupper(letters[xx]), sprintf('%03d',1:district_sizes[xx]))}))
   
   dates = seq(as.Date(start_date), as.Date(end_date), by = 'month')
   

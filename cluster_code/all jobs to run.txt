@@ -74,3 +74,16 @@ sbatch --array=1-50 -J MCAR_debug_WF_p0 run_sim_size_debug.sh 0 6 n0.25 mcar WF 
 sbatch --array=1-50 -J MCAR_debug_freqGLM_p0 run_sim_size_debug.sh 0 6 n0.25 mcar freqGLM 0.3 0.3 1 1000 50 mcar0_freqGLM_size_debug_beta6_n025_2023_10_18
 
 sbatch --array=1-50 -J MCAR_debug_freqGLM_p0 run_sim_size_debug.sh 0 6 n0.25 mcar CAR 0.3 0.3 1 1000 50 mcar0_CAR_size_debug_beta6_n025_2023_10_18
+
+(6) WF DGP new run; MCAR MISSINGNESS; p = 0..0.5
+sbatch --array=1-50 -J MCAR_WF_p0 run_sim.sh 0 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar0_WF_beta6_n025_2023_10_19
+
+sbatch --array=1-50 -J MCAR_WF_p01 run_sim.sh 0.1 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar01_WF_beta6_n025_2023_10_19
+
+sbatch --array=1-50 -J MCAR_WF_p02 run_sim.sh 0.2 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar02_WF_beta6_n025_2023_10_19
+
+sbatch --array=1-50 -J MCAR_WF_p03 run_sim.sh 0.3 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar03_WF_beta6_n025_2023_10_19
+
+sbatch --array=1-50 -J MCAR_WF_p04 run_sim.sh 0.4 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar04_WF_beta6_n025_2023_10_19
+
+sbatch --array=1-50 -J MCAR_WF_p05 run_sim.sh 0.5 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar05_WF_beta6_n025_2023_10_19
