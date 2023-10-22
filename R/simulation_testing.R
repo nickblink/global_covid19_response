@@ -10,6 +10,29 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### Combining all results part 2 (WF w/ MCAR, ...) ####
+
+files <- grep('2023_10_19',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+## Pull in MCAR results
+{
+  files_MCAR = grep('mcar', files, value = T)
+  
+  res_MCAR <- combine_results_wrapper(files = files_MCAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan', 'y_CARBayesST'), rename_vec = c('WF','freqGLM', 'CARstan', 'CARBayes'))
+  
+  res_MCAR$results$sim = 'WF_MCAR' 
+  res_MCAR$results$sim_long = 'WF_DGP(b0=6,b1=-0.25);MCAR' 
+  
+  res_MCAR_district <- combine_results_wrapper(files = files_MCAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), district_results = T)
+  
+  res_MCAR_district$results$sim = 'WF_MCAR' 
+  res_MCAR_district$results$sim_long = 'WF_DGP(b0=6,b1=-0.25);MCAR' 
+}
+
+
+plot_all_methods(res = res_MCAR$results, fix_axis = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; facility-level')
+
+#
 #### Analyzing facility naming debug results ####
 files <- grep('2023_10_18',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 

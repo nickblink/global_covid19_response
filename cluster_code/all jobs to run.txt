@@ -28,62 +28,63 @@ sbatch --array=1-50 -J MCAR_WF_p04 run_sim.sh 0.4 6 n0.25 mcar WF 0.3 0.3 1 1000
 sbatch --array=1-50 -J MCAR_WF_p05 run_sim.sh 0.5 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar05_WF_beta6_n025_2023_10_11
 
 (2) WF DGP; MAR MISSINGNESS; p = 0..0.5
-# sbatch --array=1-50 -J mar_WF_p0 run_sim.sh 0 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar0_WF_beta6_n025_2023_10_11
+# sbatch --array=1-50 -J mar_WF_p0 run_sim.sh 0 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar0_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mar_WF_p01 run_sim.sh 0.1 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar01_WF_beta6_n025_2023_10_12
+sbatch --array=1-50 -J mar_WF_p01 run_sim.sh 0.1 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar01_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mar_WF_p02 run_sim.sh 0.2 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar02_WF_beta6_n025_2023_10_12
+sbatch --array=1-50 -J mar_WF_p02 run_sim.sh 0.2 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar02_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mar_WF_p03 run_sim.sh 0.3 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar03_WF_beta6_n025_2023_10_12
+sbatch --array=1-50 -J mar_WF_p03 run_sim.sh 0.3 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar03_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mar_WF_p04 run_sim.sh 0.4 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar04_WF_beta6_n025_2023_10_12
+sbatch --array=1-50 -J mar_WF_p04 run_sim.sh 0.4 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar04_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mar_WF_p05 run_sim.sh 0.5 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar05_WF_beta6_n025_2023_10_12
+sbatch --array=1-50 -J mar_WF_p05 run_sim.sh 0.5 6 n0.25 mar WF 0.3 0.3 1 1000 50 mar05_WF_beta6_n025_2023_10_21
 
 (3) WF DGP; MNAR MISSINGNESS; p = 0..0.5
 # sbatch --array=1-50 -J mnar_WF_p0 run_sim.sh 0 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar0_WF_beta6_n025_2023_10_11
 
-sbatch --array=1-50 -J mnar_WF_p01 run_sim.sh 0.1 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar01_WF_beta6_n025_2023_10_11
+sbatch --array=1-50 -J mnar_WF_p01 run_sim.sh 0.1 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar01_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mnar_WF_p02 run_sim.sh 0.2 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar02_WF_beta6_n025_2023_10_11
+sbatch --array=1-50 -J mnar_WF_p02 run_sim.sh 0.2 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar02_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mnar_WF_p03 run_sim.sh 0.3 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_beta6_n025_2023_10_11
+sbatch --array=1-50 -J mnar_WF_p03 run_sim.sh 0.3 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mnar_WF_p04 run_sim.sh 0.4 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar04_WF_beta6_n025_2023_10_11
+sbatch --array=1-50 -J mnar_WF_p04 run_sim.sh 0.4 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar04_WF_beta6_n025_2023_10_21
 
-sbatch --array=1-50 -J mnar_WF_p05 run_sim.sh 0.5 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar05_WF_beta6_n025_2023_10_11
+sbatch --array=1-50 -J mnar_WF_p05 run_sim.sh 0.5 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar05_WF_beta6_n025_2023_10_21
 
 
 ## CHANGE THE B0, the MISSINGNESS
 (4) freqGLMepi DGP; MCAR MISSINGNESS; p = 0..0.5
-sbatch --array=1-50 -J MCAR_freqGLM_p0 run_sim.sh 0 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar0_freqGLM_beta5_n025_2023_10_12
+sbatch --array=1-50 -J MCAR_freqGLM_p0 run_sim.sh 0 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar0_freqGLM_beta5_n025_2023_10_21
 
-sbatch --array=1-50 -J MCAR_freqGLM_p01 run_sim.sh 0.1 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar01_freqGLM_beta5_n025_2023_10_12
+sbatch --array=1-50 -J MCAR_freqGLM_p01 run_sim.sh 0.1 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar01_freqGLM_beta5_n025_2023_10_21
 
-sbatch --array=1-50 -J MCAR_freqGLM_p02 run_sim.sh 0.2 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar02_freqGLM_beta5_n025_2023_10_12
+sbatch --array=1-50 -J MCAR_freqGLM_p02 run_sim.sh 0.2 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar02_freqGLM_beta5_n025_2023_10_21
 
-sbatch --array=1-50 -J MCAR_freqGLM_p03 run_sim.sh 0.3 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar03_freqGLM_beta5_n025_2023_10_12
+sbatch --array=1-50 -J MCAR_freqGLM_p03 run_sim.sh 0.3 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar03_freqGLM_beta5_n025_2023_10_21
 
-sbatch --array=1-50 -J MCAR_freqGLM_p04 run_sim.sh 0.4 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar04_freqGLM_beta5_n025_2023_10_12
+sbatch --array=1-50 -J MCAR_freqGLM_p04 run_sim.sh 0.4 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar04_freqGLM_beta5_n025_2023_10_21
 
-sbatch --array=1-50 -J MCAR_freqGLM_p05 run_sim.sh 0.5 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar05_freqGLM_beta5_n025_2023_10_12
+sbatch --array=1-50 -J MCAR_freqGLM_p05 run_sim.sh 0.5 5 n0.25 mcar freqglm 0.3 0.3 1 1000 50 mcar05_freqGLM_beta5_n025_2023_10_21
 
-(5) Debugging with different cluster sizes
+(5) CAR DGP; MCAR MISSINGNESS; p = 0..0.5
+sbatch --array=1-50 -J MCAR_CAR33025_p0 run_sim.sh 0 6 n0.25 mcar CAR 0.3 0.3 0.25 1000 50 mcar0_CAR33025_beta6_n025_2023_10_21
+
+sbatch --array=1-50 -J MCAR_CAR33025_p01 run_sim.sh 0.1 6 n0.25 mcar CAR 0.3 0.3 0.25 1000 50 mcar01_CAR33025_beta6_n025_2023_10_21
+
+sbatch --array=1-50 -J MCAR_CAR33025_p02 run_sim.sh 0.2 6 n0.25 mcar CAR 0.3 0.3 0.25 1000 50 mcar02_CAR33025_beta6_n025_2023_10_21
+
+sbatch --array=1-50 -J MCAR_CAR33025_p03 run_sim.sh 0.3 6 n0.25 mcar CAR 0.3 0.3 0.25 1000 50 mcar03_CAR33025_beta6_n025_2023_10_21
+
+sbatch --array=1-50 -J MCAR_CAR33025_p04 run_sim.sh 0.4 6 n0.25 mcar CAR 0.3 0.3 0.25 1000 50 mcar04_CAR33025_beta6_n025_2023_10_21
+
+sbatch --array=1-50 -J MCAR_CAR33025_p05 run_sim.sh 0.5 6 n0.25 mcar CAR 0.3 0.3 0.25 1000 50 mcar05_CAR33025_beta6_n025_2023_10_21
+
+
+(6) Debugging with different cluster sizes
 sbatch --array=1-50 -J MCAR_debug_WF_p0 run_sim_size_debug.sh 0 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar0_WF_size_debug_beta6_n025_2023_10_18
 
 sbatch --array=1-50 -J MCAR_debug_freqGLM_p0 run_sim_size_debug.sh 0 6 n0.25 mcar freqGLM 0.3 0.3 1 1000 50 mcar0_freqGLM_size_debug_beta6_n025_2023_10_18
 
 sbatch --array=1-50 -J MCAR_debug_freqGLM_p0 run_sim_size_debug.sh 0 6 n0.25 mcar CAR 0.3 0.3 1 1000 50 mcar0_CAR_size_debug_beta6_n025_2023_10_18
-
-(6) WF DGP new run; MCAR MISSINGNESS; p = 0..0.5
-sbatch --array=1-50 -J MCAR_WF_p0 run_sim.sh 0 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar0_WF_beta6_n025_2023_10_19
-
-sbatch --array=1-50 -J MCAR_WF_p01 run_sim.sh 0.1 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar01_WF_beta6_n025_2023_10_19
-
-sbatch --array=1-50 -J MCAR_WF_p02 run_sim.sh 0.2 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar02_WF_beta6_n025_2023_10_19
-
-sbatch --array=1-50 -J MCAR_WF_p03 run_sim.sh 0.3 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar03_WF_beta6_n025_2023_10_19
-
-sbatch --array=1-50 -J MCAR_WF_p04 run_sim.sh 0.4 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar04_WF_beta6_n025_2023_10_19
-
-sbatch --array=1-50 -J MCAR_WF_p05 run_sim.sh 0.5 6 n0.25 mcar WF 0.3 0.3 1 1000 50 mcar05_WF_beta6_n025_2023_10_19
