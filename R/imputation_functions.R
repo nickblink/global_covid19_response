@@ -2766,7 +2766,7 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
 ## title: title of overall plot
 ## ...: params to be passed into "combine_results_wrapper"
 
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, ...){
   if(is.null(res)){
     if(!is.null(files)){
       tmp <- combine_results_wrapper(files,  ...)
@@ -2832,13 +2832,20 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
       p1 <- p1 + geom_hline(yintercept = add_lines[[i]])
     }
     
-    legend = get_legend(p1 + theme(legend.position = 'bottom'))
+    legend = get_legend(p1 + theme(legend.position = 'bottom', 
+                                   legend.text = element_text(size = 17),
+                                   legend.title = element_text(size = 20),
+                                   legend.key.size = unit(2, 'cm')))
     p1 <- p1 + theme(legend.position = 'none')
     
     plot_list[[i]] <- p1
   }
   
-  final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = rows), legend, ncol = 1, rel_heights = c(10,1))
+  if(include_legend){
+    final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = rows), legend, ncol = 1, rel_heights = c(10,1))
+  }else{
+    final_plot = plot_grid(plotlist = plot_list, nrow = rows)
+  }
   
   if(!is.null(title)){
     title_plot <- ggplot() + 
@@ -2847,7 +2854,8 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     final_plot <- plot_grid(title_plot, final_plot, ncol = 1, rel_heights = c(0.2 - 0.05*rows,1))
   }
   
-  return(final_plot)
+  res_lst <- list(plot = final_plot, legend = legend)
+  return(res_lst)
 }
 
 # plot the CAR parameter estimates from a set of simulations
