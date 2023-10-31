@@ -10,42 +10,45 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-#### All sorts of plots! ####
-load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10212023.RData')
+#### Plots of facility fits ####
+load(dir("C:/Users/Admin-Dell//Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mar02_wf_beta6_n025_2023_10_21", full.names = T)[1])
+
+df = imputed_list[[1]]$df_miss %>%
+  filter(facility %in% c('A001','A002'), date <= '2020-01-01') %>%
+  mutate(facility = gsub('facility|00','',facility))
+
+# add in the "zoomed in" plots
+tmp = df %>% filter(date >= '2019-06-01')
+tmp$facility = paste0(tmp$facility, ' zoomed in')
+df <- rbind(df, tmp)
+
+plot_facility_fits(df, methods = c('y_pred_WF'), fac_list = c('A1', 'A1 zoomed in','A2', 'A2 zoomed in'), plot_missing_points = F, outbreak_points = c(3,5,10), include_legend = F)
+
+ggsave('figures/sample_WF_fits_10312023.png', height = 5, width = 7)
+
+#
+#### Metrics plots! ####
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10212023.RData')
 #load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10122023.RData')
+
+res_facility$method = gsub('CARstan', 'CARBayes',res_facility$method)
+res_district$method = gsub('CARstan', 'CARBayes',res_district$method)
 
 table(res_district$sim, res_district$prop_missing)
 table(res_facility$sim, res_facility$prop_missing)
 # CAR_33025   CAR_331   freqGLM    WF_MAR   WF_MCAR   WF_MNAR
 
-# ## facility plots of the CAR methods stacked
-# {
-#   p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'CAR_331'), fix_axis = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=1): MCAR; facility-level')
-#   
-#   p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'CAR_33025'), fix_axis = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=0.25): MCAR; facility-level')
-#   
-#   cowplot::plot_grid(p1, p2, nrow = 2)
-#   ggsave('figures/CAR_facility_plots_10212023.png', height = 5, width = 10)
-# }
-
-# ## district plots of the CAR methods stacked
-# {
-#   p1 <- plot_all_methods(res = res_district %>% filter(sim == 'CAR_331'), fix_axis = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=1): MCAR; district-level')
-#   
-#   p2 <- plot_all_methods(res = res_district %>% filter(sim == 'CAR_33025'), fix_axis = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0.5,1)), add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP (rho=0.3; alpha=0.3; tau2=0.25): MCAR; district-level')
-#   
-#   cowplot::plot_grid(p1, p2, nrow = 2)
-#   ggsave('figures/CAR_district_plots_10212023.png', height = 5, width = 10)
-# }
+res_facility$method = factor(res_facility$method, levels = c('WF','freqGLM','CARBayes'))
+res_district$method = factor(res_district$method, levels = c('WF','freqGLM','CARBayes'))
 
 ## facility plots of the 3 WF methods stacked
 {
   WF_ylims = list(ylim(0.5,1), ylim(0.5,1), ylim(0.5, 1), ylim(0.5,1))
-  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; facility-level', include_legend = F)
+  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'MCAR', include_legend = F)
   
-  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MAR; facility-level', include_legend = F)
+  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'MAR', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MNAR; facility-level', include_legend = F)
+  p3 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'MNAR', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
   ggsave('figures/WF_facility_plots_10302023.png', height = 7.5, width = 10)
@@ -54,40 +57,40 @@ table(res_facility$sim, res_facility$prop_missing)
 ## district plots of the 3 WF methods stacked
 {
   WF_ylims = list(ylim(0.25,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1))
-  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; district-level')
+  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'MCAR', include_legend = F)
   
-  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MAR; district-level')
+  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'MAR', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MNAR; district-level')
+  p3 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'MNAR', include_legend = F)
   
-  cowplot::plot_grid(p1, p2, p3, nrow = 3)
-  ggsave('figures/WF_district_plots_10212023.png', height = 7.5, width = 10)
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/WF_district_plots_10302023.png', height = 7.5, width = 10)
 }
 
 ## facility plots of WF, CAR, freqGLM stacked
 {
   DGP_ylims = list(ylim(0.25,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1))
-  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; facility-level')
+  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP', include_legend = F)
   
-  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'freqGLM'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'freqGLM DGP: MCAR; facility-level')
+  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'freqGLM'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'freqGLM DGP', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_facility %>% filter(sim == 'CAR_33025', method != 'CARBayes'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP  (rho=0.3; alpha=0.3; tau2=0.25): MCAR; facility-level')
+  p3 <- plot_all_methods(res = res_facility %>% filter(sim == 'CAR_33025'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP', include_legend = F)
   
-  cowplot::plot_grid(p1, p2, p3, nrow = 3)
-  ggsave('figures/DGP_facility_comparison_plots_10212023.png', height = 7.5, width = 10)
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_facility_comparison_plots_10302023.png', height = 7.5, width = 10)
 }
 
 ## district plots of WF, CAR, freqGLM stacked
 {
   DGP_ylims = list(ylim(0,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1))
-  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MCAR'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP: MCAR; district-level')
+  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MCAR'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP', include_legend = F)
   
-  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'freqGLM'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'freqGLM DGP: MCAR; district-level')
+  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'freqGLM'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'freqGLM DGP', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_district %>% filter(sim == 'CAR_33025', method != 'CARBayes'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP  (rho=0.3; alpha=0.3; tau2=0.25): MCAR; district-level')
+  p3 <- plot_all_methods(res = res_district %>% filter(sim == 'CAR_33025'), fix_axis = DGP_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP', include_legend = F)
   
-  cowplot::plot_grid(p1, p2, p3, nrow = 3)
-  ggsave('figures/DGP_district_comparison_plots_10212023.png', height = 7.5, width = 10)
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_district_comparison_plots_10302023.png', height = 7.5, width = 10)
 }
 
 

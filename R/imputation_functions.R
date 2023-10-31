@@ -2475,7 +2475,7 @@ plot_county_fits <- function(df, methods, color_vec, imp_names = NULL, PIs = T, 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
 # Also can plot the raw values if no imputations are provided (methods is NULL)
 ### Parameters
-plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec = NULL, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', outbreak_points = NULL, ...){
+plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec = NULL, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', outbreak_points = NULL, include_legend = T, ...){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -2521,13 +2521,14 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       
       # make the plot!
       p1 <- ggplot() +
-        geom_line(data = tmp, aes(x = date, y = y_true), size = 1) +
+        geom_line(data = tmp, aes(x = date, y = y), size = 1) +
         geom_line(data = df_f, aes(x = date, y = y, group = method, color = method)) +
         geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1) +
         #scale_color_manual(values = c(color_vec)) + 
         #scale_fill_manual(values = c(color_vec)) + 
         ylim(c(0,ymax)) +
-        ggtitle(sprintf('facility %s', f)) + 
+        # ggtitle(sprintf('facility %s', f)) +
+        ggtitle(f) + 
         ylab('y') +
         theme_bw() +
         theme(text = element_text(size = 10))
@@ -2558,7 +2559,7 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
         out_df = data.frame(date = rep(as.Date('2020-01-01'), length(outbreak_points)),
                             outbreak = tmp$y_exp[ind] + outbreak_points*sqrt(tmp$y_var[ind]),
                             k = factor(outbreak_points))
-        p1 <- p1 + geom_point(data = out_df, aes(x = date, y = outbreak, shape = k), col = 'red' )
+        p1 <- p1 + geom_point(data = out_df, aes(x = date, y = outbreak, shape = k))#, col = 'blue', alpha = 0) 
       }
       
       # store the legend for later
@@ -2605,7 +2606,12 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
     
   }
   
-  return(cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1)))
+  if(include_legend){
+    final_plot <- cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1))
+  }else{
+    final_plot <- cowplot::plot_grid(plotlist = plot_list, ...)
+  }
+  return(final_plot)
 }
 
 # process the imputed list for metric calculations
@@ -2776,8 +2782,12 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     }
   }
   
+  # get color set up
+  method_colors <- setNames(c('red', 'forestgreen', 'blue'), levels(res$method))
+  
+  # fixing the axis dimensions
   if(length(fix_axis) == 1){
-    fix_axis = rep(fix_axis, 7)
+    fix_axis = rep(fix_axis, length(metrics))
   }
   
   options(dplyr.summarise.inform = FALSE)
@@ -2810,6 +2820,12 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     
     tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
     
+    # refactor for ordering
+    if(class(res$method) == 'factor'){
+      tmp$method = factor(tmp$method, levels = levels(res$method))
+    }
+    
+    #browser()
     # plot!
     p1 <- ggplot() + 
       # plot the background shading
@@ -2818,6 +2834,7 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
       geom_point(data = tmp, aes(x = prop_missing, y = median, color = method, shape = method), position = position_dodge(width = 0.1)) +
       # plot the error bars
       geom_errorbar(data = tmp, aes(x = prop_missing, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) + 
+      scale_color_manual(values = method_colors) + 
       labs(x = 'proportion missing') + 
       guides(alpha = 'none') +
       theme_bw() + 
@@ -2831,16 +2848,18 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     if(!is.logical(add_lines[[i]])){
       p1 <- p1 + geom_hline(yintercept = add_lines[[i]])
     }
-    
+
     legend = get_legend(p1 + theme(legend.position = 'bottom', 
                                    legend.text = element_text(size = 17),
                                    legend.title = element_text(size = 20),
-                                   legend.key.size = unit(2, 'cm')))
+                                   legend.key.size = unit(0.1, 'cm')) + 
+                          guides(color = guide_legend(override.aes = list(size = 4))))
     p1 <- p1 + theme(legend.position = 'none')
     
     plot_list[[i]] <- p1
   }
   
+  ## ggpubr::ggarrange might be the way to go.
   if(include_legend){
     final_plot <- plot_grid(plot_grid(plotlist = plot_list, nrow = rows), legend, ncol = 1, rel_heights = c(10,1))
   }else{
