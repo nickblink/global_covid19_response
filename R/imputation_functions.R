@@ -2522,8 +2522,8 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       # make the plot!
       p1 <- ggplot() +
         geom_line(data = tmp, aes(x = date, y = y), size = 1) +
-        geom_line(data = df_f, aes(x = date, y = y, group = method, color = method)) +
-        geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1) +
+        geom_line(data = df_f, aes(x = date, y = y, group = method, color = method), show.legend = F) +
+        geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1, show.legend = F) +
         #scale_color_manual(values = c(color_vec)) + 
         #scale_fill_manual(values = c(color_vec)) + 
         ylim(c(0,ymax)) +
@@ -2559,11 +2559,13 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
         out_df = data.frame(date = rep(as.Date('2020-01-01'), length(outbreak_points)),
                             outbreak = tmp$y_exp[ind] + outbreak_points*sqrt(tmp$y_var[ind]),
                             k = factor(outbreak_points))
-        p1 <- p1 + geom_point(data = out_df, aes(x = date, y = outbreak, shape = k))#, col = 'blue', alpha = 0) 
+        p1 <- p1 + geom_point(data = out_df, aes(x = date, y = outbreak, shape = k), size = 3) + 
+          guides(shape = guide_legend(title = "Outbreak size k:"))
       }
       
       # store the legend for later
-      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
+      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20), 
+                                     legend.title = element_text(size = 20)))
       
       # remove the legend position on this plot
       p1 <- p1 + theme(legend.position = 'none') 
@@ -2592,7 +2594,7 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
         out_df = data.frame(date = rep(as.Date('2020-01-01'), length(outbreak_points)),
                             outbreak = tmp$y_exp[ind] + outbreak_points*sqrt(tmp$y_var[ind]),
                             k = factor(outbreak_points))
-        p1 <- p1 + geom_point(data = out_df, aes(x = date, y = outbreak, shape = k), col = 'red' )
+        p1 <- p1 + geom_point(data = out_df, aes(x = date, y = outbreak, shape = k), size = 3, col = 'red' )
       }
       
       # store the legend for later
