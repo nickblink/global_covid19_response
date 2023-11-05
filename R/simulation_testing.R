@@ -44,27 +44,30 @@ res_district$method = factor(res_district$method, levels = c('WF','freqGLM','CAR
 ## facility plots of the 3 WF methods stacked
 {
   WF_ylims = list(ylim(0.5,1), ylim(0.5,1), ylim(0.5, 1), ylim(0.5,1))
-  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MCAR Missingness', include_legend = F)
+  p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MCAR Missing Data', include_legend = F)
   
-  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MAR Missingness', include_legend = F)
+  p2 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MAR Missing Data', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MNAR Missingness', include_legend = F)
+  p3 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MNAR Missing Data', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
-  ggsave('figures/WF_facility_plots_10302023.png', height = 7.5, width = 10)
+  #ggsave('figures/WF_facility_plots_10302023.png', height = 7.5, width = 10)
 }
 
 p1$plot
+
+CHANGE THIS TITLE^
+
 ggsave('figures/WF_MCAR_plot_11012023.png',height = 2.5, width = 10)
 
 ## district plots of the 3 WF methods stacked
 {
   WF_ylims = list(ylim(0.25,1), ylim(0.25,1), ylim(0.5, 1), ylim(0.5,1))
-  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MCAR Missingness', include_legend = F)
+  p1 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MCAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MCAR Missing Data', include_legend = F)
   
-  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MAR Missingness', include_legend = F)
+  p2 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MAR Missing Data', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MNAR Missingness', include_legend = F)
+  p3 <- plot_all_methods(res = res_district %>% filter(sim == 'WF_MNAR'), fix_axis = WF_ylims, add_lines = list(0.95, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MNAR Missing Data', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
   ggsave('figures/WF_district_plots_10302023.png', height = 7.5, width = 10)
