@@ -2785,7 +2785,7 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
   }
   
   # get color set up
-  method_colors <- setNames(c('pumpkin', 'forestgreen', 'blue'), levels(res$method))
+  method_colors <- setNames(c('orange3', 'forestgreen', 'blue'), levels(res$method))
   
   # fixing the axis dimensions
   if(length(fix_axis) == 1){
