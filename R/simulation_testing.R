@@ -10,6 +10,51 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### Investigating freqGLM - why so bad? ####
+# I'm going to just do the WF MCAR data first, 
+# Then look at bias
+# Then look at the parameter estimates from freqGLM
+
+## Bias analysis
+load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10212023.RData')
+
+p1 <- plot_all_methods(res = res_facility %>% filter(sim == 'WF_MCAR'), add_lines = list(F, F, F, F),  metrics = c('bias','RMSE'), results_by_point = F, rows = 1, title = 'Data Generated with MCAR Missing Data', include_legend = F)
+
+## Parameter estimates
+files_MCAR <- grep('2023_10_19',dir('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+res_MCAR <- combine_results_wrapper(files = files_MCAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), return_unprocessed = T)
+
+# pull the alpha and rho params by simulation
+params = NULL
+for(p in c('0','01','02','03','04','05')){
+  tt = res_MCAR$results[[p]]$freqGLM_lst
+  
+  param_res = do.call('rbind', lapply(tt, function(xx){
+    yy = xx %>% filter(param %in% c('rho', 'alpha'))
+    yy
+  }))
+  
+  param_res$p = as.numeric(p)/10
+  
+  params = rbind(params, param_res)
+  
+}
+params$full_estimate = as.numeric(params$full_estimate)
+
+tmp <- params %>%
+  group_by(param, p) %>% 
+  summarize(median = median(full_estimate),
+            lower = stats::quantile(full_estimate, probs = 0.25),
+            upper = stats::quantile(full_estimate, probs = 0.75)) 
+
+ggplot(data = tmp) +
+  geom_point(aes(x = p, y = median, color = param), position = position_dodge(width = 0.1)) + 
+  geom_errorbar(aes(x = p, ymin = lower, ymax = upper, color = param), position = position_dodge(width = 0.1)) + 
+  ggtitle('freqGLM parameter estimates for WF DGP; MCAR')
+
+
+#
 #### Plots of facility fits ####
 load(dir("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mar02_wf_beta6_n025_2023_10_21", full.names = T)[1])
 

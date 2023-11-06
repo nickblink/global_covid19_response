@@ -410,9 +410,9 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     #if('WF_betas' %in% names(lst_full[[1]])){
     WF_lst <- lapply(lst_full, function(tmp) {tmp$WF_betas})
     #}
-    #if('CARstan_ESS' %in% names(lst_full[[1]])){
     CARstan_summary <- lapply(lst_full, function(tmp) {tmp$CARstan_summary})
-    #}
+    
+    freqGLM_lst <- lapply(lst_full, function(tmp) {tmp$freqGLM_params})
     
     if(district_results){
       district_lst <- lapply(lst_full, function(tmp) {tmp$district_df})
@@ -457,19 +457,17 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     df_lst <- check_lst
   }
   
+  # store the results
+  res_lst <- list(error_lst = error_lst, 
+                  WF_lst = WF_lst,
+                  CARstan_summary = CARstan_summary,
+                  freqGLM_lst = freqGLM_lst,
+                  params = param_mat)
   
   if(district_results){
-    res_lst <- list(district_lst = district_lst, 
-                    error_lst = error_lst, 
-                    WF_lst = WF_lst,
-                    CARstan_summary = CARstan_summary,
-                    params = param_mat)
+    res_lst[['district_lst']] = district_lst 
   }else{
-    res_lst <- list(df_lst = df_lst, 
-         error_lst = error_lst, 
-         WF_lst = WF_lst,
-         CARstan_summary = CARstan_summary,
-         params = param_mat)
+    res_lst[['df_lst']] = df_lst
   }
   
   # doing this because deprecated results didnt have true betas
@@ -527,9 +525,8 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     # Check that the names match
     lst_full[[output]] <- method_name_check(lst_full[[output]], methods, give_method_name_err = give_method_name_err)
     
-    
     if(return_unprocessed){
-      res = c(res, lst_full)
+      res[[p]] <- lst_full
       next
     }
   
@@ -2782,6 +2779,10 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     }else{
       stop('need files if not providing results')
     }
+  }
+  
+  if((length(metric_rename) != length(metrics)) & (length(metrics) >0) & (length(metric_rename) > 0)){
+    stop('metric rename and metrics dont match in length')
   }
   
   # get color set up
