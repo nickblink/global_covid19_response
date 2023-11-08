@@ -88,3 +88,18 @@ sbatch --array=1-50 -J MCAR_debug_WF_p0 run_sim_size_debug.sh 0 6 n0.25 mcar WF 
 sbatch --array=1-50 -J MCAR_debug_freqGLM_p0 run_sim_size_debug.sh 0 6 n0.25 mcar freqGLM 0.3 0.3 1 1000 50 mcar0_freqGLM_size_debug_beta6_n025_2023_10_18
 
 sbatch --array=1-50 -J MCAR_debug_freqGLM_p0 run_sim_size_debug.sh 0 6 n0.25 mcar CAR 0.3 0.3 1 1000 50 mcar0_CAR_size_debug_beta6_n025_2023_10_18
+
+(7) freqGLMepi DGP; MNAR MISSINGNESS; p = 0.3
+sbatch --array=1-50 -J MNAR_freqGLM_p03 run_sim.sh 0.3 5 n0.25 mnar freqglm 0.3 0.3 1 1000 50 mnar03_freqGLM_beta5_n025_2023_11_08
+
+(8) CAR DGP; MNAR missingness; p = 0.3
+sbatch --array=1-50 -J MNAR_CAR33025_p03 run_sim.sh 0.3 6 n0.25 mnar CAR 0.3 0.3 0.25 1000 50 mnar03_CAR33025_beta6_n025_2023_11_08
+
+(9) WF DGP; MNAR missingness; p = 0.3; gamma = 2
+sbatch --array=1-50 -J MNAR_WF_p03 run_sim_gamma2.sh 0.3 6 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_gamma2_beta6_n025_2023_11_08
+
+(10) WF DGP; MNAR missingness; p = 0.3; Varying betas
+sbatch --array=1-50 -J MNAR_WF_4_n025_p03 run_sim.sh 0.3 4 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_gamma2_beta4_n025_2023_11_08
+sbatch --array=1-50 -J MNAR_WF_8_n025_p03 run_sim.sh 0.3 8 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_gamma2_beta8_n025_2023_11_08
+sbatch --array=1-50 -J MNAR_WF_4_0_p03 run_sim.sh 0.3 4 0 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_gamma2_beta4_0_2023_11_08
+sbatch --array=1-50 -J MNAR_WF_8_0_p03 run_sim.sh 0.3 8 0 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_gamma2_beta8_0_2023_11_08
