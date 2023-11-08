@@ -2571,8 +2571,8 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       plot_list[[iter]] = p1
     }else{
       # print('plotting baseline counts because no imputation methods are provided')
-      
       p1 <- ggplot() +
+        geom_line(data = tmp, aes(x = date, y=y_true), col = 'red') + 
         geom_line(data = tmp, aes(x = date, y = y), size = 1) + 
         ylim(c(0,1.5*max(tmp$y))) + 
         ggtitle(sprintf('facility %s', f)) + 

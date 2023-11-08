@@ -10,6 +10,45 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### Plots of missing assumption types ####
+# MAR 03
+load(dir("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mar03_wf_beta6_n025_2023_10_21", full.names = T)[1])
+
+df_MAR = imputed_list[[1]]$df_miss
+
+plot_facility_fits(df_MAR, methods = NULL, plot_missing_points = F,  include_legend = F)
+
+ggsave('figures/MAR03_y_plots_11082023.png', width = 14, height = 10)
+
+# MCAR 03
+load(dir("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar03_wf_beta6_n025_2023_10_19", full.names = T)[1])
+
+df_MCAR = imputed_list[[1]]$df_miss
+
+plot_facility_fits(df_MCAR, methods = NULL, plot_missing_points = F,  include_legend = F)
+
+ggsave('figures/MCAR03_y_plots_11082023.png', width = 14, height = 10)
+
+# MNAR 03
+load(dir("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mnar03_wf_beta6_n025_2023_10_21", full.names = T)[1])
+
+df_MNAR = imputed_list[[1]]$df_miss
+
+plot_facility_fits(df_MNAR, methods = NULL, plot_missing_points = T,  include_legend = F)
+
+ggsave('figures/MNAR03_y_plots_11082023.png', width = 14, height = 10)
+
+## All together now!
+p1 <- plot_facility_fits(df_MCAR, methods = NULL, plot_missing_points = T,  include_legend = F, fac_list = c('A001','A002','A003','A004'), ncol = 4)
+
+p2 <- plot_facility_fits(df_MAR, methods = NULL, plot_missing_points = T,  include_legend = F, fac_list = c('A001','A002','A003','A004'), ncol = 4)
+
+p3 <- plot_facility_fits(df_MNAR, methods = NULL, plot_missing_points = T,  include_legend = F, fac_list = c('A001','A002','A003','A004'), ncol = 4)
+
+cowplot::plot_grid(p1, p2, p3, ncol = 1, labels = c('MCAR','MAR','MNAR'))
+
+ggsave('figures/districtA_missing_y_plots_11082023.png', width = 14, height = 8)
+#
 #### Investigating freqGLM - why so bad? ####
 # I'm going to just do the WF MCAR data first, 
 # Then look at bias
@@ -73,7 +112,7 @@ ggsave('figures/sample_WF_fits_10312023.png', height = 5, width = 7)
 
 #
 #### Metrics plots! ####
-load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10212023.RData')
+load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10212023.RData')
 #load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_CAR_freq_results_10122023.RData')
 
 res_facility$method = gsub('CARstan', 'CARBayes',res_facility$method)
