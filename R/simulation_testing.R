@@ -10,6 +10,16 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### Results and plots of different DGPs and MGPs ####
+files <- grep('2023_11_08',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+
+file_CAR <- grep('car33025', files, value = T)
+res_CAR <- combine_results_wrapper(files = file_CAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+file_CAR <- grep('freqglm', files, value = T)
+res_CAR <- combine_results_wrapper(files = file_CAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+#
 #### Plots of missing assumption types ####
 # MAR 03
 load(dir("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mar03_wf_beta6_n025_2023_10_21", full.names = T)[1])
