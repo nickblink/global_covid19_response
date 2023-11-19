@@ -16,8 +16,33 @@ files <- grep('2023_11_08',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Resear
 file_CAR <- grep('car33025', files, value = T)
 res_CAR <- combine_results_wrapper(files = file_CAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
 
-file_CAR <- grep('freqglm', files, value = T)
-res_CAR <- combine_results_wrapper(files = file_CAR, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+file_freqGLM <- grep('freqglm', files, value = T)
+res_freq <- combine_results_wrapper(files = file_freqGLM, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+files_WF4_0 = grep('beta4_0', files, value = T)
+res_WF4_0 <- combine_results_wrapper(files = files_WF4_0, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+files_WF4_n025 = grep('beta4_n025', files, value = T)
+res_WF4_n025 <- combine_results_wrapper(files = files_WF4_n025, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+files_WF8_0 = grep('beta8_0', files, value = T)
+res_WF8_0 <- combine_results_wrapper(files = files_WF8_0, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+files_WF8_n025 = grep('beta8_n025', files, value = T)
+res_WF8_n025 <- combine_results_wrapper(files = files_WF8_n025, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+
+## plots of the different DGPs stacked.
+{
+  WF_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+  p1 <- plot_all_methods(res = res_CAR$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP and MNAR', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_freq$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'freqGLM DGP and MNAR', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p1$legend, ncol = 1, rel_heights = c(3,3,1))
+  ggsave('figures/MNAR_CARfreq_11172023.png', height = 7.5, width = 10)
+}
+## ^ K these are nearly identical to the MCAR results. Weird
 
 #
 #### Plots of missing assumption types ####
