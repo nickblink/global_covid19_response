@@ -10,6 +10,49 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+#### Results from plots with full data and missing data ####
+# So I want the plot to have the full data, the fit of the WF model on the full data, and the fit of the WF model on the missing data.
+
+# pull in data
+file_1 = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mnar03_wf_beta6_n025_2023_10_21"
+lst <- combine_results(file_1, return_raw_list = T)
+df = lst[[1]]$df_miss
+
+# run baseline model (no missing data)
+df = WF_baseline(df)
+
+plot_facility_fits(df, methods = c('y_pred_WF', 'y_pred_baseline_WF'), imp_names = c('MNAR','Full Data'), 
+                   plot_missing_points = F, include_legend = T, PIs = F) #fac_list = c('A001','A002','A003','A004'),
+
+ggsave('figures/baseline_vs_MNAR_WF_11192023.png', height = 10, width = 14)
+
+# Now let's look at this with different betas
+file_1 = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mnar03_wf_beta4_0_2023_11_08/"
+lst <- combine_results(file_1, return_raw_list = T)
+df = lst[[1]]$df_miss
+
+# run baseline model (no missing data)
+df = WF_baseline(df)
+
+plot_facility_fits(df, methods = c('y_pred_WF', 'y_pred_baseline_WF'), imp_names = c('MNAR','Full Data'), 
+                   plot_missing_points = F, include_legend = T, PIs = F) #fac_list = c('A001','A002','A003','A004'),
+
+ggsave('figures/baseline_vs_MNAR_WF_B4_0_11192023.png', height = 10, width = 14)
+
+# Now with gamma = 2
+file_1 = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mnar03_wf_gamma2_beta6_n025_2023_11_08/"
+lst <- combine_results(file_1, return_raw_list = T)
+df = lst[[1]]$df_miss
+
+# run baseline model (no missing data)
+df = WF_baseline(df)
+
+plot_facility_fits(df, methods = c('y_pred_WF', 'y_pred_baseline_WF'), imp_names = c('MNAR','Full Data'), 
+                   plot_missing_points = F, include_legend = T, PIs = F) #fac_list = c('A001','A002','A003','A004'),
+
+ggsave('figures/baseline_vs_MNAR_WF_gamma2_11192023.png', height = 10, width = 14)
+
+#
 #### Results and plots of different DGPs and MGPs ####
 files <- grep('2023_11_08',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 
@@ -25,24 +68,51 @@ res_WF4_0 <- combine_results_wrapper(files = files_WF4_0, methods = c("y_pred_WF
 files_WF4_n025 = grep('beta4_n025', files, value = T)
 res_WF4_n025 <- combine_results_wrapper(files = files_WF4_n025, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
 
+files_WF6_n025 = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mnar03_wf_beta6_n025_2023_10_21"
+res_WF6_n025 <- combine_results_wrapper(files = files_WF6_n025, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
 files_WF8_0 = grep('beta8_0', files, value = T)
 res_WF8_0 <- combine_results_wrapper(files = files_WF8_0, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
 
 files_WF8_n025 = grep('beta8_n025', files, value = T)
 res_WF8_n025 <- combine_results_wrapper(files = files_WF8_n025, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
 
+files_gamma2 = grep('gamma2', files, value = T)
+res_gamma2 <- combine_results_wrapper(files = files_gamma2, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
 
 ## plots of the different DGPs stacked.
 {
   WF_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
-  p1 <- plot_all_methods(res = res_CAR$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP and MNAR', include_legend = F)
+  p0 <- plot_all_methods(res = res_gamma2$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP and MNAR; gamma = 2', include_legend = F)
+  
+  p1 <- plot_all_methods(res = res_WF6_n025$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF DGP and MNAR', include_legend = F)
   
   p2 <- plot_all_methods(res = res_freq$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'freqGLM DGP and MNAR', include_legend = F)
   
-  cowplot::plot_grid(p1$plot, p2$plot, p1$legend, ncol = 1, rel_heights = c(3,3,1))
-  ggsave('figures/MNAR_CARfreq_11172023.png', height = 7.5, width = 10)
+  p3 <- plot_all_methods(res = res_CAR$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'CAR DGP and MNAR', include_legend = F)
+  
+  cowplot::plot_grid(p0$plot, p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,3,1))
+  ggsave('figures/MNAR_WFfreqCAR_11172023.png', height = 10, width = 10)
 }
 ## ^ K these are nearly identical to the MCAR results. Weird
+
+## plots of the different beta params stacked
+{
+  WF_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+  p1 <- plot_all_methods(res = res_WF4_n025$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'E[B0] = 4; E[B1] = -0.25', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_WF4_0$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'E[B0] = 4; E[B1] = 0', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_WF6_n025$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'E[B0] = 6; E[B1] = -0.25', include_legend = F)
+  
+  p4 <- plot_all_methods(res = res_WF8_n025$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'E[B0] = 8; E[B1] = -0.25', include_legend = F)
+  
+  p5 <- plot_all_methods(res = res_WF8_0$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'E[B0] = 8; E[B1] = 0', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p4$plot, p5$plot, p1$legend, ncol = 1, rel_heights = c(rep(2,5),1))
+  ggsave('figures/MNAR_WFbetas_11172023.png', height = 12.5, width = 10)
+}
 
 #
 #### Plots of missing assumption types ####
@@ -223,7 +293,7 @@ res_district$method = factor(res_district$method, levels = c('WF','freqGLM','CAR
 
 #
 #### Combining all results (WF w/ MCAR, MAR, MNAR; freqGLM MCAR; CAR_331 MCAR, CAR_33025 MCAR) - changing 10/21/2023 ####
-files <- grep('2023_10_21',dir('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
+files <- grep('2023_10_21',dir('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results', full.names = T), value = T)
 
 ## Pull in WF MCAR results
 {

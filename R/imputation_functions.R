@@ -854,13 +854,16 @@ WF_CCA <- function(df, district_df = NULL, train_end_date = '2019-12-01', ...){
 }
 
 # Run Weinberger-Fulcher (WF) model using all observed data with no missingness as a baseline comparison.
-WF_baseline <- function(df, train_end_date = '2019-12-01', col = "y", family = 'poisson', R_PI = 100){
+WF_baseline <- function(df, train_end_date = '2019-12-01', family = 'poisson', R_PI = 100){
   # replace missing points with their true values
   tmp <- df
   tmp$y <- tmp$y_true
   tmp$y[tmp$date > train_end_date] <- NA
   
-  res <- WF_imputation(tmp, col = col, family = family, R_PI = R_PI)
+  # temporary store of column names
+  colnames(tmp) <- gsub('y_pred_WF','TEMPORARY',colnames(tmp))
+  
+  res <- WF_imputation(tmp, col = 'y', family = family, R_PI = R_PI)
   
   # store the results and return the original y values
   tmp <- res$df
@@ -871,6 +874,7 @@ WF_baseline <- function(df, train_end_date = '2019-12-01', col = "y", family = '
   
   # rename columns of the results
   colnames(tmp) <- gsub('y_pred_WF', 'y_pred_baseline_WF', colnames(tmp)) 
+  colnames(tmp) <- gsub('TEMPORARY', 'y_pred_WF',colnames(tmp))
   
   return(tmp)
 }
@@ -2518,9 +2522,8 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       
       # make the plot!
       p1 <- ggplot() +
-        geom_line(data = tmp, aes(x = date, y = y), size = 1) +
-        geom_line(data = df_f, aes(x = date, y = y, group = method, color = method), show.legend = F) +
-        geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1, show.legend = F) +
+        geom_line(data = tmp, aes(x = date, y = y), size = 1) + 
+        geom_line(data = df_f, aes(x = date, y = y, group = method, color = method), show.legend = include_legend) +
         #scale_color_manual(values = c(color_vec)) + 
         #scale_fill_manual(values = c(color_vec)) + 
         ylim(c(0,ymax)) +
@@ -2529,6 +2532,10 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
         ylab('y') +
         theme_bw() +
         theme(text = element_text(size = 10))
+      
+      if(PIs){
+        p1 <- p1 + geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1, show.legend = F)
+      }
       
       if(!is.null(color_vec)){
         p1 <- p1 + 
