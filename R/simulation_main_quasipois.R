@@ -16,10 +16,11 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness DGP rho alpha tau2 R #jobs name_output job_id
-inputs <- c('0.1', '6', 'n0.25', 'mnar', 'wf', '0.3', '0.3', '1', '20','10','test','3')
+inputs <- c('0.3', '6', '0', 'mnar', 'wf', '0.3', '0.3', '1', '20','10','test','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
+theta = 100
 ### Get parameters (for home and cluster)
 {
 # pull parameters into proper format
@@ -90,7 +91,7 @@ if(DGP == 'wf'){
                        b0_mean = b0_mean, 
                        b1_mean = b1_mean,
                        family = 'quasipoisson',
-                       theta = 9)
+                       theta = theta)
 }else if(DGP == 'car'){
   lst <- simulate_data(district_sizes = c(4, 6, 10),
                        R = R_new, 
@@ -103,7 +104,7 @@ if(DGP == 'wf'){
                        alpha = alpha_DGP, 
                        tau2 = tau2_DGP,
                        family = 'quasipoisson',
-                       theta = 9)
+                       theta = theta)
 }else if(DGP == 'freqglm'){
   lst <- simulate_data(district_sizes = c(4, 6, 10),
                        R = R_new, 
@@ -115,7 +116,7 @@ if(DGP == 'wf'){
                        rho = rho_DGP, 
                        alpha = alpha_DGP,
                        family = 'quasipoisson',
-                       theta = 9)
+                       theta = theta)
 }else{
   stop('unrecognized data generating process')
 }
@@ -281,9 +282,13 @@ system.time({
   imputed_list <- foreach(i=1:R_new) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARstan'))
 })
 
-# res <- one_run(lst, 1, freqGLM_params = list(R_PI = 5), MCMC_params = list(burnin.stan = 20, n.sample.stan = 50, burnin.CARBayesST = 100, n.sample.CARBayesST = 200))
+res <- one_run(lst, 1, models = 'WF')
 
-true_betas <- lst$betas
+# res_theta100_b6_0 = res
+# res_theta100 = res
+# res_theta9 = res
+# res_theta4 = res
+# res_theta2 = res
 
-save(imputed_list, seq, params, true_betas, file = results_file)
+# save(res_theta2, res_theta4, res_theta9, res_theta100, res_theta100_b6_0, file = "C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/quasipoisson_results_11202023.RData")
 
