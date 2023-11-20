@@ -11,6 +11,10 @@ get_p_from_name <- function(file){
   return(p)
 }
 
+rqpois <- function(n, mu, theta) {
+  rnbinom(n = n, mu = mu, size = mu/(theta-1))
+}
+
 # make the adjacency matrix according to all facilities in a district being neighbors
 make_district_adjacency <- function(df, scale_by_num_neighbors = F){
   
@@ -3029,7 +3033,8 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25
   return(betas)
 }
 
-simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10, type = 'WF', ...){
+### Function to simulate the data for a variety of situations
+simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10, type = 'WF', family = 'poisson', ...){
   
   # set seed so the betas are always the same
   set.seed(10)
@@ -3052,6 +3057,14 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
     betas = sample_real_betas(facilities)
   }else{
     betas = sample_betas(facilities, ...)  
+  }
+  
+  if(family == 'poisson'){
+    DGP_function = rpois
+  }else if(family == 'quasipoisson'){
+    DGP_function <- function(n, mu){
+      y <- rqpois(n, mu, theta = list(...)$theta)
+    }
   }
   
   # initialize list of data frames
@@ -3093,7 +3106,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         tmp$y_var <- tmp$y_exp
         
         # simluate random values
-        tmp$y = rpois(length(mu), exp(mu))
+        tmp$y = DGP_function(length(mu), exp(mu))
         
         return(tmp)
       })
@@ -3200,7 +3213,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       df$y_var = df$y_exp + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
       
       # simulate the observed values
-      df$y = rpois(nrow(df), exp(df$mu + df$phi))
+      df$y = DGP_function(nrow(df), exp(df$mu + df$phi))
       
       return(df)
     })
@@ -3286,7 +3299,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       # this adjustment comes from the sum of a geometric series (since this is roughly the effect that the spatial and autoregressive terms approach as we increase the time series)
       adjustment = 1 + rho/(1-rho) + alpha/(1-alpha)
       df$y_exp[ind] = df$y_var[ind] = adjustment*exp(df$mu[ind])
-      df$y[ind] = rpois(length(ind), df$y_exp[ind])
+      df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
       
       # update the neighbors and auto-regressive terms
       df <- add_autoregressive(df, 'y') %>%
@@ -3302,7 +3315,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
           alpha*df$y.AR1[ind] + rho*df$y.neighbors[ind]
         
         # predict!
-        df$y[ind] = rpois(length(ind), df$y_exp[ind])
+        df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
         # 
         # for(f in facilities){
         #   df_tmp = df %>% filter(date == d, facility == f)
