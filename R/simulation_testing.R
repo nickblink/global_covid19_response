@@ -11,7 +11,7 @@ library(ggplot2)
 library(cowplot)
 
 #### Results from quasipoisson DGP ####
-load("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/quasipoisson_results_11202023.RData")
+load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/quasipoisson_results_11202023.RData")
 
 ## theta = 2
 df = res_theta2$df_miss
@@ -39,6 +39,13 @@ plot_facility_fits(df, methods = c('y_pred_WF', 'y_pred_baseline_WF'), imp_names
 
 ggsave('figures/baseline_vs_MNAR_WF_QPtheta100_11192023.png', height = 10, width = 14)
 
+## theta = 100, b0 = 6, b1 = 0
+df = res_theta100_b6_0$df_miss
+df = WF_baseline(df)
+# plot em!
+plot_facility_fits(df, methods = c('y_pred_WF', 'y_pred_baseline_WF'), imp_names = c('MNAR','Full Data'), plot_missing_points = F, include_legend = T, PIs = F)
+
+ggsave('figures/baseline_vs_MNAR_WF_QPtheta100_b6_0_11192023.png', height = 10, width = 14)
 
 #
 #### Results from plots with full data and missing data ####
