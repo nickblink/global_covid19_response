@@ -103,3 +103,6 @@ sbatch --array=1-50 -J MNAR_WF_4_n025_p03 run_sim.sh 0.3 4 n0.25 mnar WF 0.3 0.3
 sbatch --array=1-50 -J MNAR_WF_8_n025_p03 run_sim.sh 0.3 8 n0.25 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_gamma2_beta8_n025_2023_11_08
 sbatch --array=1-50 -J MNAR_WF_4_0_p03 run_sim.sh 0.3 4 0 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_gamma2_beta4_0_2023_11_08
 sbatch --array=1-50 -J MNAR_WF_8_0_p03 run_sim.sh 0.3 8 0 mnar WF 0.3 0.3 1 1000 50 mnar03_WF_gamma2_beta8_0_2023_11_08
+
+(11) Testing WF DGP; MNAR missingness; p = 0.3 
+sbatch --array=1-50 -J MNAR_WF_TEST run_sim_test.sh p=0.3:b0_mean=6:b1_mean=n0.25:missingness=mnar:gamma=1:DGP=WF:family=quasipoisson:theta=9:R=1000:num_jobs=50:output_path=mnar03_WF_QP9_TEST_beta6_n025_2023_11_28

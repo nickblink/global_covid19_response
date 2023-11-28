@@ -3036,7 +3036,7 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25
 ### Function to simulate the data for a variety of situations
 simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10, type = 'WF', family = 'poisson', ...){
   
-  # set seed so the betas are always the same
+  # set seed so the betas are always the same (the seed input is used later for simulating the data on top of these betas)
   set.seed(10)
   
   # set up data frame
