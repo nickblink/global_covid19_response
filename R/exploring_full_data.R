@@ -8,7 +8,21 @@ source('R/imputation_functions.R')
 D = readRDS('data/liberia_cleaned_NL.rds')
 D2 = readRDS('data/liberia_cleaned_01-06-2021.rds')
 
+##### Fitting all the indicators #####
 
+indicators <- grep('indicator', colnames(D2), value = T)
+
+system.time({
+res <- lapply(indicators, function(ind){
+  tmp <- fit_WF_model(D2, outcome = ind, family = 'nb')
+  tmp
+})
+})
+# k it'll be about 30 minutes to run them all
+
+sapply(res, function(xx){colMeans(xx[3:10], na.rm = T)})
+
+#
 ##### Comparing data sources #####
 dim(D)
 dim(D2)
@@ -19,7 +33,7 @@ D2 = D2 %>%
          date <= max(D$date))
 
 res <- fit_WF_model(D)
-res2 <- fit_WF_model(D)
+res2 <- fit_WF_model(D2)
 
 ##### Fitting all facilities WF/freqGLM #####
 
