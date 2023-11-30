@@ -1,10 +1,5 @@
 ## This script makes bash commands for given simulations
 
-TO DO:
-  make wrapper function to cycle through p and to write a file
-
-sbatch --array=1-50 -J MNAR_WF_TEST run_sim.sh p=0.3:b0_mean=6:b1_mean=n0.25:missingness=mnar:gamma=1:DGP=WF:family=quasipoisson:theta=9:R=1000:num_jobs=50:output_path=mnar03_WF_QP9_TEST_beta6_n025_2023_11_28
-
 bash_command <- function(p = NULL, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar',DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL){
   
   if(tolower(DGP) == 'mcar'){
@@ -90,4 +85,14 @@ bash_command <- function(p = NULL, b0_mean = 6, b1_mean = 'n0.25', missingness =
   command_str = sprintf('sbatch --array=1-50 -J %s run_sim.sh %s', job_name, param_str)
   
   return(command_str)
+}
+
+bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
+  cmds <- data.frame(sapply(p_vec, function(xx){ bash_command(p = xx, ...)}))
+  
+  if(!is.null(bash_file)){
+    write.table(cmds, file = bash_file, row.names = F, col.names = F, quote = F)
+  }
+  
+  return(cmds)
 }
