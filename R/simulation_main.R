@@ -16,103 +16,85 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('0.1', '6', 'n0.25', 'mar', 'wf', '0.3', '0.3', '1', '20','10','test','3')
+inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.3:alpha_DGP=0.3:tau2_DGP=1:family=quasipoisson:theta=9:R=20:num_jobs=10:output_path=test','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
 ### Get parameters (for home and cluster)
 {
 # pull parameters into proper format
-p <- as.numeric(inputs[[1]])
-b0_mean <- as.numeric(strsplit(inputs[[2]], '/')[[1]])
-b1_mean <- tryCatch({as.numeric(inputs[[3]])
-}, warning = function(w){
-  if(substr(inputs[[3]],1,1) == 'n'){
-    return(-as.numeric(substr(inputs[[3]], 2, nchar(inputs[[3]]))))
+params <- list()
+
+params[['job_id']] <- as.integer(inputs[[2]])
+for(str in strsplit(inputs[[1]],':')[[1]]){
+  tmp = strsplit(str, '=')[[1]]
+  nn = tmp[1]
+  val = tolower(tmp[2])
+  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta')){
+    val = as.numeric(val)
+  }else if(nn == 'b0_mean'){
+    val = as.numeric(strsplit(val, '/')[[1]])
+  }else if(nn == 'b1_mean'){
+    val = tryCatch({as.numeric(val)
+    }, warning = function(w){
+      if(substr(val,1,1) == 'n'){
+        return(-as.numeric(substr(val, 2, nchar(val))))
+      }
+    })
+  }else if(nn %in% c('R','num_jobs')){
+    val = as.integer(val)
   }
-})
-missingness <- tolower(inputs[[4]])
-DGP <- tolower(inputs[[5]])
-rho_DGP <- as.numeric(tolower(inputs[[6]]))
-alpha_DGP <- as.numeric(tolower(inputs[[7]]))
-tau2_DGP <- as.numeric(tolower(inputs[[8]]))
-R <- as.integer(inputs[[9]])
-num_jobs <- as.integer(inputs[[10]])
-output_path <- tolower(inputs[[11]])
-job_id <- as.integer(inputs[[12]])
+  params[[nn]] = val
+}
 
 # check that proper missingness is input
-if(!(missingness %in% c('mcar','mar','mnar'))){
+if(!(params[['missingness']] %in% c('mcar','mar','mnar'))){
   stop('please input a proper missingness')
 }else{
-  print(sprintf('proceeding with %s missingness', missingness))
+  print(sprintf('proceeding with %s missingness', params[['missingness']]))
 }
-
-# storing all the parameters
-params <- list()
-params[['p']] <- p
-params[['missingness']] <- missingness
-params[['DGP']] <- DGP
-if(DGP == 'car' | DGP == 'freqglm'){
-  params[['rho_DGP']] <- rho_DGP
-  params[['alpha_DGP']] <- alpha_DGP
-  params[['tau2_DGP']] <- tau2_DGP
-}
-params[['b0_mean']] <- b0_mean
-params[['b1_mean']] <- b1_mean
-if(missingness == 'mar'){
-  params[['rho_MAR']] <- 0.7
-  params[['alpha_MAR']] <- 0.7
-  params[['tau2_MAR']] <- 9
-}else if(missingness =='mnar'){
-  params[['gamma']] <- 1
-}
-params[['R']] <- R
-params[['num_jobs']] <- num_jobs
-params[['job_id']] <- job_id
 
 # get sequence of simulation iterations to run
 # (deprecated - now I just simulate R_new # of data frames)
-if(job_id < num_jobs){
-  seq <- (floor(R/num_jobs)*(job_id - 1) + 1):(floor(R/num_jobs)*job_id)
+if(params[['job_id']] < params[['num_jobs']]){
+  seq <- (floor(params[['R']]/params[['num_jobs']])*(params[['job_id']] - 1) + 1):(floor(params[['R']]/params[['num_jobs']])*params[['job_id']])
 }else{
-  seq <- (floor(R/num_jobs)*(job_id - 1) + 1):R
+  seq <- (floor(params[['R']]/params[['num_jobs']])*(params[['job_id']] - 1) + 1):params[['R']]
 }
 
 R_new = length(seq)
 
-# Simulate the data
-if(DGP == 'wf'){
-  lst <- simulate_data(district_sizes = c(4, 6, 10), 
-                       R = R_new, 
-                       seed = job_id,
-                       end_date = '2020-12-01', 
-                       b0_mean = b0_mean, 
-                       b1_mean = b1_mean)
-}else if(DGP == 'car'){
-  lst <- simulate_data(district_sizes = c(4, 6, 10),
-                       R = R_new, 
-                       seed = job_id,
-                       end_date = '2020-12-01',
-                       b0_mean = b0_mean, 
-                       b1_mean = b1_mean,
-                       type = 'CAR',
-                       rho = rho_DGP, 
-                       alpha = alpha_DGP, 
-                       tau2 = tau2_DGP)
-}else if(DGP == 'freqglm'){
-  lst <- simulate_data(district_sizes = c(4, 6, 10),
-                       R = R_new, 
-                       seed = job_id,
-                       end_date = '2020-12-01',
-                       b0_mean = b0_mean, 
-                       b1_mean = b1_mean,
-                       type = 'freqGLM',
-                       rho = rho_DGP, 
-                       alpha = alpha_DGP)
-}else{
-  stop('unrecognized data generating process')
+# input arguments to data simulation
+arguments = list(district_sizes = c(4, 6, 10), 
+                 R = R_new, 
+                 seed = params[['job_id']],
+                 end_date = '2020-12-01', 
+                 b0_mean = params[['b0_mean']], 
+                 b1_mean = params[['b1_mean']])
+
+if(params[['DGP']] == 'car'){
+  arguments = c(arguments, 
+                   list(type = 'CAR',
+                   rho = params[['rho_DGP']], 
+                   alpha = params[['alpha_DGP']], 
+                   tau2 = params[['tau2_DGP']]))
+}else if(params[['DGP']] == 'freqglm'){
+  arguments = c(arguments,
+                list(type = 'freqGLM',
+                     rho = params[['rho_DGP']],  
+                     alpha = params[['alpha_DGP']]))
 }
+
+if(!is.null(params[['family']])){
+  if(params[['family']] == 'quasipoisson'){
+    arguments = c(arguments,
+                  list(family = 'quasipoisson',
+                       theta = params[['theta']]))
+  }
+}
+
+# Simulate the data
+lst <- do.call(simulate_data, arguments)
 
 print('data made')
 
@@ -128,28 +110,28 @@ errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
 {
 # set up the output folder
 date <- gsub('-','_', Sys.Date())
-if(output_path == 'na'){
-  output_path <- sprintf('results/%s%s_%s_%s', missingness, gsub('\\.','',p), DGP, date)
+if(params[['output_path']] == 'na'){
+  params[['output_path']] <- sprintf('results/%s%s_%s_%s', params[['missingness']], gsub('\\.','', params[['p']]), params[['DGP']], date)
 }else{
-  output_path <- sprintf('results/%s', output_path)
+  params[['output_path']] <- sprintf('results/%s', params[['output_path']])
 }
 
-if(!file.exists(output_path)){
-  dir.create(output_path, recursive = T)
+if(!file.exists(params[['output_path']])){
+  dir.create(params[['output_path']], recursive = T)
 }
-results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i).RData', output_path, p, missingness, job_id, num_jobs)
+results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i).RData', params[['output_path']], params[['p']], params[['missingness']], params[['job_id']], params[['num_jobs']])
 
 if(file.exists(results_file)){
   iter = 0
   while(file.exists(results_file)){
     iter = iter + 1
-    results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i)(%i).RData', output_path, p, missingness, job_id, num_jobs, iter)
+    results_file <- sprintf('%s/sim_results_p%1.1f_%s_%i(%i)(%i).RData', params[['output_path']], params[['p']], params[['missingness']], params[['job_id']], params[['num_jobs']], iter)
   }
 }
 
 # save the data
-if(job_id == 1){
-  save(lst, file = paste0(output_path, '/simulated_data.RData'))
+if(params[['job_id']] == 1){
+  save(lst, file = paste0(params[['output_path']], '/simulated_data.RData'))
 }
 
 }
@@ -165,12 +147,12 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
   
   set.seed(i)
    # add in missingness
-  if(missingness == 'mcar'){
-    df_miss = MCAR_sim(df, p = p, by_facility = T)
-  }else if(missingness == 'mar'){
-    df_miss = MAR_spatiotemporal_sim(df, p = p, rho = params[['rho_MAR']], alpha = params[['alpha_MAR']], tau = params[['tau2_MAR']])
+  if(params[['missingness']] == 'mcar'){
+    df_miss = MCAR_sim(df, p = params[['p']], by_facility = T)
+  }else if(params[['missingness']] == 'mar'){
+    df_miss = MAR_spatiotemporal_sim(df, p = params[['p']], rho = params[['rho_MAR']], alpha = params[['alpha_MAR']], tau = params[['tau2_MAR']])
   }else{
-    df_miss <- MNAR_sim(df, p = p, direction = 'upper', gamma = params[['gamma']], by_facility = T)
+    df_miss <- MNAR_sim(df, p = params[['p']], direction = 'upper', gamma = params[['gamma']], by_facility = T)
   }
   
   # initializing the return list
