@@ -1,0 +1,6 @@
+sbatch --array=1-50 -J mnar0_WF_beta06_beta1n025 run_sim.sh p=0:b0_mean=6:b1_mean=n0.25:missingness=mnar:DGP=WF:R=1000:num_jobs=50:output_path=mnar0_WF_beta06_beta1n025_2023_11_30:gamma=1:theta=100:family=quasipoisson
+sbatch --array=1-50 -J mnar01_WF_beta06_beta1n025 run_sim.sh p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mnar:DGP=WF:R=1000:num_jobs=50:output_path=mnar01_WF_beta06_beta1n025_2023_11_30:gamma=1:theta=100:family=quasipoisson
+sbatch --array=1-50 -J mnar02_WF_beta06_beta1n025 run_sim.sh p=0.2:b0_mean=6:b1_mean=n0.25:missingness=mnar:DGP=WF:R=1000:num_jobs=50:output_path=mnar02_WF_beta06_beta1n025_2023_11_30:gamma=1:theta=100:family=quasipoisson
+sbatch --array=1-50 -J mnar03_WF_beta06_beta1n025 run_sim.sh p=0.3:b0_mean=6:b1_mean=n0.25:missingness=mnar:DGP=WF:R=1000:num_jobs=50:output_path=mnar03_WF_beta06_beta1n025_2023_11_30:gamma=1:theta=100:family=quasipoisson
+sbatch --array=1-50 -J mnar04_WF_beta06_beta1n025 run_sim.sh p=0.4:b0_mean=6:b1_mean=n0.25:missingness=mnar:DGP=WF:R=1000:num_jobs=50:output_path=mnar04_WF_beta06_beta1n025_2023_11_30:gamma=1:theta=100:family=quasipoisson
+sbatch --array=1-50 -J mnar05_WF_beta06_beta1n025 run_sim.sh p=0.5:b0_mean=6:b1_mean=n0.25:missingness=mnar:DGP=WF:R=1000:num_jobs=50:output_path=mnar05_WF_beta06_beta1n025_2023_11_30:gamma=1:theta=100:family=quasipoisson

@@ -1,22 +1,22 @@
 ## This script makes bash commands for given simulations
 
-bash_command <- function(p = NULL, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar',DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL){
+bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL){
   
-  if(tolower(DGP) == 'mcar'){
-    DGP_name = 'mcar'
+  if(tolower(DGP) == 'wf'){
+    DGP_name = 'WF'
   }else if(tolower(DGP) == 'car'){
-    browser()
+    DGP_name = gsub('\\.', '', sprintf('CAR%s%s%s', rho_DGP, alpha_DGP, tau2_DGP))
   }else if(tolower(DGP) == 'freqglm'){
-    browser()
+    DGP_name = gsub('\\.', '', sprintf('freqGLM%s%s', rho_DGP, alpha_DGP))
   }
   
   # make the output folder
   if(is.null(output_path)){
-    output_path <- sprintf('%s%s_%s_beta0%s_beta1%s_%s', missingness, p, DGP, b0_mean, b1_mean, gsub('-','_',Sys.Date()))
+    output_path <- sprintf('%s%s_%s_beta0%s_beta1%s_%s', missingness, p, DGP_name, b0_mean, b1_mean, gsub('-','_',Sys.Date()))
     output_path <- gsub('\\.','',output_path)
   }
   
-  job_name = sprintf('%s%s_%s_beta0%s_beta1%s', missingness, p, DGP, b0_mean, b1_mean)
+  job_name = sprintf('%s%s_%s_beta0%s_beta1%s', missingness, p, DGP_name, b0_mean, b1_mean)
   job_name <- gsub('\\.', '', job_name)
   
   params <- list(p = p,
@@ -74,7 +74,8 @@ bash_command <- function(p = NULL, b0_mean = 6, b1_mean = 'n0.25', missingness =
           stop('please input theta value for quasipoisson')
         }else{
           params <- c(params,
-                      list(theta = theta))
+                      list(theta = theta,
+                           family = family))
         }
       }
     }
@@ -91,12 +92,29 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   cmds <- data.frame(sapply(p_vec, function(xx){ bash_command(p = xx, ...)}))
   
   if(!is.null(bash_file)){
-    write.table(cmds, file = bash_file, row.names = F, col.names = F, quote = F)
+    out_file <- file(bash_file, open='wb')
+    write.table(cmds, file = out_file, row.names = F, col.names = F, quote = F, append = T,eol='\n')
+    close(out_file)
   }
   
   return(cmds)
 }
 
 
+## commands for MAR quasipoisson
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/MAR_QP9_11302023.txt')
 
-bash_wrapper(missingness = 'mar', rho_DGP = 0.7, )
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 100, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/MAR_QP100_11302023.txt')
+
+## commands for MNAR quasipoisson
+bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/MNAR_QP9_11302023.txt')
+
+bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/MNAR_QP100_11302023.txt')
+
+## commands for MNAR QP with WF diff. params
+bash_wrapper(b1_mean = 0, missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/MNAR_QP9_b10_11302023.txt')
+
+bash_wrapper(b1_mean = 0, missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/MNAR_QP100_b10_11302023.txt')
+
+
+
