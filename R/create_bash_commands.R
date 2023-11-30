@@ -96,3 +96,7 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   
   return(cmds)
 }
+
+
+
+bash_wrapper(missingness = 'mar', rho_DGP = 0.7, )
