@@ -18,10 +18,43 @@ res <- lapply(indicators, function(ind){
   tmp
 })
 })
-# k it'll be about 30 minutes to run them all
+names(res) <- indicators
+# k it'll be about 30 minutes to run them all. Exactamundo
 
-sapply(res, function(xx){colMeans(xx[3:10], na.rm = T)})
+# res_df <- t(sapply(res, function(xx){colMeans(xx[3:10], na.rm = T)}))
 
+res_df <- t(sapply(res, function(xx){apply(xx[,3:10], 2, function(tt){median(tt, na.rm = T)})}))
+
+# save(res, res_df, file = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/all_indicators_all_facilities_12012023.RData")
+
+col = res_df[,1]
+col[col<= -50] <- -50
+col[col>50] <- 50
+plot(density(col, na.rm = T))
+
+max(col[col<50], na.rm = T) # 37
+
+res_df[98,]
+# ok so super steep slope
+
+col = res_df[,1]
+col[col<= -10] <- -10
+col[col>10] <- 10
+plot(density(col, na.rm = T))
+
+# all visits - centered around 6 but the year is smaller than I have done
+res_df["indicator_count_allvisits",]
+res_df["indicator_denom",]
+res_df["indicator_count_ari_total",]
+
+# wow ARI total is small! Damn really? I could implement these numbers...that's tiny.
+tt <- res[["indicator_count_ari_total"]]
+cor(na.omit(tt)[,3:10])
+# so intercept and year are negatively correlated. Interesting. So the higher the year, the more the negative correlation.
+
+E4 = tt[,3] + 4*tt[,4]
+plot(density(E4[E4>-5 & E4 < 10], na.rm = T))
+# centered around 3. Huh
 #
 ##### Comparing data sources #####
 dim(D)

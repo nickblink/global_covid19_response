@@ -307,7 +307,7 @@ fit_WF_model <- function(data, outcome = 'indicator_count_ari_total', facilities
   
   # combine the results
   df = do.call('rbind', lapply(tmp, function(xx) {
-    if(is.na(xx)){
+    if(all(is.na(xx))){
       return(rep(NA, 8))
     }else{
       if(!xx$converged){
