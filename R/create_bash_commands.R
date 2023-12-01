@@ -89,12 +89,24 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
 }
 
 bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
-  cmds <- data.frame(sapply(p_vec, function(xx){ bash_command(p = xx, ...)}))
+  cmds <- lapply(p_vec, function(xx){ bash_command(p = xx, ...)})
   
   if(!is.null(bash_file)){
-    out_file <- file(bash_file, open='wb')
-    write.table(cmds, file = out_file, row.names = F, col.names = F, quote = F, append = T,eol='\n')
-    close(out_file)
+    # if it already exists, update it
+    if(file.exists(bash_file)){
+      lapply(cmds, write, bash_file, append = T)
+    # if it doesn't exist, create it
+    }else{
+      out_file <- file(bash_file, open='wb')
+      lapply(cmds, write, out_file, append = T)
+      close(out_file)
+    }
+    # check that there are no repeats in commands
+    test <- read.table(bash_file)
+    
+    if(length(unique(test[,ncol(test)])) != length(test[,ncol(test)])){
+      stop('there are repeating simulation commands')
+    }
   }
   
   return(cmds)
@@ -102,19 +114,17 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
 
 
 ## commands for MAR quasipoisson
-bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/MAR_QP9_11302023.txt')
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_11302023.txt')
 
-bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 100, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/MAR_QP100_11302023.txt')
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 100, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_11302023.txt')
 
 ## commands for MNAR quasipoisson
-bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/MNAR_QP9_11302023.txt')
+bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_11302023.txt')
 
-bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/MNAR_QP100_11302023.txt')
+bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_11302023.txt')
 
 ## commands for MNAR QP with WF diff. params
-bash_wrapper(b1_mean = 0, missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/MNAR_QP9_b10_11302023.txt')
+bash_wrapper(b1_mean = 0, missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_11302023.txt')
 
-bash_wrapper(b1_mean = 0, missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/MNAR_QP100_b10_11302023.txt')
-
-
+bash_wrapper(b1_mean = 0, missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_11302023.txt')
 
