@@ -10,6 +10,108 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
+res_dir = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results"
+
+#
+#### Processing all the 12/01 results ####
+# So I named the output files wrong. Damn
+files = grep('2023_12_01',dir(res_dir, full.names = T), value = T)
+
+# check that there are enough files (as in, none overwrote each other)
+for(d in files){
+  tt = dir(d)
+  print(length(tt))
+}
+
+# check the parameters of each file in each folder
+param_list = list()
+
+# cycle through each file, pull the params, and store
+for(d in files){
+  tt = dir(d, full.names = T)
+  tt = tt[-grep('simulated_data', tt)]
+  
+  df = data.frame(root_dir = NULL, 
+                  parenthses = NULL,
+                  theta = NULL)
+  for(file in tt){
+    load(file)
+    df = rbind(df, data.frame(
+      root_dir = d,
+      parentheses = str_count(file, '\\('),
+      theta = params$theta
+    ))
+  }
+  
+  param_list[[d]] = df
+}
+
+# make sure the params are distinctly separate
+for(d in names(param_list)){
+  print(d)
+  xx = param_list[[d]]
+  print(table(xx$parentheses, xx$theta))
+}
+
+# delete the ish
+for(d in files){
+  if(grepl('theta100', d)){
+    # remove files with 1 parentheses
+    for(file in dir(d, full.names = T)){
+      parentheses = str_count(file, '\\(')
+      if(parentheses == 1){
+        file.remove(file)
+      }
+    }
+    # rename the files
+    for(file in dir(d, full.names = T)){
+      new_file = gsub('\\)\\([0-9]\\)','\\)',file)
+      file.rename(file, new_file)
+    }
+  }else{
+    for(file in dir(d, full.names = T)){
+      parentheses = str_count(file, '\\(')
+      if(parentheses == 2){
+        file.remove(file)
+      }
+    }
+  }
+}
+
+# run the parameter check again to confirm this was ok. 
+# check the parameters of each file in each folder
+param_list = list()
+
+# cycle through each file, pull the params, and store
+for(d in files){
+  tt = dir(d, full.names = T)
+  tt = tt[-grep('simulated_data', tt)]
+  
+  df = data.frame(root_dir = NULL, 
+                  parenthses = NULL,
+                  theta = NULL)
+  for(file in tt){
+    load(file)
+    df = rbind(df, data.frame(
+      root_dir = d,
+      parentheses = str_count(file, '\\('),
+      theta = params$theta
+    ))
+  }
+  
+  param_list[[d]] = df
+}
+
+# make sure the params are distinctly separate
+for(d in names(param_list)){
+  print(d)
+  xx = param_list[[d]]
+  print(table(xx$parentheses, xx$theta))
+}
+
+# good! Phew! Jesus.
+
+#
 #### Results from quasipoisson DGP ####
 load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/quasipoisson_results_11202023.RData")
 

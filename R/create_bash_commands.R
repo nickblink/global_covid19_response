@@ -10,9 +10,17 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
     DGP_name = gsub('\\.', '', sprintf('freqGLM%s%s', rho_DGP, alpha_DGP))
   }
   
+  if(!is.null(family)){
+    if(family=='quasipoisson'){
+      DGP_name = paste0(DGP_name, sprintf('_QPtheta%s', theta))
+    }else{
+      stop('input a proper family type')
+    }
+  }
+  
   # make the output folder
   if(is.null(output_path)){
-    output_path <- sprintf('%s%s_%s_beta0%s_beta1%s_%s', missingness, p, DGP_name, b0_mean, b1_mean, gsub('-','_',Sys.Date()))
+    output_path <- sprintf('%s%s_%s_beta0%s_beta1%s_ID%s_%s', missingness, p, DGP_name, b0_mean, b1_mean, sample(1e6, size = 1), gsub('-','_',Sys.Date()))
     output_path <- gsub('\\.','',output_path)
   }
   
@@ -103,8 +111,13 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
     }
     # check that there are no repeats in commands
     test <- read.table(bash_file)
+    col <- lapply(test[,ncol(test)], function(str){
+      tmp <- strsplit(str, ':')[[1]]
+      tmp <- tmp[-grep('output_path', tmp)]
+      paste(tmp, collapse = ':')
+    })
     
-    if(length(unique(test[,ncol(test)])) != length(test[,ncol(test)])){
+    if(length(unique(col)) != length(col)){
       stop('there are repeating simulation commands')
     }
   }
@@ -112,7 +125,41 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+# filling in the two runs that were messed up last time
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12042023_fixed.txt')
 
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12042023_fixed.txt')
+# ^manually delete the ones I dont need
+
+# WF MCAR QP9
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+# WF MCAR QP100
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+# WF MCAR QP9 EB1 = 0
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 9, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+# WF MCAR QP100 EB1 = 0
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 100, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+# WF MAR QP9 EB1 = 0
+bash_wrapper(missingness = 'mar', b1_mean = 0, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+# WF MAR QP100 EB1 = 0
+bash_wrapper(missingness = 'mar', b1_mean = 0, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+# WF MCAR low mean EB0 = 2
+bash_wrapper(missingness = 'mcar', b0_mean = 2, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+# CAR MCAR low mean EB0 = 2
+bash_wrapper(missingness = 'mcar', DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25, b0_mean = 2, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+# freqGLM MCAR low mean EB0 = 2
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 2, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12042023.txt')
+
+#
+#### On 11/30/2023 ####
 ## commands for MAR quasipoisson
 bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_11302023.txt')
 
