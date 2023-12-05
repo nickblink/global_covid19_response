@@ -125,6 +125,61 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+#### On 12/5/2023 part 2 #####
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 100, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+## commands for MNAR quasipoisson
+bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+## commands for MNAR QP with WF diff. params
+bash_wrapper(b1_mean = 0, missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+bash_wrapper(b1_mean = 0, missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# WF MCAR QP9
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# WF MCAR QP100
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# WF MCAR QP9 EB1 = 0
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 9, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# WF MCAR QP100 EB1 = 0
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 100, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# WF MAR QP9 EB1 = 0
+bash_wrapper(missingness = 'mar', b1_mean = 0, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# WF MAR QP100 EB1 = 0
+bash_wrapper(missingness = 'mar', b1_mean = 0, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# WF MCAR low mean EB0 = 2
+bash_wrapper(missingness = 'mcar', b0_mean = 2, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# CAR MCAR low mean EB0 = 2
+bash_wrapper(missingness = 'mcar', DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25, b0_mean = 2, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# freqGLM MCAR low mean EB0 = 2
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 2, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+
+#
+#### On 12/5/2023 ####
+# fixing the MAR QP B1_0 runs. Idk what happened with those.
+
+# WF MAR QP9 EB1 = 0
+bash_wrapper(missingness = 'mar', b1_mean = 0, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+# WF MAR QP100 EB1 = 0
+bash_wrapper(missingness = 'mar', b1_mean = 0, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
+
+#
+#### On 12/4/2023 ####
 # filling in the two runs that were messed up last time
 bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12042023_fixed.txt')
 

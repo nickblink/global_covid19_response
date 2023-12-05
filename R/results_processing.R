@@ -12,6 +12,147 @@ library(cowplot)
 
 res_dir = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results"
 
+#### Processing all the 12/01 and 12/04 results ####
+files = grep('2023_12_01|2023_12_04',dir(res_dir, full.names = T), value = T)
+
+get_results <- function(file_names, sim_name, district_results = F){
+  res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), district_results = district_results)
+  
+  res$results$sim = sim_name 
+  
+  return(res)
+}
+
+# initialize
+res_facility = list()
+res_district = list()
+
+# (1) WF MAR QP 9 (beta = 6, -0.25)
+files_MAR_QP9_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta9_beta06_beta1n025', files, value = T)
+
+res_facility[['WF_MAR_QP9_6n025']] <- get_results(files_MAR_QP9_6n025, 'WF_MAR_QP9_6n025')
+res_district[['WF_MAR_QP9_6n025']] <-  get_results(files_MAR_QP9_6n025, 'WF_MAR_QP9_6n025', district_results = T)
+
+# (2) WF MAR QP 100 (beta = 6, -0.25)
+files_MAR_QP100_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta100_beta06_beta1n025', files, value = T)
+
+res_facility[['WF_MAR_QP100_6n025']] <- get_results(files_MAR_QP100_6n025, 'WF_MAR_QP100_6n025')
+res_district[['WF_MAR_QP100_6n025']] <-  get_results(files_MAR_QP100_6n025, 'WF_MAR_QP100_6n025', district_results = T)
+
+# (3) WF MNAR QP 9 (beta = 6, -0.25)
+files_MNAR_QP9_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta9_beta06_beta1n025', files, value = T)
+
+res_facility[['WF_MNAR_QP9_6n025']] <- get_results(files_MNAR_QP9_6n025, 'WF_MNAR_QP9_6n025')
+res_district[['WF_MNAR_QP9_6n025']] <-  get_results(files_MNAR_QP9_6n025, 'WF_MNAR_QP9_6n025', district_results = T)
+
+# (4) WF MNAR QP 100 (beta = 6, -0.25)
+files_MNAR_QP100_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta100_beta06_beta1n025', files, value = T)
+
+res_facility[['WF_MNAR_QP100_6n025']] <- get_results(files_MNAR_QP100_6n025, 'WF_MNAR_QP100_6n025')
+res_district[['WF_MNAR_QP100_6n025']] <-  get_results(files_MNAR_QP100_6n025, 'WF_MNAR_QP100_6n025', district_results = T)
+
+# (5) WF MCAR QP 9 (beta = 6, -0.25)
+files_MCAR_QP9_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta9_beta06_beta1n025', files, value = T)
+
+res_facility[['WF_MCAR_QP9_6n025']] <- get_results(files_MCAR_QP9_6n025, 'WF_MCAR_QP9_6n025')
+res_district[['WF_MCAR_QP9_6n025']] <-  get_results(files_MCAR_QP9_6n025, 'WF_MCAR_QP9_6n025', district_results = T)
+
+# (6) WF MCAR QP 100 (beta = 6, -0.25)
+files_MCAR_QP100_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta100_beta06_beta1n025', files, value = T)
+
+res_facility[['WF_MCAR_QP100_6n025']] <- get_results(files_MCAR_QP100_6n025, 'WF_MCAR_QP100_6n025')
+res_district[['WF_MCAR_QP100_6n025']] <-  get_results(files_MCAR_QP100_6n025, 'WF_MCAR_QP100_6n025', district_results = T)
+
+# # (7) WF MAR QP 9 (beta = 6, 0)
+# files_MAR_QP9_6_0 <- grep('mar[0-9]{1,2}_wf_qptheta9_beta06_beta10', files, value = T)
+# 
+# res_facility[['WF_MAR_QP9_6_0']] <- get_results(files_MAR_QP9_6_0, 'WF_MAR_QP9_6_0')
+# res_district[['WF_MAR_QP9_6_0']] <-  get_results(files_MAR_QP9_6_0, 'WF_MAR_QP9_6_0', district_results = T)
+# 
+# # (8) WF MAR QP 100 (beta = 6, 0)
+# files_MAR_QP100_6_0 <- grep('mar[0-9]{1,2}_wf_qptheta100_beta06_beta10', files, value = T)
+# 
+# res_facility[['WF_MAR_QP100_6_0']] <- get_results(files_MAR_QP100_6_0, 'WF_MAR_QP100_6_0')
+# res_district[['WF_MAR_QP100_6_0']] <-  get_results(files_MAR_QP100_6_0, 'WF_MAR_QP100_6_0', district_results = T)
+
+# (9) WF MNAR QP 9 (beta = 6, 0)
+files_MNAR_QP9_6_0 <- grep('mnar[0-9]{1,2}_wf_qptheta9_beta06_beta10', files, value = T)
+
+res_facility[['WF_MNAR_QP9_6_0']] <- get_results(files_MNAR_QP9_6_0, 'WF_MNAR_QP9_6_0')
+res_district[['WF_MNAR_QP9_6_0']] <-  get_results(files_MNAR_QP9_6_0, 'WF_MNAR_QP9_6_0', district_results = T)
+
+# (10) WF MNAR QP 100 (beta = 6, 0)
+files_MNAR_QP100_6_0 <- grep('mnar[0-9]{1,2}_wf_qptheta100_beta06_beta10', files, value = T)
+
+res_facility[['WF_MNAR_QP100_6_0']] <- get_results(files_MNAR_QP100_6_0, 'WF_MNAR_QP100_6_0')
+res_district[['WF_MNAR_QP100_6_0']] <-  get_results(files_MNAR_QP100_6_0, 'WF_MNAR_QP100_6_0', district_results = T)
+
+# (11) WF MCAR QP 9 (beta = 6, 0)
+files_MCAR_QP9_6_0 <- grep('mcar[0-9]{1,2}_wf_qptheta9_beta06_beta10', files, value = T)
+
+res_facility[['WF_MCAR_QP9_6_0']] <- get_results(files_MCAR_QP9_6_0, 'WF_MCAR_QP9_6_0')
+res_district[['WF_MCAR_QP9_6_0']] <-  get_results(files_MCAR_QP9_6_0, 'WF_MCAR_QP9_6_0', district_results = T)
+
+# (12) WF MCAR QP 100 (beta = 6, 0)
+files_MCAR_QP100_6_0 <- grep('mcar[0-9]{1,2}_wf_qptheta100_beta06_beta10', files, value = T)
+
+res_facility[['WF_MCAR_QP100_6_0']] <- get_results(files_MCAR_QP100_6_0, 'WF_MCAR_QP100_6_0')
+res_district[['WF_MCAR_QP100_6_0']] <-  get_results(files_MCAR_QP100_6_0, 'WF_MCAR_QP100_6_0', district_results = T)
+
+# (13) WF MCAR (beta = 2, 0)
+files_MCAR_2_0 <- grep('mcar[0-9]{1,2}_wf_beta02_beta10', files, value = T)
+
+# (14) freqGLM MCAR (beta = 2, 0)
+# (15) CAR MCAR (beta = 2, 0)
+
+### Combine the results
+lapply(res_facility, function(xx){sum(is.na(xx$params))})
+lapply(res_district, function(xx){sum(is.na(xx$params))})
+
+res_df <- do.call('rbind',lapply(res_facility, function(xx) xx$results))
+res_district_df <- do.call('rbind',lapply(res_district, function(xx) xx$results))
+
+### Unit testing
+# combine all the file names. Test the uniqueness
+file_names <- c(files_MAR_QP9_6n025, files_MAR_QP100_6n025, files_MNAR_QP9_6n025, files_MNAR_QP100_6n025, files_MCAR_QP9_6n025, files_MCAR_QP100_6n025, files_MAR_QP9_6_0, files_MAR_QP100_6_0, files_MNAR_QP9_6_0, files_MNAR_QP100_6_0, files_MCAR_QP9_6_0, files_MCAR_QP100_6_0, files_MCAR_2_0)
+
+tt = table(file_names); tt[tt>1]
+
+# test the table of simulation types
+table(res_df$sim)
+table(res_district_df$sim)
+table(res_df$sim, res_df$prop_missing)
+table(res_district_df$sim, res_district_df$prop_missing)
+
+# test the uniqueness of rows (indepedent of names) - they should be unique
+length(res_df$RMSE)
+length(unique(res_df$RMSE)) # hmm
+length(unique(res_df$prop_interval_width))
+length(unique(res_df$relative_bias)) # 87000....
+
+tt = table(res_df$relative_bias)
+table(tt) # hm ok there's something not right here. Ah is it the p = 0! Yes it should be.
+options(digits = 22)
+vals = as.numeric(names(tt[tt==6]))
+ind = which(abs(res_df$relative_bias - vals[1]) < 1e-10)
+
+res_df[ind,]
+# interesting. I get the p = 0. But why QP = 9 and 100?
+
+vals = as.numeric(names(tt[tt==2]))
+ind = which(abs(res_df$relative_bias - vals[1]) < 1e-10)
+
+res_df[ind,]
+# no difference! Argh. What is going on?
+
+tmp <- res_df %>% filter(sim %in% c('WF_MNAR_QP9_6n025', 'WF_MNAR_QP100_6n025'))
+table(table(tmp$relative_bias)) # all the exact same!! Wtf?
+
+vals = as.numeric(names(tt[tt==4]))
+ind = which(abs(res_df$relative_bias - vals[3000]) < 1e-10)
+
+res_df[ind,]
+
 #
 #### Processing all the 12/01 results ####
 # So I named the output files wrong. Damn

@@ -524,7 +524,13 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     }
     tmp = lst_full$params
     tmp$dir = file
-    params = rbind(params, tmp)
+    params = tryCatch(rbind(params, tmp),
+             error = function(e){
+               print(sprintf('ERROR WITH PARAMS IN FILE %s', file))
+               params = plyr::rbind.fill(params, tmp)
+               return(params)
+             })
+    #browser()
     
     # Check that the names match
     lst_full[[output]] <- method_name_check(lst_full[[output]], methods, give_method_name_err = give_method_name_err)
