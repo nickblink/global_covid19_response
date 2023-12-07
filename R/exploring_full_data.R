@@ -3,11 +3,56 @@ library(lubridate)
 library(ggplot2)
 library(gtools)
 
-setwd('github_projects/global_covid19_response/')
+#setwd('github_projects/global_covid19_response/')
 source('R/imputation_functions.R')
 D = readRDS('data/liberia_cleaned_NL.rds')
 D2 = readRDS('data/liberia_cleaned_01-06-2021.rds')
 
+##### Looking at variance across seasonal terms #####
+"C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/all_indicators_all_facilities_12012023.RData"
+# now looking at the seasonal terms
+apply(res_df, 2, median, na.rm =T)
+apply(res_df, 2, mean, na.rm =T)
+# ok so the mean is non-zero. Interesting. But the median is basically 0. So that's promising that this is right
+apply(res_df, 2, sd, na.rm =T)
+# woah. High standard deviation. 
+plot(density(res_df[,7], na.rm = T))
+tmp = res_df[,7]; tmp[tmp < -10 | tmp > 10] = 0
+plot(density(tmp, na.rm = T))
+
+# par(mfrow = c(1,1))
+for(i in 1:8){
+  plot(density(res_df[,i], na.rm = T))
+}
+# ah extreme outliers. This isn't really what I want though. I want the variance across facilities given a specific indicator rather than the various across indicators.
+# "indicator_count_ari_total"
+# "indicator_count_allvisits"
+tt = res[["indicator_count_ari_total"]]
+cor(tt[,3:10], use = 'complete.obs')
+# ok so the seasons are highly correlated. Not surprising. That's what I would expect. Not sure how to simulate that properly, but that's ok.
+
+for(i in 3:10){
+  plot(density(tt[,i], na.rm = T))
+}
+# ok so a little more balanced
+
+for(i in 3:10){
+  print(names(tt)[i])
+  col = na.omit(tt[,i])
+  print(median(col))
+  z = sd(col)
+  print(z)
+  ind = which(col < -3*z + median(col) | col > 3*z+ median(col) )
+  print(length(ind))
+  print(sd(col[-ind]))
+}
+# standard deviation is around .11 - .48 (.07 - 0.13 excluding outliers) for indicator_count_allvisits
+
+# standard deviation is around .11 - .48 (.07 - 0.13 excluding outliers) for indicator_count_ari_total 5-20 (1.2 - 5.5 excluding outliers)
+
+# HERE! REVISIT the outliers - NEED TO CHECK DENSITY PLOTS WITHOUT THESE - AM I REALLY EXCLUDING OUTLIERS?
+
+#
 ##### Fitting all the indicators #####
 
 indicators <- grep('indicator', colnames(D2), value = T)
@@ -55,7 +100,9 @@ cor(na.omit(tt)[,3:10])
 E4 = tt[,3] + 4*tt[,4]
 plot(density(E4[E4>-5 & E4 < 10], na.rm = T))
 # centered around 3. Huh
+
 #
+
 ##### Comparing data sources #####
 dim(D)
 dim(D2)
