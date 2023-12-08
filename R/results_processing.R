@@ -10,10 +10,11 @@ library(lubridate)
 library(ggplot2)
 library(cowplot)
 
-res_dir = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results"
-
-#### Processing all the 12/01 and 12/04 results ####
-files = grep('2023_12_01|2023_12_04',dir(res_dir, full.names = T), value = T)
+if(file.exists('C:/Users/Admin-Dell')){
+  res_dir = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results"
+}else{
+  res_dir = "C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results"
+}
 
 get_results <- function(file_names, sim_name, district_results = F){
   res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), district_results = district_results)
@@ -22,6 +23,177 @@ get_results <- function(file_names, sim_name, district_results = F){
   
   return(res)
 }
+
+#### Comparing the results from two different data sets ####
+files = grep('2023_12_05',dir(res_dir, full.names = T), value = T)
+files_WF_MNAR_QP9_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta9_beta06_beta1n025', files, value = T)
+files_WF_MNAR_QP100_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta100_beta06_beta1n025', files, value = T)
+
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mnar0_wf_qptheta100_beta06_beta1n025_id798896_2023_12_05/sim_results_p0.0_mnar_1(50).RData')
+imputed_list100 <- imputed_list; rm(imputed_list)
+
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mnar0_wf_qptheta9_beta06_beta1n025_id738974_2023_12_05/sim_results_p0.0_mnar_1(50).RData')
+imputed_list9 <- imputed_list; rm(imputed_list)
+
+a <- imputed_list100[[1]]$df_miss
+b <- imputed_list9[[1]]$df_miss
+
+sum(a$y == b$y) # identical!
+
+# is QP happening at all?
+a$residual = abs(a$y - a$y_exp)
+
+plot(a$y, a$residual)
+lines(1:1500, sqrt(1:1500), col = 'red')
+
+# no QP. WTF.
+
+#
+#### Processing the 12/05 results (I know some will be missing) ####
+# get file names
+files = grep('2023_12_05',dir(res_dir, full.names = T), value = T)
+# 81 (after deleting incomplete ones)
+
+# for each directory, scan for the # of files and delete improper ones
+for(d in files){
+  ff = dir(d)
+  if(length(ff) < 51){
+    print(d)
+    print(length(ff))
+    print('-------')
+    #unlink(d, recursive = T) # deletes the directory
+  }
+}
+# all good!
+
+# subsets of file names
+# (1) WF MAR QP 9 (beta = 6, -0.25)
+files_WF_MAR_QP9_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta9_beta06_beta1n025', files, value = T)
+
+# (2) WF MAR QP 100 (beta = 6, -0.25)
+files_WF_MAR_QP100_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta100_beta06_beta1n025', files, value = T)
+
+# (3) WF MNAR QP 9 (beta = 6, -0.25)
+files_WF_MNAR_QP9_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta9_beta06_beta1n025', files, value = T)
+
+# (4) WF MNAR QP 100 (beta = 6, -0.25)
+files_WF_MNAR_QP100_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta100_beta06_beta1n025', files, value = T)
+
+# (5) WF MCAR QP 9 (beta = 6, -0.25)
+files_WF_MCAR_QP9_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta9_beta06_beta1n025', files, value = T)
+
+# (6) WF MCAR QP 100 (beta = 6, -0.25)
+files_WF_MCAR_QP100_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta100_beta06_beta1n025', files, value = T)
+
+# (7) WF MAR QP 9 (beta = 6, 0)
+files_WF_MAR_QP9_6_0 <- grep('mar[0-9]{1,2}_wf_qptheta9_beta06_beta10', files, value = T)
+
+# (8) WF MAR QP 100 (beta = 6, 0)
+files_WF_MAR_QP100_6_0 <- grep('mar[0-9]{1,2}_wf_qptheta100_beta06_beta10', files, value = T)
+
+# (9) WF MNAR QP 9 (beta = 6, 0)
+files_WF_MNAR_QP9_6_0 <- grep('mnar[0-9]{1,2}_wf_qptheta9_beta06_beta10', files, value = T)
+
+# (10) WF MNAR QP 100 (beta = 6, 0)
+files_WF_MNAR_QP100_6_0 <- grep('mnar[0-9]{1,2}_wf_qptheta100_beta06_beta10', files, value = T)
+
+# (11) WF MCAR QP 9 (beta = 6, 0)
+files_WF_MCAR_QP9_6_0 <- grep('mcar[0-9]{1,2}_wf_qptheta9_beta06_beta10', files, value = T)
+
+# (12) WF MCAR QP 100 (beta = 6, 0)
+files_WF_MCAR_QP100_6_0 <- grep('mcar[0-9]{1,2}_wf_qptheta100_beta06_beta10', files, value = T)
+
+# (13) WF MCAR (beta = 2, 0)
+files_WF_MCAR_2_0 <- grep('mcar[0-9]{1,2}_wf_beta02_beta10', files, value = T)
+
+# (14) freqGLM MCAR (beta = 2, 0)
+files_freqGLM_MCAR_2_0 <- grep('mcar[0-9]{1,2}_freqglm0202_beta02_beta10', files, value = T)
+
+# (15) CAR MCAR (beta = 2, 0)
+files_CAR_MCAR_2_0 <- grep('mcar[0-9]{1,2}_car0303025_beta02_beta10', files, value = T)
+
+# QC the file names
+file_names <- c(files_WF_MAR_QP9_6n025, files_WF_MAR_QP100_6n025, files_WF_MNAR_QP9_6n025, files_WF_MNAR_QP100_6n025, files_WF_MCAR_QP9_6n025, files_WF_MCAR_QP100_6n025, files_WF_MAR_QP9_6_0, files_WF_MAR_QP100_6_0, files_WF_MNAR_QP9_6_0, files_WF_MNAR_QP100_6_0, files_WF_MCAR_QP9_6_0, files_WF_MCAR_QP100_6_0, files_WF_MCAR_2_0, files_freqGLM_MCAR_2_0, files_CAR_MCAR_2_0)
+
+setdiff(files, file_names)
+tt = table(file_names); tt[tt>1]
+# great
+
+### Getting all the results together
+file_name_str <- c('files_WF_MAR_QP9_6n025', 'files_WF_MAR_QP100_6n025', 'files_WF_MNAR_QP9_6n025', 'files_WF_MNAR_QP100_6n025', 'files_WF_MCAR_QP9_6n025', 'files_WF_MCAR_QP100_6n025', 'files_WF_MAR_QP9_6_0', 'files_WF_MAR_QP100_6_0', 'files_WF_MNAR_QP9_6_0', 'files_WF_MNAR_QP100_6_0', 'files_WF_MCAR_QP9_6_0', 'files_WF_MCAR_QP100_6_0', 'files_WF_MCAR_2_0', 'files_freqGLM_MCAR_2_0', 'files_CAR_MCAR_2_0')
+
+# initialize
+res_facility = list()
+res_district = list()
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T)
+}
+
+# save(res_facility, res_district_df, file = paste0(res_dir,'/tmp_results_12082023.RData'))
+
+# Checking for NA vals
+lapply(res_facility, function(xx){sum(is.na(xx$params))})
+lapply(res_district, function(xx){sum(is.na(xx$params))})
+
+# combine results into data frames
+res_df <- do.call('rbind',lapply(res_facility, function(xx) xx$results))
+res_district_df <- do.call('rbind',lapply(res_district, function(xx) xx$results))
+
+# test the table of simulation types
+table(res_df$sim)
+table(res_district_df$sim)
+table(res_df$sim, res_df$prop_missing)
+table(res_district_df$sim, res_district_df$prop_missing)
+# Ok so some glitches with CAR 2_0. 9/3000 at p = 0.5. Whatever
+
+# test the uniqueness of rows (independent of names) - they should be unique
+length(res_df$RMSE)
+length(unique(res_df$RMSE)) # hmm
+length(unique(res_df$prop_interval_width))
+length(unique(res_df$relative_bias)) # That's a concern
+
+# are they unique?
+tt = table(res_df$relative_bias)
+table(tt) 
+
+options(digits = 22)
+vals = as.numeric(names(tt[tt==6]))
+ind = which(abs(res_df$relative_bias - vals[1]) < 1e-10)
+
+res_df[ind,]
+
+# so what needs to get rerun?
+
+vals = as.numeric(names(tt[tt==5]))
+ind = which(abs(res_df$relative_bias - vals[1]) < 1e-10)
+
+res_df[ind,]
+
+vals = as.numeric(names(tt[tt==2]))
+ind = which(abs(res_df$relative_bias - vals[1]) < 1e-10)
+
+res_df[ind,]
+# HOWWWWW! Oh my god. Jesus.
+
+for(v in sample(vals, 20)){
+  ind = which(abs(res_df$relative_bias - v) < 1e-10)
+  print(res_df[ind,'prop_missing'])
+}
+
+vals = as.numeric(names(tt[tt==1]))
+ind = which(abs(res_df$relative_bias - vals[1]) < 1e-10)
+
+for(v in sample(vals, 20)){
+  ind = which(abs(res_df$relative_bias - v) < 1e-10)
+  print(res_df[ind,'sim'])
+}
+
+#
+#### Processing all the 12/01 and 12/04 results ####
+files = grep('2023_12_01|2023_12_04',dir(res_dir, full.names = T), value = T)
 
 # initialize
 res_facility = list()
@@ -100,10 +272,13 @@ res_facility[['WF_MCAR_QP100_6_0']] <- get_results(files_MCAR_QP100_6_0, 'WF_MCA
 res_district[['WF_MCAR_QP100_6_0']] <-  get_results(files_MCAR_QP100_6_0, 'WF_MCAR_QP100_6_0', district_results = T)
 
 # (13) WF MCAR (beta = 2, 0)
-files_MCAR_2_0 <- grep('mcar[0-9]{1,2}_wf_beta02_beta10', files, value = T)
+files_WF_MCAR_2_0 <- grep('mcar[0-9]{1,2}_wf_beta02_beta10', files, value = T)
 
 # (14) freqGLM MCAR (beta = 2, 0)
+files_freqGLM_MCAR_2_0 <- grep('mcar[0-9]{1,2}_freqglm0202_beta02_beta10', files, value = T)
+
 # (15) CAR MCAR (beta = 2, 0)
+files_CAR_MCAR_2_0 <- grep('mcar[0-9]{1,2}_car0303025_beta02_beta10', files, value = T)
 
 ### Combine the results
 lapply(res_facility, function(xx){sum(is.na(xx$params))})

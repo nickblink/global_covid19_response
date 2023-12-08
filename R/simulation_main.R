@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.3:alpha_DGP=0.3:tau2_DGP=1:family=quasipoisson:theta=9:R=20:num_jobs=10:output_path=test','3')
+inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:theta=9:family=quasipoisson','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -47,6 +47,8 @@ for(str in strsplit(inputs[[1]],':')[[1]]){
   params[[nn]] = val
 }
 
+print(params)
+
 # check that proper missingness is input
 if(!(params[['missingness']] %in% c('mcar','mar','mnar'))){
   stop('please input a proper missingness')
@@ -61,6 +63,7 @@ if(params[['job_id']] < params[['num_jobs']]){
 }else{
   seq <- (floor(params[['R']]/params[['num_jobs']])*(params[['job_id']] - 1) + 1):params[['R']]
 }
+
 
 R_new = length(seq)
 
@@ -93,6 +96,7 @@ if(!is.null(params[['family']])){
   }
 }
 
+set.seed(1)
 # Simulate the data
 lst <- do.call(simulate_data, arguments)
 

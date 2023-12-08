@@ -125,6 +125,11 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+#### On 12/8/2023, testing ish now, because ish is wack ####
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12092023.txt')
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 100, bash_file = 'cluster_code/cluster commands/bash_12092023.txt')
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, bash_file = 'cluster_code/cluster commands/bash_12092023.txt')
+#
 #### On 12/5/2023 part 2 #####
 bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12052023.txt')
 

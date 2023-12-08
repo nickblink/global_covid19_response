@@ -1,0 +1,3 @@
+sbatch --array=1-50 -J mar0_WF_QPtheta9_beta06_beta1n025 run_sim.sh p=0:b0_mean=6:b1_mean=n0.25:missingness=mar:DGP=WF:R=1000:num_jobs=50:output_path=mar0_WF_QPtheta9_beta06_beta1n025_ID530083_2023_12_08:rho_MAR=0.7:alpha_MAR=0.7:tau2_MAR=9:theta=9:family=quasipoisson
+sbatch --array=1-50 -J mar0_WF_QPtheta100_beta06_beta1n025 run_sim.sh p=0:b0_mean=6:b1_mean=n0.25:missingness=mar:DGP=WF:R=1000:num_jobs=50:output_path=mar0_WF_QPtheta100_beta06_beta1n025_ID120292_2023_12_08:rho_MAR=0.7:alpha_MAR=0.7:tau2_MAR=9:theta=100:family=quasipoisson
+sbatch --array=1-50 -J mar0_WF_beta06_beta1n025 run_sim.sh p=0:b0_mean=6:b1_mean=n0.25:missingness=mar:DGP=WF:R=1000:num_jobs=50:output_path=mar0_WF_beta06_beta1n025_ID326672_2023_12_08:rho_MAR=0.7:alpha_MAR=0.7:tau2_MAR=9
