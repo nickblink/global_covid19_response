@@ -7,6 +7,9 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
   }else if(tolower(DGP) == 'car'){
     DGP_name = gsub('\\.', '', sprintf('CAR%s%s%s', rho_DGP, alpha_DGP, tau2_DGP))
   }else if(tolower(DGP) == 'freqglm'){
+    if(b0_mean == 6){
+      warning('are you sure you want this mean for freqglm?')
+    }
     DGP_name = gsub('\\.', '', sprintf('freqGLM%s%s', rho_DGP, alpha_DGP))
   }
   
@@ -124,6 +127,19 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   
   return(cmds)
 }
+
+#### 12/9/2023: Commands for results section of paper (not appendix) ####
+# freqGLM B0 = 6, b1 = -0.25, MCAR params 0202
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5, bash_file = 'cluster_code/cluster commands/bash_12092023_p2.txt')
+
+# QP theta = 4 WF B0 = 6, b1 = -0.25 MCAR
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12092023_p2.txt')
+
+# QP theta = 4 WF B0 = 6, b1 = -0.25 MAR
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12092023_p2.txt')
+
+# QP theta = 4 WF B0 = 6, b1 = -0.25 MNAR
+bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12092023_p2.txt')
 
 #### On 12/8/2023, testing ish now, because ish is wack ####
 bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 9, family = 'quasipoisson', theta = 9, bash_file = 'cluster_code/cluster commands/bash_12092023.txt')

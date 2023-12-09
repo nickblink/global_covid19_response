@@ -24,6 +24,37 @@ get_results <- function(file_names, sim_name, district_results = F){
   return(res)
 }
 
+#### Processing results 12/09/2023 ####
+files = grep('2023_12_08',dir(res_dir, full.names = T), value = T)
+
+load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mar0_wf_beta06_beta1n025_id326672_2023_12_08/sim_results_p0.0_mar_1(50).RData")
+imputed_list1 <- imputed_list; params1 <- params
+
+load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mar0_wf_qptheta100_beta06_beta1n025_id120292_2023_12_08/sim_results_p0.0_mar_1(50).RData")
+imputed_list100 <- imputed_list; params100 <- params
+
+load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mar0_wf_qptheta9_beta06_beta1n025_id530083_2023_12_08/sim_results_p0.0_mar_1(50).RData")
+imputed_list9 <- imputed_list; params9 <- params
+
+sum(imputed_list1[[1]]$df_miss$y)
+sum(imputed_list100[[1]]$df_miss$y)
+sum(imputed_list9[[1]]$df_miss$y)
+# ok all different. Good. Good.
+
+res1 <- combine_results_wrapper(files = files[1], methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+res100 <- combine_results_wrapper(files = files[2], methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+res9 <- combine_results_wrapper(files = files[3], methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'))
+
+p1 <- plot_all_methods(res = res1$results, rows = 1)
+p2 <- plot_all_methods(res = res9$results, rows = 1)
+p3 <- plot_all_methods(res = res100$results, rows = 1)
+
+cowplot::plot_grid(p1, p2, p3)
+# ok it can't do the cowplot but whatever. This is clearly different. So then we're all good, right? Jesus Christo.
+
+#
 #### Comparing the results from two different data sets ####
 files = grep('2023_12_05',dir(res_dir, full.names = T), value = T)
 files_WF_MNAR_QP9_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta9_beta06_beta1n025', files, value = T)

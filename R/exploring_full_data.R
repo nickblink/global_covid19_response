@@ -8,8 +8,19 @@ source('R/imputation_functions.R')
 D = readRDS('data/liberia_cleaned_NL.rds')
 D2 = readRDS('data/liberia_cleaned_01-06-2021.rds')
 
+remove_outliers <- function(x, k = 5){
+  x <- na.omit(x)
+  ind <- which(x < median(x) - k*sd(x) | x > median(x) + k*sd(x))
+  while(length(ind) > 0){
+    #print(x[ind])
+    x <- x[-ind]
+    ind <- which(x < median(x) - k*sd(x) | x > median(x) + k*sd(x))
+  }
+  return(x)
+}
+
 ##### Looking at variance across seasonal terms #####
-"C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/all_indicators_all_facilities_12012023.RData"
+load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/all_indicators_all_facilities_12012023.RData")
 # now looking at the seasonal terms
 apply(res_df, 2, median, na.rm =T)
 apply(res_df, 2, mean, na.rm =T)
@@ -27,7 +38,8 @@ for(i in 1:8){
 # ah extreme outliers. This isn't really what I want though. I want the variance across facilities given a specific indicator rather than the various across indicators.
 # "indicator_count_ari_total"
 # "indicator_count_allvisits"
-tt = res[["indicator_count_ari_total"]]
+# "indicator_count_pneumo_1"
+tt = res[["indicator_count_pneumo_1"]]
 cor(tt[,3:10], use = 'complete.obs')
 # ok so the seasons are highly correlated. Not surprising. That's what I would expect. Not sure how to simulate that properly, but that's ok.
 
@@ -39,12 +51,11 @@ for(i in 3:10){
 for(i in 3:10){
   print(names(tt)[i])
   col = na.omit(tt[,i])
-  print(median(col))
-  z = sd(col)
-  print(z)
-  ind = which(col < -3*z + median(col) | col > 3*z+ median(col) )
-  print(length(ind))
-  print(sd(col[-ind]))
+  print(sd(col))
+  x <- remove_outliers(col)
+  print(sd(x))
+  print(mean(x))
+  print(median(x))
 }
 # standard deviation is around .11 - .48 (.07 - 0.13 excluding outliers) for indicator_count_allvisits
 
