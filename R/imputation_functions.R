@@ -453,7 +453,9 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
       check_lst = check_lst[-ind]
     }
   }
-  print(sprintf('num files: %i. %s out of %s simulation results kept', length(files), length(check_lst), length(lst_full)))
+  if(length(files) != 50 | length(check_lst) != length(lst_full)){
+    print(sprintf('num files: %i. %s out of %s simulation results kept', length(files), length(check_lst), length(lst_full)))
+  }
   
   if(district_results == T){
     district_lst <- check_lst
@@ -491,7 +493,7 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
 }
 
 ### Takes in a list of files and/or directories. For each of these, pulls in the data using "combine_results" and then computes the metrics for these results together.
-combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F, ...){ 
+combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95','specificity', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F, ...){ 
   
   # initialize results catchers
   res <- NULL
@@ -510,9 +512,10 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     if(length(p) == 0){
       print('cant find p. Artificially set equal to 0')
       p = 0
-    }else{
-      print(sprintf('p = %s', p))
     }
+    # }else{
+    #   print(sprintf('p = %s', p))
+    # }
     
     print(file)
     
@@ -2634,7 +2637,7 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
 clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL, rm_ARna = F, imputed_only = F){
   # filter to only be greater than the specified date
   if(!is.null(min_date)){
-    print(sprintf('only getting metrics with dates on or after %s', min_date))
+    # print(sprintf('only getting metrics with dates on or after %s', min_date))
     imputed_list <- lapply(imputed_list, function(xx){
       xx <- xx %>% dplyr::filter(date >= min_date)
     })
@@ -2642,7 +2645,7 @@ clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL
   
   # filter to only be the specified date
   if(!is.null(dates)){
-    print(sprintf('only getting metrics with dates on  %s', dates))
+    # print(sprintf('only getting metrics with dates on  %s', dates))
     imputed_list <- lapply(imputed_list, function(xx){
       xx <- xx %>% dplyr::filter(date == dates)
     })
@@ -2754,9 +2757,10 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
     tmp$MAPE = avg_fxn(sapply(1:ncol(outcome), function(ii) {abs(outcome[,ii] - y_true[,ii])/y_true[,ii]}))
     tmp$RMSE = sqrt(avg_fxn(sapply(1:ncol(outcome), function(ii) {(outcome[,ii] - y_true[,ii])^2})))
     
-    # coverage metrics
+    # coverage metrics and specificity
     tmp$coverage50 = avg_fxn(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_25[,ii] & y_true[,ii] <= upper_75[,ii])))
     tmp$coverage95 = avg_fxn(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] >= lower_025[,ii] & y_true[,ii] <= upper_975[,ii])))
+    tmp$specificity = avg_fxn(sapply(1:ncol(lower_25), function(ii) (y_true[,ii] <= upper_975[,ii])))
     
     # outbreak detection metrics
     tmp$outbreak_detection3 <- avg_fxn(sapply(1:ncol(y_exp), function(ii) y_outbreak3[,ii] >= upper_975[,ii]))
@@ -2788,7 +2792,7 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
 ## title: title of overall plot
 ## ...: params to be passed into "combine_results_wrapper"
 
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('coverage95', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, ...){
   if(is.null(res)){
     if(!is.null(files)){
       tmp <- combine_results_wrapper(files,  ...)
@@ -2858,7 +2862,7 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
       labs(x = 'proportion missing') + 
       guides(alpha = 'none') +
       theme_bw() + 
-      ylab(metric)
+      ylab(metric) + guides(color = guide_legend(title = 'model fit', override.aes = list(size = 4)), shape = guide_legend(title = 'model fit'))
     
     # fix axis limits
     if(!is.logical(fix_axis[[i]])){
@@ -2872,8 +2876,8 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     legend = get_legend(p1 + theme(legend.position = 'bottom', 
                                    legend.text = element_text(size = 17),
                                    legend.title = element_text(size = 20),
-                                   legend.key.size = unit(0.1, 'cm')) + 
-                          guides(color = guide_legend(override.aes = list(size = 4))))
+                                   legend.key.size = unit(0.1, 'cm')))
+    
     p1 <- p1 + theme(legend.position = 'none')
     
     plot_list[[i]] <- p1

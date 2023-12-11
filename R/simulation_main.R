@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:theta=9:family=quasipoisson','3')
+inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:theta=9:family=quasipoisson\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -25,6 +25,7 @@ print(inputs)
 # pull parameters into proper format
 params <- list()
 
+inputs[[1]] <- gsub('\r', '', inputs[[1]])
 params[['job_id']] <- as.integer(inputs[[2]])
 for(str in strsplit(inputs[[1]],':')[[1]]){
   tmp = strsplit(str, '=')[[1]]
@@ -93,10 +94,11 @@ if(!is.null(params[['family']])){
     arguments = c(arguments,
                   list(family = 'quasipoisson',
                        theta = params[['theta']]))
+  }else if(params[['family']] != 'poisson'){
+    stop('improper family for DGP')
   }
 }
 
-set.seed(1)
 # Simulate the data
 lst <- do.call(simulate_data, arguments)
 
@@ -265,5 +267,5 @@ system.time({
 
 true_betas <- lst$betas
 
-save(imputed_list, seq, params, true_betas, file = results_file)
+save(imputed_list, seq, params, arguments, true_betas, file = results_file)
 

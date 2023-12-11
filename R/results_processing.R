@@ -17,14 +17,171 @@ if(file.exists('C:/Users/Admin-Dell')){
 }
 
 get_results <- function(file_names, sim_name, district_results = F){
-  res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARstan'), district_results = district_results)
+  res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARBayes'), district_results = district_results)
   
   res$results$sim = sim_name 
   
   return(res)
 }
 
-#### Processing results 12/09/2023 ####
+#
+#### Plot main paper results 12/10/2023 ####
+load(paste0(res_dir,'/main_paper_results_12102023.RData'))
+
+names(res_facility)
+
+WF_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+## Missing data facility plots
+{
+  p1 <- plot_all_methods(res = res_facility[["files_WF_MCAR_QP4_6n025"]]$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MCAR Missing Data', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_facility[["files_WF_MAR_QP4_6n025"]]$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MAR Missing Data', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_facility[["files_WF_MNAR_QP4_6n025"]]$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MNAR Missing Data', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/WF_missingness_facility_plots_12102023.png', height = 7.5, width = 10)
+}
+
+## Missing data district plots
+{
+  p1 <- plot_all_methods(res = res_district[["files_WF_MCAR_QP4_6n025"]]$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MCAR Missing Data', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_district[["files_WF_MAR_QP4_6n025"]]$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MAR Missing Data', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_district[["files_WF_MNAR_QP4_6n025"]]$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MNAR Missing Data', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/WF_missingness_district_plots_12102023.png', height = 7.5, width = 10)
+}
+
+## DGP facility plots
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  p1 <- plot_all_methods(res = res_facility[["files_WF_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with WF model', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CARBayes model', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_facility_comparison_plots_12102023.png', height = 7.5, width = 10)
+}
+
+## DGP district plots
+{
+  p1 <- plot_all_methods(res = res_district[["files_WF_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with WF model', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_district[["files_freqglm0202_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_district[["files_CAR33025_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CARBayes model', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_district_comparison_plots_12102023.png', height = 7.5, width = 10)
+}
+
+
+#
+#### Processing results 12/10/2023 ####
+files = grep('2023_12_09|2023_12_10',dir(res_dir, full.names = T), value = T)
+
+files_MCAR <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+
+files_CAR <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
+
+files <- unique(c(files, files_MCAR, files_CAR))
+
+for(d in files){
+  ff = dir(d)
+  if(length(ff) < 51){
+    print(d)
+    print(length(ff))
+    print('-------')
+    #unlink(d, recursive = T) # deletes the directory
+  }
+}
+# all good
+
+# (1) WF MCAR; poisson; beta = 6, -0.25
+files_WF_MCAR_6n025 <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+
+# (2) freqglm0202 MCAR; poisson; beta = 6,-0.25
+files_freqglm0202_MCAR_6n025 <- grep('mcar[0-9]{1,2}_freqglm0202_beta05_beta1n025', files, value = T)
+
+# (3) CAR0303025 MCAR; poisson; beta = 6, -0.25
+files_CAR33025_MCAR_6n025 <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
+
+# (4) WF MCAR; QP theta = 4; beta = 6,-0.25
+files_WF_MCAR_QP4_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+
+# (5) WF MAR; QP theta = 4; beta = 6,-0.25
+files_WF_MAR_QP4_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+
+# (6) WF MNAR; QP theta = 4; beta = 6,-0.25
+files_WF_MNAR_QP4_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+
+# Putting all the files together
+file_name_str <- c('files_WF_MCAR_6n025', 'files_freqglm0202_MCAR_6n025', 'files_CAR33025_MCAR_6n025', 'files_WF_MCAR_QP4_6n025', 'files_WF_MAR_QP4_6n025','files_WF_MNAR_QP4_6n025')
+
+all_file_names <- unlist(sapply(file_name_str, get))
+setdiff(files, all_file_names)
+setdiff(all_file_names, files)
+tt = table(all_file_names); tt[tt>1]
+# great
+
+### Processing results and combining
+# initialize
+res_facility = list()
+res_district = list()
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T)
+}
+
+# save(res_facility, res_district, file = paste0(res_dir,'/main_paper_results_12102023.RData'))
+
+# Checking for NA vals
+lapply(res_facility, function(xx){sum(is.na(xx$params))})
+lapply(res_district, function(xx){sum(is.na(xx$params))})
+
+# combine results into data frames
+res_df <- do.call('rbind',lapply(res_facility, function(xx) xx$results))
+res_district_df <- do.call('rbind',lapply(res_district, function(xx) xx$results))
+
+# test the table of simulation types
+table(res_df$sim)
+table(res_district_df$sim)
+table(res_df$sim, res_df$prop_missing)
+table(res_district_df$sim, res_district_df$prop_missing)
+# Ok all good
+
+# test the uniqueness of rows (independent of names) - they should be unique
+length(unique(res_df$relative_bias)) # Bueno
+
+# are they unique?
+tt = table(res_df$relative_bias)
+table(tt) 
+# Yay bueno.
+
+# Should get 3 sets of these to be the same, for WF MCAR, MNAR, MAR Poisson, right?
+
+#
+#### Testing results from 12/10/2023 ####
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar01_wf_qptheta4_beta06_beta1n025_id147928_2023_12_09/sim_results_p0.1_mcar_1(50).RData')
+imputed_list1 <- imputed_list; params1 <- params
+
+load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar0_wf_beta6_n025_2023_10_19/sim_results_p0.0_mcar_1(50).RData")
+imputed_list2 <- imputed_list; params2 <- params
+
+sum(imputed_list1[[1]]$df_miss$y, na.rm = T)
+sum(imputed_list2[[1]]$df_miss$y, na.rm = T)
+
+#uh-oh there's a params issue. Ending with \r. No bueno
+
+#
+#### Processing results from test run 12/08/2023 ####
 files = grep('2023_12_08',dir(res_dir, full.names = T), value = T)
 
 load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mar0_wf_beta06_beta1n025_id326672_2023_12_08/sim_results_p0.0_mar_1(50).RData")

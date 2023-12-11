@@ -91,7 +91,7 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
       }
     }
   }
-  
+
   param_str = paste(paste(names(params), params, sep = '='), collapse=':')
   
   command_str = sprintf('sbatch --array=1-50 -J %s run_sim.sh %s', job_name, param_str)
@@ -105,13 +105,14 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   if(!is.null(bash_file)){
     # if it already exists, update it
     if(file.exists(bash_file)){
-      lapply(cmds, write, bash_file, append = T)
+      lapply(cmds, write, bash_file, append = T, sep = '')
     # if it doesn't exist, create it
     }else{
       out_file <- file(bash_file, open='wb')
-      lapply(cmds, write, out_file, append = T)
+      lapply(cmds, write, out_file, append = T, sep = '')
       close(out_file)
     }
+
     # check that there are no repeats in commands
     test <- read.table(bash_file)
     col <- lapply(test[,ncol(test)], function(str){
@@ -127,6 +128,28 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   
   return(cmds)
 }
+
+#### 12/10/2023: Take 2: Commands for results section of paper (not appendix) ####
+# QP theta = 4 WF B0 = 6, b1 = -0.25 MCAR
+bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12102023_p2.txt')
+
+# QP theta = 4 WF B0 = 6, b1 = -0.25 MAR
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12102023_p2.txt')
+
+# QP theta = 4 WF B0 = 6, b1 = -0.25 MNAR
+bash_wrapper(missingness = 'mnar', gamma = 1, family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12102023_p2.txt')
+
+#
+#### 12/10/2023: Commands for appendix of paper ####
+# First I will check that the results for the paper are as expected, but then I will do commands for:
+
+MAKE THESE IN ORDER OF IMPORTANCE - LIKE IF ANY WILL BE USED FOR MY SUBMISSION TO BETHANY.
+
+# WF, CAR, freqGLM DGP with beta = 2, 0
+# Missing comparison MCAR, MAR, MNAR, with theta = 16
+# Missing comparison MCAR, MAR, MNAR with Poisson variance
+# Missing comparison MCAR, MAR, MNAR with QP theta = 4, beta = 6, 0
+
 
 #### 12/9/2023: Commands for results section of paper (not appendix) ####
 # freqGLM B0 = 6, b1 = -0.25, MCAR params 0202
