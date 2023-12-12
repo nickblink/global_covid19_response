@@ -16,13 +16,28 @@ if(file.exists('C:/Users/Admin-Dell')){
   res_dir = "C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results"
 }
 
-get_results <- function(file_names, sim_name, district_results = F){
-  res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARBayes'), district_results = district_results)
+get_results <- function(file_names, sim_name, district_results = F, QP_variance_adjustment = NULL){
+  res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARBayes'), district_results = district_results, QP_variance_adjustment = QP_variance_adjustment)
   
   res$results$sim = sim_name 
   
   return(res)
 }
+
+#### Adjust the variance on QP runs where it wasn't accounted for ####
+
+res = get_results(files[1], 'test', QP_variance_adjustment = 4)
+res2 = get_results(files[1], 'test')
+
+a = res$results; b = res2$results
+sum(a$specificity == b$specificity)
+sum(a$outbreak_detection3 == b$outbreak_detection3)
+sum(a$outbreak_detection3 > b$outbreak_detection3)
+sum(a$outbreak_detection3 < b$outbreak_detection3)
+
+sum(a$outbreak_detection5 == b$outbreak_detection10)
+# perfecto
+
 
 #
 #### Plot main paper results 12/10/2023 ####
@@ -136,11 +151,16 @@ res_district = list()
 
 # grab the results from all runs
 for(name in file_name_str){
-  res_facility[[name]] <- get_results(get(name), name)
-  res_district[[name]] <-  get_results(get(name), name,  district_results = T)
+  if(grepl('QP', name)){
+    res_facility[[name]] <- get_results(get(name), name, QP_variance_adjustment = 4)
+    res_district[[name]] <-  get_results(get(name), name,  district_results = T, QP_variance_adjustment = 4)
+  }else{
+    res_facility[[name]] <- get_results(get(name), name)
+    res_district[[name]] <-  get_results(get(name), name,  district_results = T)
+  }
 }
 
-# save(res_facility, res_district, file = paste0(res_dir,'/main_paper_results_12102023.RData'))
+#save(res_facility, res_district, file = paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
 
 # Checking for NA vals
 lapply(res_facility, function(xx){sum(is.na(xx$params))})

@@ -493,7 +493,7 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
 }
 
 ### Takes in a list of files and/or directories. For each of these, pulls in the data using "combine_results" and then computes the metrics for these results together.
-combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95','specificity', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F, ...){ 
+combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95','specificity', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F,  QP_variance_adjustment = NULL, ...){ 
   
   # initialize results catchers
   res <- NULL
@@ -559,7 +559,7 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     }
 
     # Calculate the metrics
-    tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, use_point_est = F, date = '2020-01-01', district_results = district_results) 
+    tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, use_point_est = F, date = '2020-01-01', district_results = district_results, QP_variance_adjustment = QP_variance_adjustment) 
     #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
     tmp$prop_missing = as.numeric(p)/10
     
@@ -2666,7 +2666,7 @@ clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL
 }
 
 # calculate the metrics across simulations
-calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes_ST"), results_by_point = F, date = '2020-01-01', min_date = NULL, rm_ARna = F, imputed_only = F,  use_point_est = F, k = NULL, district_results = F){
+calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes_ST"), results_by_point = F, date = '2020-01-01', min_date = NULL, rm_ARna = F, imputed_only = F,  use_point_est = F, k = NULL, district_results = F, QP_variance_adjustment){
 
   if(results_by_point){
     # getting the results for each point across all simulations
@@ -2697,13 +2697,22 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
   
   # get the expected y values and the variance associated with them
   y_exp = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_exp']))
-  y_var = tryCatch({
+  if(is.null(QP_variance_adjustment)){
+    y_var = tryCatch({
+      y_var = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_var']))
+    }, error = function(e){
+      warning('making var(Y) = E(Y). This DOES NOT hold under the CAR DGP')
+      y_var = y_exp
+    })
+  }else{
     y_var = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_var']))
-  }, error = function(e){
-    warning('making var(Y) = E(Y). This DOES NOT hold under the CAR DGP')
-    y_var = y_exp
-  })
-  
+    # check that it's equal to y_exp (as in QP not already adjusted for)
+    if(sum(y_var != y_exp) > 0){
+      stop('QP variance adjustment error: Has it already been adjusted?')
+    }else{
+      y_var = QP_variance_adjustment*y_var
+    }
+  }
   
   # calculate the outbreak values
   y_outbreak3 <- y_exp + 3*sqrt(y_var)
