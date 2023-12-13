@@ -3121,8 +3121,15 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         mu = as.matrix(X)%*%beta_f
         tmp$y_exp = exp(mu)
         
-        # get variance (since it's Poisson it's the mean)
-        tmp$y_var <- tmp$y_exp
+        # get Poisson or quasipoisson variance
+        if(family == 'poisson'){
+          tmp$y_var <- tmp$y_exp
+        }else if(family == 'quasipoisson'){
+          tmp$y_var <- list(...)$theta*tmp$y_exp
+        }else{
+          stop('input a proper family')
+        }
+        
         
         # simluate random values
         tmp$y = DGP_function(length(mu), exp(mu))
@@ -3228,8 +3235,14 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       df$mu_marginal = df$mu + alpha*df$phi_previous
       df$y_exp = exp(df$mu_marginal + df$sigma2_marginal/2)
       
-      # variance from Poisson log-normal
-      df$y_var = df$y_exp + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
+      # variance from Poisson or quasi-poisson log-normal
+      if(family == 'poisson'){
+        df$y_var = df$y_exp + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
+      }else if(family == 'quasipoisson'){
+        df$y_var = list(...)$theta*df$y_exp + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
+      }else{
+        stop('input a proper family')
+      }
       
       # simulate the observed values
       df$y = DGP_function(nrow(df), exp(df$mu + df$phi))
@@ -3249,6 +3262,10 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         V_d = V[facs, facs]
         V_exp = exp(V_d) - 1
         ind_cov = upper.tri(V_exp) + lower.tri(V_exp)
+        
+        if(family == 'quasipoisson'){
+          warning('cant do district level quasipoisson variance for CAR yet. Havent coded it.')
+        }
         
         district_df = do.call('rbind', lapply(1:length(dates), function(i_date){
           df3 <- df2 %>% filter(date == dates[i_date])
@@ -3305,11 +3322,6 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
     
     # make R sampled sets of data
     df_lst = lapply(1:R, function(r){
-      # # Y1_exp = Y1_var = XB[1]
-      # for(f in facilities){
-      #   tmp <- df %>% filter(facility == f, date == min(dates))
-      #   tmp$y_exp = 
-      # }
       
       ### Get the first time point values
       ind = which(df$date == min(dates))
@@ -3330,17 +3342,20 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         ind = which(df$date == d)
         
         # get the mean estimates for these dates
-        df$y_exp[ind] = df$y_var[ind] = exp(df$mu[ind]) + 
+        df$y_exp[ind] <- exp(df$mu[ind]) + 
           alpha*df$y.AR1[ind] + rho*df$y.neighbors[ind]
+        
+        # get Poisson or quasipoisson variance
+        if(family == 'poisson'){
+          df$y_var[ind] <-df$y_exp[ind]
+        }else if(family == 'quasipoisson'){
+          df$y_var[ind] <- list(...)$theta*df$y_exp[ind]
+        }else{
+          stop('input a proper family')
+        }
         
         # predict!
         df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
-        # 
-        # for(f in facilities){
-        #   df_tmp = df %>% filter(date == d, facility == f)
-        #   
-        #   model.mean.exp(df_tmp, c(alpha, rho, betas[f,]))
-        # }
         
         # update the neighbors and auto-regressive terms
         df <- add_autoregressive(df, 'y') %>%
@@ -3365,7 +3380,6 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   }else{
     stop('please input a proper type')
   }
-  
   
   # make list of values to return
   res_lst = list(df_list = df_lst, district_list = district_lst, betas = betas)

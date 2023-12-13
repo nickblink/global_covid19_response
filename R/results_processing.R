@@ -41,7 +41,8 @@ sum(a$outbreak_detection5 == b$outbreak_detection10)
 
 #
 #### Plot main paper results 12/10/2023 ####
-load(paste0(res_dir,'/main_paper_results_12102023.RData'))
+#load(paste0(res_dir,'/main_paper_results_12102023.RData'))
+load(paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
 
 names(res_facility)
 
@@ -55,7 +56,7 @@ WF_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
   p3 <- plot_all_methods(res = res_facility[["files_WF_MNAR_QP4_6n025"]]$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MNAR Missing Data', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
-  ggsave('figures/WF_missingness_facility_plots_12102023.png', height = 7.5, width = 10)
+  ggsave('figures/WF_missingness_facility_plots_12102023_QP_adjust.png', height = 7.5, width = 10)
 }
 
 ## Missing data district plots
@@ -67,7 +68,7 @@ WF_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
   p3 <- plot_all_methods(res = res_district[["files_WF_MNAR_QP4_6n025"]]$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with MNAR Missing Data', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
-  ggsave('figures/WF_missingness_district_plots_12102023.png', height = 7.5, width = 10)
+  ggsave('figures/WF_missingness_district_plots_12102023_QP_adjust.png', height = 7.5, width = 10)
 }
 
 ## DGP facility plots
@@ -160,7 +161,7 @@ for(name in file_name_str){
   }
 }
 
-#save(res_facility, res_district, file = paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
+# save(res_facility, res_district, file = paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
 
 # Checking for NA vals
 lapply(res_facility, function(xx){sum(is.na(xx$params))})
