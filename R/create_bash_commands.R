@@ -129,6 +129,49 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+#### 12/14/2023: Results for the appendix! ####
+# freqGLM0202 EB0 = 5.5, EB1 = -0.25: MCAR (not actually the appendix though)
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	freqGLM0202 EB0 = 5.5, EB1 = 0: MCAR
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	WF EB0 = 6, EB1 = 0: MCAR
+bash_wrapper(missingness = 'mcar', b0_mean = 6, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	CAR0303025 EB0 = 6, EB1 = 0: MCAR
+bash_wrapper(missingness = 'mcar',DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	freqGLM0202 EB0 = 1.5, EB1 = 0: MCAR
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 1.5, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	WF EB0 = 2, EB1 = 0: MCAR
+bash_wrapper(missingness = 'mcar', b0_mean = 2, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+
+#	CAR0303025 EB0 = 2, EB1 = 0: MCAR
+bash_wrapper(missingness = 'mcar',DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 2, b1_mean = 0, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	WF EB0 = 6, EB1 = 0: QP 4: MCAR
+bash_wrapper(missingness = 'mcar', b1_mean = 0, family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	WF EB0 = 6, EB1 = 0: QP 4: MAR
+bash_wrapper(missingness = 'mar', b1_mean = 0, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+# WF EB0 = 6, EB1 = 0: QP 4: MNAR
+bash_wrapper(missingness = 'mnar', b1_mean = 0, gamma = 1, family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	WF EB0 = 6, EB1 = 0: QP 16: MCAR
+bash_wrapper(missingness = 'mcar', b1_mean = 0, family = 'quasipoisson', theta = 16, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+#	WF EB0 = 6, EB1 = 0: QP 16: MAR
+bash_wrapper(missingness = 'mar', b1_mean = 0, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, family = 'quasipoisson', theta = 16, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+# WF EB0 = 6, EB1 = 0: QP 16: MNAR
+bash_wrapper(missingness = 'mnar', b1_mean = 0, gamma = 1, family = 'quasipoisson', theta = 16, bash_file = 'cluster_code/cluster commands/bash_12142023.txt')
+
+
+
 #### 12/10/2023: Take 2: Commands for results section of paper (not appendix) ####
 # QP theta = 4 WF B0 = 6, b1 = -0.25 MCAR
 bash_wrapper(missingness = 'mcar', family = 'quasipoisson', theta = 4, bash_file = 'cluster_code/cluster commands/bash_12102023_p2.txt')
