@@ -395,6 +395,10 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     params_list <- c(params_list, tmp)
   }
   
+  if(length(lst_full) != 1000){
+    stop(sprintf('lst_full only has %s simulations. There should be 1000.', length(lst_full)))
+  }
+  
   # combine the parameters
   param_mat = data.table::rbindlist(params_list, idcol = 'file')
   
@@ -3204,7 +3208,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
     df$sigma2_marginal = dV[matid]
     
     # make R sampled sets of data
-    df_lst = lapply(seq, function(r){
+    df_lst = lapply(1:R, function(r){
       ### get the spatio-temporal random effects
       # initialize phi
       phi = matrix(0, nrow = length(dates), ncol = length(facilities))
@@ -3263,9 +3267,9 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         V_exp = exp(V_d) - 1
         ind_cov = upper.tri(V_exp) + lower.tri(V_exp)
         
-        if(family == 'quasipoisson'){
-          warning('cant do district level quasipoisson variance for CAR yet. Havent coded it.')
-        }
+        # if(family == 'quasipoisson'){
+        #   warning('cant do district level quasipoisson variance for CAR yet. Havent coded it.')
+        # }
         
         district_df = do.call('rbind', lapply(1:length(dates), function(i_date){
           df3 <- df2 %>% filter(date == dates[i_date])
