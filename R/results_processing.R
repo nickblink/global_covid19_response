@@ -48,6 +48,81 @@ aggregate_results <- function(res, bar_quants = c(0.25, 0.75), metrics = c('spec
   return(res_lst)
 }
 
+#### Getting newer results: Appendix and freqGLM0550202 ####
+files = grep('2023_12_14',dir(res_dir, full.names = T), value = T)
+
+# freqGLM0202 EB0 = 5.5, EB1 = -0.25: MCAR (not actually the appendix though)
+files_freqglm0202_MCAR_beta55_n025 <- grep('beta055_beta1n025',grep('freqglm', files, value = T), value = T)
+
+#	freqGLM0202 EB0 = 5.5, EB1 = 0: MCAR
+files_freqglm0202_MCAR_beta55_0 <- grep('beta055_beta10',grep('freqglm', files, value = T), value = T)
+
+#	WF EB0 = 6, EB1 = 0: MCAR
+files_WF_MCAR_beta6_0 <- grep('wf_beta06', files, value = T)
+
+#	CAR0303025 EB0 = 6, EB1 = 0: MCAR
+files_CAR33025_MCAR_beta6_0 <- grep('car0303025_beta06', files, value = T)
+
+#	freqGLM0202 EB0 = 1.5, EB1 = 0: MCAR
+files_freqglm0202_MCAR_beta15_0 <- grep('freqglm0202_beta015', files, value = T)
+
+#	WF EB0 = 2, EB1 = 0: MCAR
+files_WF_MCAR_beta2_0 <- grep('wf_beta02', files, value = T)
+
+#	CAR0303025 EB0 = 2, EB1 = 0: MCAR
+files_CAR33025_MCAR_beta2_0 <- grep('car0303025_beta02', files, value = T)
+
+#	WF EB0 = 6, EB1 = 0: QP 4: MCAR
+files_WF_MCAR_QPtheta4_beta6_0 <- grep('mcar[0-9]{1,2}_wf_qptheta4', files, value = T)
+
+#	WF EB0 = 6, EB1 = 0: QP 4: MAR
+files_WF_MAR_QPtheta4_beta6_0 <- grep('mar[0-9]{1,2}_wf_qptheta4', files, value = T)
+
+# WF EB0 = 6, EB1 = 0: QP 4: MNAR
+files_WF_MNAR_QPtheta4_beta6_0 <- grep('mnar[0-9]{1,2}_wf_qptheta4', files, value = T)
+
+#	WF EB0 = 6, EB1 = 0: QP 16: MCAR
+files_WF_MCAR_QPtheta16_beta6_0 <- grep('mcar[0-9]{1,2}_wf_qptheta16', files, value = T)
+
+#	WF EB0 = 6, EB1 = 0: QP 16: MAR
+files_WF_MAR_QPtheta16_beta6_0 <- grep('mar[0-9]{1,2}_wf_qptheta16', files, value = T)
+
+# WF EB0 = 6, EB1 = 0: QP 16: MNAR
+files_WF_MNAR_QPtheta16_beta6_0 <- grep('mnar[0-9]{1,2}_wf_qptheta16', files, value = T)
+
+for(d in files){
+  ff = dir(d)
+  if(length(ff) < 51){
+    print(d)
+    print(length(ff))
+    print('-------')
+    #unlink(d, recursive = T) # deletes the directory
+  }
+}
+
+# Putting all the files together
+file_name_str <- c('files_freqglm0202_MCAR_beta55_n025', 'files_freqglm0202_MCAR_beta55_0', 'files_WF_MCAR_beta6_0', 'files_CAR33025_MCAR_beta6_0', 'files_freqglm0202_MCAR_beta15_0', 'files_WF_MCAR_beta2_0', 'files_CAR33025_MCAR_beta2_0', 'files_WF_MCAR_QPtheta4_beta6_0', 'files_WF_MAR_QPtheta4_beta6_0', 'files_WF_MNAR_QPtheta4_beta6_0', 'files_WF_MCAR_QPtheta16_beta6_0', 'files_WF_MAR_QPtheta16_beta6_0', 'files_WF_MNAR_QPtheta16_beta6_0')
+
+all_file_names <- unlist(sapply(file_name_str, get))
+setdiff(files, all_file_names)
+setdiff(all_file_names, files)
+tt = table(all_file_names); tt[tt>1]
+# ok all gravy
+
+# initialize
+res_facility = list()
+res_district = list()
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T)
+}
+
+# save(res_facility, res_district, file = paste0(res_dir,'/appendix_results_12142023.RData'))
+
+
+#
 #### Get the aggregated results numbers ####
 load(paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
 
