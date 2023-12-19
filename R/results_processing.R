@@ -48,6 +48,53 @@ aggregate_results <- function(res, bar_quants = c(0.25, 0.75), metrics = c('spec
   return(res_lst)
 }
 
+## Compute the new metrics to put into the paper
+## Redo DGP plots
+## Put the new DGP into manuscript
+## Rewrite the methods section for 5.5
+
+#### Combining main results and appendix together ####
+load(paste0(res_dir,'/appendix_results_12142023.RData'))
+res_facility_new = res_facility; res_district_new = res_district
+rm(res_facility, res_district)
+load(paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
+res_facility_old = res_facility; res_district_old = res_district
+rm(res_facility, res_district)
+
+res_facility = c(res_facility_old, res_facility_new)
+res_district = c(res_district_old, res_district_new)
+
+table(table(names(res_facility)))
+table(table(names(res_district)))
+# good
+
+# save(res_facility, res_district, file = paste0(res_dir,'/full_paper_results_12192023.RData'))
+
+#
+#### Comparing freq0550202 with freq050202 ####
+load(paste0(res_dir,'/full_paper_results_12192023.RData'))
+
+## Comparison  plots
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  p1 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'beta = 5: Data Generated with freqGLM model, assuming MCAR', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'beta = 5.5: Data Generated with CARBayes model, assuming MCAR', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p1$legend, ncol = 1, rel_heights = c(3,3,1))
+  #ggsave('figures/DGP_facility_comparison_plots_12102023.png', height = 7.5, width = 10)
+}
+
+{
+  p1 <- plot_all_methods(res = res_district[["files_freqglm0202_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'beta = 5: District level', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_district[["files_freqglm0202_MCAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'beta = 5.5: District level', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p1$legend, ncol = 1, rel_heights = c(3,3,1))
+  #ggsave('figures/DGP_facility_comparison_plots_12102023.png', height = 7.5, width = 10)
+}
+
+#
 #### Getting newer results: Appendix and freqGLM0550202 ####
 files = grep('2023_12_14',dir(res_dir, full.names = T), value = T)
 
@@ -124,7 +171,8 @@ for(name in file_name_str){
 
 #
 #### Get the aggregated results numbers ####
-load(paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
+#load(paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
+load(paste0(res_dir,'/full_paper_results_12192023.RData'))
 
 res_f_agg <- list()
 names(res_facility)
@@ -159,9 +207,11 @@ for(xx in res_d_agg){
 
 res_f_agg[["files_WF_MCAR_6n025"]]
 res_f_agg[["files_freqglm0202_MCAR_6n025"]]
+res_f_agg[["files_freqglm0202_MCAR_beta55_n025"]]
 res_f_agg[["files_CAR33025_MCAR_6n025"]]
 
 res_d_agg[["files_freqglm0202_MCAR_6n025"]]
+res_d_agg[["files_freqglm0202_MCAR_beta55_n025"]]
 
 res_f_agg[["files_WF_MCAR_QP4_6n025"]][['specificity']]
 res_f_agg[["files_WF_MAR_QP4_6n025"]][['specificity']]
@@ -188,8 +238,9 @@ sum(a$outbreak_detection5 == b$outbreak_detection10)
 
 #
 #### Plot main paper results 12/10/2023 ####
-#load(paste0(res_dir,'/main_paper_results_12102023.RData'))
-load(paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
+# load(paste0(res_dir,'/main_paper_results_12102023.RData'))
+# load(paste0(res_dir,'/main_paper_results_12102023_QP_variance_adjusted.RData'))
+load(paste0(res_dir,'/full_paper_results_12192023.RData'))
 
 names(res_facility)
 
