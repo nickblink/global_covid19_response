@@ -70,7 +70,12 @@ plot_missingness <- function(df_miss){
   rownames(tmp2) = as.character(df_spread$date)
   heatmap(tmp2, keep.dendro = F, Rowv = NA, )
   
-  gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = F, Colv = F, xlab = 'facilities', trace = 'none', key = F)
+  
+  png(file = 'figures/MAR_heatmap_12282023.png')
+  gplots::heatmap.2(1 - tmp2, dendrogram = 'none', Rowv = F, Colv = F, xlab = 'facilities', trace = 'none', key = F)
+  dev.off()
+
+  return(p1)
 }
 
 lst <- simulate_data(district_sizes = c(10), R = 1, end_date = '2019-12-01')
@@ -78,9 +83,11 @@ lst <- simulate_data(district_sizes = c(10), R = 1, end_date = '2019-12-01')
 df <- lst$df_list[[1]] 
 
 # simulation function!
-df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.7, alpha = 0.7, tau = 2)
+df_miss <- MAR_spatiotemporal_sim(df, p = 0.3, rho = 0.7, alpha = 0.7, tau2 = 16)
 
-plot_missingness(df_miss)
+p1 <- plot_missingness(df_miss)
+
+# ggsave(p1, path = 'figures/MAR_missing_plot_12282023.png')
 
 #
 #### Testing Figures with two parts ####
@@ -340,7 +347,7 @@ res_f_agg <- res_f_agg2 <- list()
 names(res_facility)
 for(sim in names(res_facility)){
   res_f_agg[[sim]] <- aggregate_results(res_facility[[sim]]$results)
-  res_f_agg2[[sim]] <- aggregate_results(res_facility[[sim]]$results, full_results = F)
+  res_f_agg2[[sim]] <- aggregate_results(res_facility[[sim]]$results, full_results = F, metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'))
 }
 
 res_d_agg <- res_d_agg2 <- list()
@@ -369,7 +376,7 @@ for(xx in res_d_agg){
   print(xx[[3]])
 }
 
-### Appendix
+### Appendix 1
 res_f_agg2[["files_WF_MCAR_beta2_0"]]
 res_f_agg2[['files_freqglm0202_MCAR_beta15_0']]
 res_f_agg2[['files_CAR33025_MCAR_beta2_0']]
@@ -377,6 +384,16 @@ res_f_agg2[['files_CAR33025_MCAR_beta2_0']]
 res_f_agg2[["files_WF_MCAR_beta6_0"]]
 res_f_agg2[['files_freqglm0202_MCAR_beta55_0']]
 res_f_agg2[['files_CAR33025_MCAR_beta6_0']]
+
+### Appendix 2
+res_f_agg2[["files_WF_MCAR_QP4_6n025"]]
+res_f_agg2[['files_WF_MCAR_QPtheta16_beta6_0']]
+
+res_f_agg2[["files_WF_MAR_QP4_6n025"]]
+res_f_agg2[['files_WF_MAR_QPtheta16_beta6_0']]
+
+res_f_agg2[["files_WF_MNAR_QP4_6n025"]]
+res_f_agg2[['files_WF_MNAR_QPtheta16_beta6_0']]
 
 ### Main
 res_f_agg[["files_WF_MCAR_6n025"]]
