@@ -55,11 +55,34 @@ aggregate_results <- function(res, bar_quants = c(0.25, 0.75), metrics = c('spec
   return(res_lst)
 }
 
-## Compute the new metrics to put into the paper
-## Redo DGP plots
-## Put the new DGP into manuscript
-## Rewrite the methods section for 5.5
+#### Plot MAR Missingness ####
+plot_missingness <- function(df_miss){
+  df_spread = df_miss %>%
+    select(date, facility,y) %>%
+    tidyr::spread(., facility, y)
+  
+  tmp2 = df_spread[,-c(1)]
+  for(col in colnames(tmp2)){
+    tmp2[,col] = as.integer(is.na(tmp2[,col]))
+  }
+  
+  tmp2 = as.matrix(tmp2)
+  rownames(tmp2) = as.character(df_spread$date)
+  heatmap(tmp2, keep.dendro = F, Rowv = NA, )
+  
+  gplots::heatmap.2(tmp2, dendrogram = 'none', Rowv = F, Colv = F, xlab = 'facilities', trace = 'none', key = F)
+}
 
+lst <- simulate_data(district_sizes = c(10), R = 1, end_date = '2019-12-01')
+
+df <- lst$df_list[[1]] 
+
+# simulation function!
+df_miss <- MAR_spatiotemporal_sim(df, p = 0.2, rho = 0.7, alpha = 0.7, tau = 2)
+
+plot_missingness(df_miss)
+
+#
 #### Testing Figures with two parts ####
 ## DGP facility plots
 DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))

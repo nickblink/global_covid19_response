@@ -3593,7 +3593,7 @@ MNAR_sim <- function(df, p, direction = NULL, gamma = 1.5, by_facility = T, max_
   return(df)
 }
 
-MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau = 1, by_facility = T, max_missing_date = '2019-12-01'){
+MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau2 = 1, by_facility = T, max_missing_date = '2019-12-01'){
   # make phi for df
   # for all, or for each facility,
   # sample according to expit(phi)
@@ -3615,7 +3615,7 @@ MAR_spatiotemporal_sim <- function(df, p, rho = 0.3, alpha = 0.3, tau = 1, by_fa
   Q = make_precision_mat(df, rho = rho)
   
   tryCatch({
-    V = tau^2*solve(Q)
+    V = tau2*solve(Q)
   }, error = function(e){
     print(e)
     print('havent dealt with non-invertible precision matrices yet')
