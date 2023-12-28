@@ -129,7 +129,7 @@ DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
   
   p2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_beta55_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_beta6_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CARBayes model, assuming MCAR', include_legend = F)
+  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_beta6_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MCAR', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
   ggsave('figures/DGP_facility_comparison_plots_beta6_0_12192023.png', height = 7.5, width = 10)
@@ -141,7 +141,7 @@ DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
   
   p2 <- plot_all_methods(res = res_district[["files_freqglm0202_MCAR_beta55_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_district[["files_CAR33025_MCAR_beta6_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CARBayes model, assuming MCAR', include_legend = F)
+  p3 <- plot_all_methods(res = res_district[["files_CAR33025_MCAR_beta6_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MCAR', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
   ggsave('figures/DGP_district_comparison_plots_beta6_0_12192023.png', height = 7.5, width = 10)
@@ -153,7 +153,7 @@ DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
   
   p2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_beta15_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_beta2_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CARBayes model, assuming MCAR', include_legend = F)
+  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_beta2_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MCAR', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
   ggsave('figures/DGP_facility_comparison_plots_beta2_0_12192023.png', height = 7.5, width = 10)
@@ -165,7 +165,7 @@ DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
   
   p2 <- plot_all_methods(res = res_district[["files_freqglm0202_MCAR_beta15_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F)
   
-  p3 <- plot_all_methods(res = res_district[["files_CAR33025_MCAR_beta2_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CARBayes model, assuming MCAR', include_legend = F)
+  p3 <- plot_all_methods(res = res_district[["files_CAR33025_MCAR_beta2_0"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MCAR', include_legend = F)
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
   ggsave('figures/DGP_district_comparison_plots_beta2_0_12192023.png', height = 7.5, width = 10)
