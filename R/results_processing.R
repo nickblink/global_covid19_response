@@ -55,6 +55,24 @@ aggregate_results <- function(res, bar_quants = c(0.25, 0.75), metrics = c('spec
   return(res_lst)
 }
 
+load(paste0(res_dir,'/full_paper_results_12192023.RData'))
+
+#
+#### Making main DGP facility figure with four panels ####
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  p1 <- plot_all_methods(res = res_facility[["files_WF_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with WF model, assuming MCAR', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_6n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CARBayes model, assuming MCAR', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_facility_comparison_plots_fourpanels_03222024.png', height = 7.5, width = 10)
+}
+
+
+#
 #### Plot MAR Missingness ####
 plot_missingness <- function(df_miss){
   df_spread = df_miss %>%

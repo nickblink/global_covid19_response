@@ -48,7 +48,7 @@ make_district_W2_matrix <- function(df){
   # get unique facilities
   facilities = unique(df$facility) %>% sort()
   
-  # initialize the W2 matrix (note that what I am calling W here is what the original paper calls diag(W1) - W)
+  # initialize the W2 matrix (note that what I am calling W2 here is what the original paper calls diag(W1) - W)
   W2 = matrix(0, nrow = length(facilities), ncol = length(facilities))
   colnames(W2) = facilities
   rownames(W2) = facilities
