@@ -2848,13 +2848,14 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
   for(metric in metrics){
     i = i + 1
     
-    # aggregate the results by the metric and quantile of plots
+    # aggregate the results by the metric and quantile of plots.
     tmp <- res %>%
       group_by(method, prop_missing) %>% 
       summarize(median = median(get(metric)),
                 lower = stats::quantile(get(metric), probs = bar_quants[1]),
                 upper = stats::quantile(get(metric), probs = bar_quants[2])) 
     
+    # remove parts of string not wanted in plot.
     tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
     
     # refactor for ordering
@@ -2862,7 +2863,6 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
       tmp$method = factor(tmp$method, levels = levels(res$method))
     }
     
-    #browser()
     # plot!
     p1 <- ggplot() + 
       # plot the background shading
@@ -3088,6 +3088,10 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
     DGP_function <- function(n, mu){
       y <- rqpois(n, mu, theta = list(...)$theta)
     }
+  }else if(family == 'negbin'){
+    DGP_function <- function(n, mu){
+      y <- rnbinom(n = n, mu = mu, size = list(...)$dispersion)
+    }
   }
   
   # initialize list of data frames
@@ -3123,20 +3127,23 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         
         # get mean prediction from linear model
         mu = as.matrix(X)%*%beta_f
-        tmp$y_exp = exp(mu)
+        tmp$y_exp = exp(mu)[,1]
         
         # get Poisson or quasipoisson variance
         if(family == 'poisson'){
           tmp$y_var <- tmp$y_exp
         }else if(family == 'quasipoisson'){
           tmp$y_var <- list(...)$theta*tmp$y_exp
+        }else if(family == 'negbin'){
+          tmp$y_var <- tmp$y_exp + tmp$y_exp^2/list(...)$dispersion
         }else{
           stop('input a proper family')
         }
         
-        
         # simluate random values
         tmp$y = DGP_function(length(mu), exp(mu))
+        
+        browser()
         
         return(tmp)
       })
@@ -3392,7 +3399,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
 
 #### Function to simulate data under the freqGLM_epi framework
 ##
-## district_sizes = number of facilities in the districtss
+## district_sizes = number of facilities in the districts
 ## R = number of simulated data sets
 ## lambda = autoregressive term
 ## phi = neighbor term

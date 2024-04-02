@@ -55,7 +55,7 @@ aggregate_results <- function(res, bar_quants = c(0.25, 0.75), metrics = c('spec
   return(res_lst)
 }
 
-load(paste0(res_dir,'/full_paper_results_12192023.RData'))
+load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
 #
 #### Making main DGP facility figure with four panels ####

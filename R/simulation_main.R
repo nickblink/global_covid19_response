@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:theta=9:family=quasipoisson\r','3')
+inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:dispersion=5:family=negbin\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -94,7 +94,12 @@ if(!is.null(params[['family']])){
     arguments = c(arguments,
                   list(family = 'quasipoisson',
                        theta = params[['theta']]))
-  }else if(params[['family']] != 'poisson'){
+  }else if(params[['family']] == 'negbin'){
+    arguments = c(arguments,
+                  list(family = 'negbin',
+                       theta = params[['dispersion']]))
+  }
+  }else if(params[['family']] != c('poisson')){
     stop('improper family for DGP')
   }
 }
