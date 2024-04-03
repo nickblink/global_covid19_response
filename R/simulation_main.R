@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:dispersion=5:family=negbin\r','3')
+inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=T\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -44,6 +44,8 @@ for(str in strsplit(inputs[[1]],':')[[1]]){
     })
   }else if(nn %in% c('R','num_jobs')){
     val = as.integer(val)
+  }else if(val %in% c('t','f')){
+    val = as.logical(ifelse(val == 't', T, F))
   }
   params[[nn]] = val
 }
@@ -93,17 +95,29 @@ if(params[['DGP']] == 'car'){
 
 if(!is.null(params[['family']])){
   if(params[['family']] == 'quasipoisson'){
-    arguments = c(arguments,
-                  list(family = 'quasipoisson',
-                       theta = params[['theta']]))
+    if('theta' %in% names(params)){
+      arguments = c(arguments,
+                    list(family = 'quasipoisson',
+                         theta = params[['theta']]))
+    }else{
+      stop('need to put in a theta value for quasipoisson')
+    }
   }else if(params[['family']] == 'negbin'){
     arguments = c(arguments,
-                  list(family = 'negbin',
-                       dispersion = params[['dispersion']]))
-  }
+                  list(family = 'negbin'))
+    if('dispersion' %in% names(params)){
+      arguments = c(arguments,
+                    list(dispersion = params[['dispersion']]))
+    }
   }else if(params[['family']] != c('poisson')){
     stop('improper family for DGP')
   }
+}
+
+if('empirical_betas' %in% names(params)){
+  arguments <- c(arguments, 
+                 list(empirical_betas = params[['empirical_betas']]))
+}
 }
 
 # Simulate the data
@@ -150,7 +164,7 @@ if(params[['job_id']] == 1){
 }
 
 # function to run all models for a specific dataset
-one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF_params = list(R_PI = 200), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000)){
+one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF_params = list(R_PI = 200, family = 'poisson'), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000)){
   
   set.seed(i)
   
@@ -159,7 +173,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
   df = lst$df_list[[i]]
   
   set.seed(i)
-   # add in missingness
+   # add in missingness to the data
   if(params[['missingness']] == 'mcar'){
     df_miss = MCAR_sim(df, p = params[['p']], by_facility = T)
   }else if(params[['missingness']] == 'mar'){
@@ -196,7 +210,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
     t1 = Sys.time()
     print('running WF CCA')
     return_list <- tryCatch({
-      res <- WF_CCA(return_list[['df_miss']], col = "y", family = 'poisson', R_PI = WF_params[['R_PI']])
+      res <- WF_CCA(return_list[['df_miss']], col = "y", family = WF_params[['family']], R_PI = WF_params[['R_PI']])
       return_list[['df_miss']] <- res$df
       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
         res$district_df
@@ -270,9 +284,22 @@ system.time({
   imputed_list <- foreach(i=1:R_new) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARstan'))
 })
 
-# res <- one_run(lst, 1, freqGLM_params = list(R_PI = 5), MCMC_params = list(burnin.stan = 20, n.sample.stan = 50, burnin.CARBayesST = 100, n.sample.CARBayesST = 200))
+res <- one_run(lst, 1, models = c('WF'), WF_params = list(R_PI = 200, family = 'negbin'))
 
 true_betas <- lst$betas
 
 save(imputed_list, seq, params, arguments, true_betas, file = results_file)
 
+
+a <- res_pois$df_miss
+b <- res$df_miss
+
+a$int_W <- a$y_pred_WF_0.975 - a$y_pred_WF_0.025
+b$int_W <- b$y_pred_WF_negbin_0.975 - b$y_pred_WF_negbin_0.025
+plot(density(a$int_W))
+lines(density(b$int_W), col = 'red')
+
+sum(a$int_W > b$int_W)
+sum(a$int_W == b$int_W)
+sum(a$int_W < b$int_W)
+# noice.

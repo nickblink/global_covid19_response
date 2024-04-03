@@ -660,11 +660,10 @@ process_CAR_params_wrapper <- function(files, rename_params = T, all_betas = F, 
 #
 ##### Imputation Functions #####
 
-# Weingberger-Fulcher imputation method
-WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 12, R_PI = 500, bias_correction_chen = F, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
+# Weingberger-Fulcher fitting method
+WF_fit <- function(df, col, group = 'facility', family = 'negbin', period = 12, R_PI = 500, bias_correction_chen = F, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
-  # print(sprintf('family is %s', family))
-  
+  print(family)
   # check if this method has already been run
   if(any(grepl('y_pred_WF', colnames(df)))){
     print('previous WF predictions found. Removing them')
@@ -696,25 +695,63 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
     #df <- data.table::rbindlist(tmp)
     df <- do.call('rbind',tmp)
     
-  }else if(family %in% c('NB','negative binomial','neg_bin')){
-    warning('havent coded PIs in quasipoisson or NB yet')
-    
+  }else if(family %in% c('NB','negative binomial','negbin')){
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(get(group) == xx)
       #mod_col <- MASS::glm.nb(formula_col, data = tt, control = glm.control(maxit=200,trace = 3))
       
-      tt[,paste0(col, '_pred_WF')] <- tryCatch({
+      tt[,paste0(col, '_pred_WF_negbin')] <- tryCatch({
         mod_col <- MASS::glm.nb(formula_col, data = tt)
         predict(mod_col, tt, type = 'response')
       }, error = function(e){
         print(sprintf('glm.nb failed for %s', xx))
         rep(NA, nrow(tt))
       })
-      #tt[,paste0(col, '_pred_WF')] = predict(mod_col, tt, type = 'response')
-      return(tt)
+      
+      # generate prediction intervals.
+      if(R_PI > 0){
+        # extract information from model fit
+        beta_hat <- mod_col$coefficients
+        beta_vcov <- vcov(mod_col)
+        overdisp <- summary(mod_col)$theta
+        
+        # store the model results to return
+        model_res = list()
+        model_res[[as.character(xx)]][['beta_hat']] <- beta_hat
+        model_res[[as.character(xx)]][['beta_vcov']] <- beta_vcov
+        model_res[[as.character(xx)]][['theta']] <- overdisp
+        
+        # bootstrap 
+        sapply(1:R_PI, function(r){
+          beta_boot <- MASS::mvrnorm(1,beta_hat,beta_vcov)
+          pred_boot <- (tt %>% 
+                          mutate(intercept=1) %>%
+                          #dplyr::select(intercept,year,ends_with("1"),ends_with("2"),ends_with("3")) %>%
+                          dplyr::select(intercept,year,cos1,sin1,cos2,sin2,cos3,sin3) %>%
+                          as.matrix())%*%as.matrix(beta_boot)
+          pred_boot_exp <- exp(pred_boot) 
+          pred_boot_exp[which(is.na(pred_boot_exp))] <- 1
+          x = MASS::rnegbin(n = nrow(tt), mu = pred_boot_exp, theta = overdisp)
+          
+          return(x)
+          
+        }) -> sim.boot
+        
+        # get the quantiles and store them
+        fitted_quants = t(apply(sim.boot, 1, function(xx){
+          quantile(xx, probs = quant_probs)
+        }))
+        fitted_quants = as.data.frame(fitted_quants)
+        colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_negbin_'), quant_probs)
+        
+        # merge the quantiles back into data frame
+        tt = cbind(tt, fitted_quants)
+      }
+      tmp_lst = list(tt, sim.boot, model_res)
+      return(tmp_lst)
     })
+    names(tmp) = uni_group
     
-    df <- data.table::rbindlist(tmp)
   }else if(family == 'poisson'){
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(get(group) == xx)
@@ -799,53 +836,104 @@ WF_imputation <- function(df, col, group = 'facility', family = 'NB', period = 1
     })
     names(tmp) = uni_group
     
-    # initialize district results
-    district_df = NULL
-    
-    # district-level analysis
-    for(d in names(dist_fac)){
-      tt = data.frame(district = d,
-                      date = tmp[[1]][[1]]$date)
-      facs = dist_fac[[d]]
-      
-      # get the sums by district: returns n x R data frame
-      sum_district = Reduce('+', lapply(facs, function(f){
-        tmp[[f]][[2]]
-      }))
-      
-      # get the quantiles and store them
-      fitted_quants = t(apply(sum_district, 1, function(xx){
-        quantile(xx, probs = quant_probs)
-      }))
-      fitted_quants = as.data.frame(fitted_quants)
-      colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
-      
-      # merge the quantiles back into data frame
-      tt = cbind(tt, fitted_quants)
-      
-      district_df = rbind(district_df, tt)
-    }
-    
-    betas <- do.call('rbind',lapply(1:length(tmp), function(ii){
-      tmp_fac <- tmp[[ii]][[3]]
-      tt <- matrix(NA, ncol = 8)
-      tt[1,] <- tmp_fac[[1]][[1]]
-      rownames(tt) <- names(tmp_fac)
-      colnames(tt) <- names(tmp_fac[[1]][[1]])
-      return(tt)
-    }))
-    
-    beta_vcovs <- lapply(1:length(tmp), function(ii){
-      return(tmp[[ii]][[3]])
-    })
-    
-    # combine the individual facility results into a larger data frame
-    df <- do.call('rbind',lapply(tmp,'[[',1))
-    
-    # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
-    sim.full = Reduce('+', lapply(tmp, '[[', 2))
+    # # combine the individual facility results into a larger data frame
+    # df <- do.call('rbind',lapply(tmp,'[[',1))
+    # 
+    # # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
+    # sim.full = Reduce('+', lapply(tmp, '[[', 2))
+    # 
+    # # initialize district results
+    # district_df = NULL
+    # 
+    # # district-level analysis
+    # for(d in names(dist_fac)){
+    #   tt = data.frame(district = d,
+    #                   date = tmp[[1]][[1]]$date)
+    #   facs = dist_fac[[d]]
+    #   
+    #   # get the sums by district: returns n x R data frame
+    #   sum_district = Reduce('+', lapply(facs, function(f){
+    #     tmp[[f]][[2]]
+    #   }))
+    #   
+    #   # get the quantiles and store them
+    #   fitted_quants = t(apply(sum_district, 1, function(xx){
+    #     quantile(xx, probs = quant_probs)
+    #   }))
+    #   fitted_quants = as.data.frame(fitted_quants)
+    #   colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
+    #   
+    #   # merge the quantiles back into data frame
+    #   tt = cbind(tt, fitted_quants)
+    #   
+    #   district_df = rbind(district_df, tt)
+    # }
+    # 
+    # betas <- do.call('rbind',lapply(1:length(tmp), function(ii){
+    #   tmp_fac <- tmp[[ii]][[3]]
+    #   tt <- matrix(NA, ncol = 8)
+    #   tt[1,] <- tmp_fac[[1]][[1]]
+    #   rownames(tt) <- names(tmp_fac)
+    #   colnames(tt) <- names(tmp_fac[[1]][[1]])
+    #   return(tt)
+    # }))
+    # 
+    # beta_vcovs <- lapply(1:length(tmp), function(ii){
+    #   return(tmp[[ii]][[3]])
+    # })
 
   }
+  
+  # combine the individual facility results into a larger data frame
+  df <- do.call('rbind',lapply(tmp,'[[',1))
+  
+  # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
+  sim.full = Reduce('+', lapply(tmp, '[[', 2))
+  
+  # initialize district results
+  district_df = NULL
+  
+  # district-level analysis
+  for(d in names(dist_fac)){
+    tt = data.frame(district = d,
+                    date = tmp[[1]][[1]]$date)
+    facs = dist_fac[[d]]
+    
+    # get the sums by district: returns n x R data frame
+    sum_district = Reduce('+', lapply(facs, function(f){
+      tmp[[f]][[2]]
+    }))
+    
+    # get the quantiles and store them
+    fitted_quants = t(apply(sum_district, 1, function(xx){
+      quantile(xx, probs = quant_probs)
+    }))
+    fitted_quants = as.data.frame(fitted_quants)
+    if(family == 'poisson'){
+      colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
+    }else if(family == 'negbin'){
+      colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_negbin_'), quant_probs)
+    }
+    
+    # merge the quantiles back into data frame
+    tt = cbind(tt, fitted_quants)
+    
+    district_df = rbind(district_df, tt)
+  }
+  
+  betas <- do.call('rbind',lapply(1:length(tmp), function(ii){
+    tmp_fac <- tmp[[ii]][[3]]
+    tt <- matrix(NA, ncol = 8)
+    tt[1,] <- tmp_fac[[1]][[1]]
+    rownames(tt) <- names(tmp_fac)
+    colnames(tt) <- names(tmp_fac[[1]][[1]])
+    return(tt)
+  }))
+  
+  beta_vcovs <- lapply(1:length(tmp), function(ii){
+    return(tmp[[ii]][[3]])
+  })
+
   res_lst = list(df = df, district_df = district_df, betas = betas, beta_vcovs = beta_vcovs)
   return(res_lst)
 }
@@ -856,10 +944,10 @@ WF_CCA <- function(df, district_df = NULL, train_end_date = '2019-12-01', ...){
   tmp <- df
   tmp$y[tmp$date > train_end_date] <- NA
   
-  res <- WF_imputation(tmp, ...)
+  res <- WF_fit(tmp, ...)
 
   # store the results and return the original y values
-  # This is because the y values in 2020 are returned as NA from WF_imputation
+  # This is because the y values in 2020 are returned as NA from WF_fit
   tmp <- res$df
   tmp = merge(tmp %>% dplyr::select(-y),
               df %>% dplyr::select(date, facility, y),
@@ -880,7 +968,7 @@ WF_baseline <- function(df, train_end_date = '2019-12-01', family = 'poisson', R
   # temporary store of column names
   colnames(tmp) <- gsub('y_pred_WF','TEMPORARY',colnames(tmp))
   
-  res <- WF_imputation(tmp, col = 'y', family = family, R_PI = R_PI)
+  res <- WF_fit(tmp, col = 'y', family = family, R_PI = R_PI)
   
   # store the results and return the original y values
   tmp <- res$df
@@ -897,7 +985,7 @@ WF_baseline <- function(df, train_end_date = '2019-12-01', family = 'poisson', R
 }
 
 # Bayes imputatioFfacility_Fixedsdfsdfn method
-bayes_WF_imputation <- function(df, df_OG = NULL, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
+bayes_WF_fit <- function(df, df_OG = NULL, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period) %>% as.data.frame()
   
@@ -1492,7 +1580,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     # run two imputations
     df_imp <- tryCatch({
-      WF_imputation(df_miss, col = col, family = harmonic_family, group = group)
+      WF_fit(df_miss, col = col, family = harmonic_family, group = group)
     }, error = function(e){
       print(sprintf('error for periodic with p = %s', p))
       browser()
@@ -1500,7 +1588,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     if(!is.na(bayes_harmonic_family)){
       df_imp <- tryCatch({
-        bayes_WF_imputation(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group)
+        bayes_WF_fit(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group)
       }, error = function(e){
         print(sprintf('error for bayes periodic with p = %s', p))
         browser()
@@ -1510,7 +1598,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     if(bayes_beta_prior){
       df_imp <- tryCatch({
-        bayes_WF_imputation(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
+        bayes_WF_fit(df_imp, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
       }, error = function(e){
         print(sprintf('error for bayes periodic beta prior with p = %s', p))
         browser()
@@ -1519,7 +1607,7 @@ impute_wrapper <- function(df, col = 'indicator_denom', p_vec = c(0.1, 0.2, 0.3,
     
     if(bayes_beta_prior){
       df_imp <- tryCatch({
-        bayes_WF_imputation(df_imp, df_OG = df, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
+        bayes_WF_fit(df_imp, df_OG = df, col = col, family = harmonic_family, iterations = bayes_iterations, group = group, harmonic_priors = T)
       }, error = function(e){
         print(sprintf('error for bayes periodic beta prior with p = %s', p))
         browser()
@@ -3024,8 +3112,9 @@ initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = 
 }
 
 sample_real_betas <- function(facilities, file = 'data/coef_nb_1_3.csv'){
-  # pull in data
-  tmp <- read.csv(file)
+  # pull in data and remove one NA column
+  tmp <- read.csv(file) %>%
+    na.omit()
   
   # name the columns and rows.
   colnames(tmp) <- c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3', 'dispersion')
@@ -3035,8 +3124,11 @@ sample_real_betas <- function(facilities, file = 'data/coef_nb_1_3.csv'){
   betas = tmp[,-ncol(tmp)]
   dispersion = tmp[,ncol(tmp)]
   
+  # name the dispersion vec
+  names(dispersion) <- facilities
+  
   # make list to return.
-  return_list = list(betas = betas, dispersion = dispersion)
+  return_lst = list(betas = betas, dispersion = dispersion)
   
   # #ind <- sample(nrow(tmp), length(facilities))
   # #betas <- tmp[ind,3:10]
@@ -3096,19 +3188,17 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
     betas = sample_betas(facilities, ...)  
   }
   
-  browser()
-  
+  # set up the data generating function based off the family.
   if(family == 'poisson'){
-    DGP_function = rpois
+    DGP_function = function(n, mu){
+      y <- rpois(n, mu)
+    }
   }else if(family == 'quasipoisson'){
     DGP_function <- function(n, mu){
       y <- rqpois(n, mu, theta = list(...)$theta)
     }
   }else if(family == 'negbin'){
-    DGP_function <- function(n, mu, dispersion_parameter){
-      y <- rnbinom(n = n, mu = mu, size = dispersion_parameter)
-      stop('wrong way to do dispersion.')
-    }
+    # make the DGP below since it depends on a different dispersion parameter for each facility.
   }
   
   # initialize list of data frames
@@ -3118,7 +3208,6 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   # set seed for the data generation
   set.seed(seed)
   
-  #browser()
   # simulate the data according to the DGP
   if(type == 'WF'){
     # make R sampled sets of data
@@ -3153,20 +3242,21 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         }else if(family == 'quasipoisson'){
           tmp$y_var <- list(...)$theta*tmp$y_exp
         }else if(family == 'negbin'){
-          if(is.null(dispersion_vec)){
+          if(!exists('dispersion_vec')){
             dispersion_parameter = list(...)$dispersion
           }else{
             dispersion_parameter = dispersion_vec[[xx]]
           }
           tmp$y_var <- tmp$y_exp + tmp$y_exp^2/dispersion_parameter
-          browser()
-          # check the dispersion parameter both with empirical betas and without.
+          DGP_function <- function(n, mu){
+            y <- rnbinom(n = n, mu = mu, size = dispersion_parameter)
+          }
         }else{
           stop('input a proper family')
         }
         
         # simluate random values
-        tmp$y = DGP_function(length(mu), exp(mu), ...)
+        tmp$y = DGP_function(length(mu), exp(mu))
         
         return(tmp)
       })
