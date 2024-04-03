@@ -3027,8 +3027,9 @@ sample_real_betas <- function(facilities, file = 'data/coef_nb_1_3.csv'){
   # pull in data
   tmp <- read.csv(file)
   
-  # name the columns.
-  colnames(tmp) = c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3', 'dispersion')
+  # name the columns and rows.
+  colnames(tmp) <- c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3', 'dispersion')
+  rownames(tmp) <- facilities
   
   # split the betas and the dispersion parameters.
   betas = tmp[,-ncol(tmp)]
@@ -3090,10 +3091,12 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   if(empirical_betas){
     tmp = sample_real_betas(facilities)
     betas = tmp$betas
-    dispersion = tmp$dispersion
+    dispersion_vec = tmp$dispersion
   }else{
     betas = sample_betas(facilities, ...)  
   }
+  
+  browser()
   
   if(family == 'poisson'){
     DGP_function = rpois
@@ -3102,8 +3105,8 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       y <- rqpois(n, mu, theta = list(...)$theta)
     }
   }else if(family == 'negbin'){
-    DGP_function <- function(n, mu){
-      y <- rnbinom(n = n, mu = mu, size = list(...)$dispersion)
+    DGP_function <- function(n, mu, dispersion_parameter){
+      y <- rnbinom(n = n, mu = mu, size = dispersion_parameter)
       stop('wrong way to do dispersion.')
     }
   }
@@ -3150,13 +3153,20 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         }else if(family == 'quasipoisson'){
           tmp$y_var <- list(...)$theta*tmp$y_exp
         }else if(family == 'negbin'){
-          tmp$y_var <- tmp$y_exp + tmp$y_exp^2/list(...)$dispersion
+          if(is.null(dispersion_vec)){
+            dispersion_parameter = list(...)$dispersion
+          }else{
+            dispersion_parameter = dispersion_vec[[xx]]
+          }
+          tmp$y_var <- tmp$y_exp + tmp$y_exp^2/dispersion_parameter
+          browser()
+          # check the dispersion parameter both with empirical betas and without.
         }else{
           stop('input a proper family')
         }
         
         # simluate random values
-        tmp$y = DGP_function(length(mu), exp(mu))
+        tmp$y = DGP_function(length(mu), exp(mu), ...)
         
         return(tmp)
       })

@@ -98,14 +98,18 @@ if(!is.null(params[['family']])){
                        theta = params[['theta']]))
   }else if(params[['family']] == 'negbin'){
     arguments = c(arguments,
-                  list(family = 'negbin',
-                       dispersion = params[['dispersion']]))
+                  list(family = 'negbin'))
+    if('dispersion' %in% names(params)){
+      arguments = c(arguments, 
+                    list(dispersion = params[['dispersion']]))
+    }
   }
   }else if(params[['family']] != c('poisson')){
     stop('improper family for DGP')
   }
 }
 
+# to run with empirical betas found from real facilities.
 arguments <- c(arguments, 
                list(empirical_betas = T))
 
