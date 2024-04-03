@@ -166,13 +166,13 @@ if(params[['job_id']] == 1){
 # function to run all models for a specific dataset
 one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF_params = list(R_PI = 200, family = 'poisson'), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000)){
   
-  set.seed(i)
   
   t0 <- Sys.time()
   print(sprintf('i = %i',i))
   df = lst$df_list[[i]]
   
   set.seed(i)
+  
    # add in missingness to the data
   if(params[['missingness']] == 'mcar'){
     df_miss = MCAR_sim(df, p = params[['p']], by_facility = T)
@@ -278,6 +278,72 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
   return(return_list)
 }
 
+one_run2 <- function(list, i, model_list <- NULL){
+  
+  t0 <- Sys.time()
+  print(sprintf('i = %i',i))
+  df = lst$df_list[[i]]
+  
+  set.seed(i)
+  
+  # add in missingness to the data
+  if(params[['missingness']] == 'mcar'){
+    df_miss = MCAR_sim(df, p = params[['p']], by_facility = T)
+  }else if(params[['missingness']] == 'mar'){
+    df_miss = MAR_spatiotemporal_sim(df, p = params[['p']], rho = params[['rho_MAR']], alpha = params[['alpha_MAR']], tau2 = params[['tau2_MAR']])
+  }else{
+    df_miss <- MNAR_sim(df, p = params[['p']], direction = 'upper', gamma = params[['gamma']], by_facility = T)
+  }
+  
+  # initialize results list
+  ???
+  
+  # cycle through models
+  for(sub_lst in model_list){
+    model = sub_lst$model
+    params = sub_lst$params
+    if(model == 'WF'){
+      fit_fxn <- function(df){
+        tmp <- WF_CCA(df, col = "y", family = WF_params[['family']], R_PI = params[['R_PI']])
+        return(tmp)
+      }
+    }
+    
+    return_list <- tryCatch({
+      res <- fit_fxn(df)
+      return_list[['df_miss']] <- res$df
+      return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
+      return_list
+      if(model == 'WF'){
+        return_list[['WF_betas']] <- res$betas
+      }
+    },error = function(e){
+      return_list[['errors']][[model]] <- rbind(return_list[['errors']][[model]], data.frame(i = i, error = e[[1]]))
+      return_list
+    })
+    
+    
+
+      return_list <- tryCatch({
+        res <- WF_CCA(return_list[['df_miss']], col = "y", family = WF_params[['family']], R_PI = WF_params[['R_PI']])
+        return_list[['df_miss']] <- res$df
+        return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
+        res$district_df
+        return_list[['WF_betas']] <- res$betas
+        return_list
+      }, error = function(e){
+        return_list[['errors']][['WF']] <- rbind(return_list[['errors']][['WF']], data.frame(i = i, error = e[[1]]))
+        return_list
+      })
+    }
+  }
+}
+
+model_list <- list(list(model = 'WF',
+                        params = list(R_PI = 200, family = 'negbin')),
+                   list(model = 'WF', 
+                        params = list(R_PI = 200, family = 'poisson')))
+
 # run the models for each simulation dataset
 system.time({
   #imputed_list <- foreach(i=seq) %dorng% one_run(lst, i, models = c('freq', 'WF', 'CARstan'))
@@ -291,15 +357,15 @@ true_betas <- lst$betas
 save(imputed_list, seq, params, arguments, true_betas, file = results_file)
 
 
-a <- res_pois$df_miss
-b <- res$df_miss
-
-a$int_W <- a$y_pred_WF_0.975 - a$y_pred_WF_0.025
-b$int_W <- b$y_pred_WF_negbin_0.975 - b$y_pred_WF_negbin_0.025
-plot(density(a$int_W))
-lines(density(b$int_W), col = 'red')
-
-sum(a$int_W > b$int_W)
-sum(a$int_W == b$int_W)
-sum(a$int_W < b$int_W)
-# noice.
+# a <- res_pois$df_miss
+# b <- res$df_miss
+# 
+# a$int_W <- a$y_pred_WF_0.975 - a$y_pred_WF_0.025
+# b$int_W <- b$y_pred_WF_negbin_0.975 - b$y_pred_WF_negbin_0.025
+# plot(density(a$int_W))
+# lines(density(b$int_W), col = 'red')
+# 
+# sum(a$int_W > b$int_W)
+# sum(a$int_W == b$int_W)
+# sum(a$int_W < b$int_W)
+# # noice.
