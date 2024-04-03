@@ -31,7 +31,7 @@ for(str in strsplit(inputs[[1]],':')[[1]]){
   tmp = strsplit(str, '=')[[1]]
   nn = tmp[1]
   val = tolower(tmp[2])
-  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta')){
+  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta', 'dispersion')){
     val = as.numeric(val)
   }else if(nn == 'b0_mean'){
     val = as.numeric(strsplit(val, '/')[[1]])
@@ -57,6 +57,8 @@ if(!(params[['missingness']] %in% c('mcar','mar','mnar'))){
   print(sprintf('proceeding with %s missingness', params[['missingness']]))
 }
 
+print('Running on 24 facilities!!')
+
 # get sequence of simulation iterations to run
 # (deprecated - now I just simulate R_new # of data frames)
 if(params[['job_id']] < params[['num_jobs']]){
@@ -69,7 +71,7 @@ if(params[['job_id']] < params[['num_jobs']]){
 R_new = length(seq)
 
 # input arguments to data simulation
-arguments = list(district_sizes = c(4, 6, 10), 
+arguments = list(district_sizes = c(4, 6, 14), 
                  R = R_new, 
                  seed = params[['job_id']],
                  end_date = '2020-12-01', 
@@ -97,7 +99,7 @@ if(!is.null(params[['family']])){
   }else if(params[['family']] == 'negbin'){
     arguments = c(arguments,
                   list(family = 'negbin',
-                       theta = params[['dispersion']]))
+                       dispersion = params[['dispersion']]))
   }
   }else if(params[['family']] != c('poisson')){
     stop('improper family for DGP')
@@ -115,7 +117,7 @@ errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
                CARBayesST = data.frame(i = NULL, error = NULL),
                CARstan = data.frame(i = NULL, error = NULL))
 
-}
+
 
 ### File saving (for cluster only)
 {

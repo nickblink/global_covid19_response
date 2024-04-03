@@ -3101,6 +3101,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   # set seed for the data generation
   set.seed(seed)
   
+  #browser()
   # simulate the data according to the DGP
   if(type == 'WF'){
     # make R sampled sets of data
@@ -3142,8 +3143,6 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         
         # simluate random values
         tmp$y = DGP_function(length(mu), exp(mu))
-        
-        browser()
         
         return(tmp)
       })
