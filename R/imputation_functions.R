@@ -3023,14 +3023,25 @@ initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = 
   return(df)
 }
 
-sample_real_betas <- function(facilities, file = 'results/all_facility_betas_filtered_09052022.csv'){
+sample_real_betas <- function(facilities, file = 'data/coef_nb_1_3.csv'){
+  # pull in data
   tmp <- read.csv(file)
   
-  ind <- sample(nrow(tmp), length(facilities))
-  betas <- tmp[ind,3:10]
-  rownames(betas) = facilities
-  colnames(betas) = c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3')
-  return(betas)
+  # name the columns.
+  colnames(tmp) = c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3', 'dispersion')
+  
+  # split the betas and the dispersion parameters.
+  betas = tmp[,-ncol(tmp)]
+  dispersion = tmp[,ncol(tmp)]
+  
+  # make list to return.
+  return_list = list(betas = betas, dispersion = dispersion)
+  
+  # #ind <- sample(nrow(tmp), length(facilities))
+  # #betas <- tmp[ind,3:10]
+  # rownames(betas) = facilities
+  # colnames(betas) = c('intercept', 'year', 'cos1', 'sin1', 'cos2', 'sin2', 'cos3', 'sin3')
+  return(return_lst)
 }
 
 sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25, ...){
@@ -3077,7 +3088,9 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   
   # sample betas
   if(empirical_betas){
-    betas = sample_real_betas(facilities)
+    tmp = sample_real_betas(facilities)
+    betas = tmp$betas
+    dispersion = tmp$dispersion
   }else{
     betas = sample_betas(facilities, ...)  
   }
@@ -3091,6 +3104,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   }else if(family == 'negbin'){
     DGP_function <- function(n, mu){
       y <- rnbinom(n = n, mu = mu, size = list(...)$dispersion)
+      stop('wrong way to do dispersion.')
     }
   }
   
