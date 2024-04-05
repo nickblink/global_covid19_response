@@ -664,11 +664,14 @@ process_CAR_params_wrapper <- function(files, rename_params = T, all_betas = F, 
 WF_fit <- function(df, col, group = 'facility', family = 'negbin', period = 12, R_PI = 500, bias_correction_chen = F, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
   print(family)
-  # check if this method has already been run
-  if(any(grepl('y_pred_WF', colnames(df)))){
-    print('previous WF predictions found. Removing them')
-    df[,grep('y_pred_WF', colnames(df))] <- NULL
-  }
+  # # check if this method has already been run
+  # if(any(grepl('y_pred_WF', colnames(df)))){
+  #   print('previous WF predictions found. Removing them')
+  #   df[,grep('y_pred_WF', colnames(df))] <- NULL
+  # }
+  # if(family == 'negbin'){
+  #   stop('in the name of love')
+  # }
   
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period)
@@ -935,6 +938,16 @@ WF_fit <- function(df, col, group = 'facility', family = 'negbin', period = 12, 
   })
 
   res_lst = list(df = df, district_df = district_df, betas = betas, beta_vcovs = beta_vcovs)
+  if(family == 'negbin'){
+    
+    overdisp <- sapply(1:length(tmp), function(ii){
+      tmp_fac <- tmp[[ii]][[3]]
+      tt <- tmp_fac[[1]][[3]]
+      names(tt) <- names(tmp_fac)
+      tt
+    })
+    res_lst[['overdisp']] <- overdisp
+  }
   return(res_lst)
 }
 

@@ -126,10 +126,10 @@ lst <- do.call(simulate_data, arguments)
 print('data made')
 
 # initialize the error catcher for each run
-errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
-               WF = data.frame(i = NULL, error = NULL),
-               CARBayesST = data.frame(i = NULL, error = NULL),
-               CARstan = data.frame(i = NULL, error = NULL))
+# errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
+#                WF = data.frame(i = NULL, error = NULL),
+#                CARBayesST = data.frame(i = NULL, error = NULL),
+#                CARstan = data.frame(i = NULL, error = NULL))
 
 
 
@@ -278,7 +278,7 @@ one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF
   return(return_list)
 }
 
-one_run2 <- function(list, i, model_list <- NULL){
+one_run2 <- function(lst, i, model_list = NULL){
   
   t0 <- Sys.time()
   print(sprintf('i = %i',i))
@@ -295,54 +295,78 @@ one_run2 <- function(list, i, model_list <- NULL){
     df_miss <- MNAR_sim(df, p = params[['p']], direction = 'upper', gamma = params[['gamma']], by_facility = T)
   }
   
-  # initialize results list
-  ???
+  # initialize errors 
+  errors <- list()
+  for(j in 1:length(model_list)){
+    errors[[model_list[[j]]$model]] <- data.frame(i = NULL, error = NULL)
+  }
+  
+  # initializing the return list
+  return_list <- list(df_miss = df_miss, district_df = lst$district_list[[i]], errors = errors, timing = list())
   
   # cycle through models
   for(sub_lst in model_list){
+    t1 = Sys.time()
     model = sub_lst$model
     params = sub_lst$params
     if(model == 'WF'){
       fit_fxn <- function(df){
-        tmp <- WF_CCA(df, col = "y", family = WF_params[['family']], R_PI = params[['R_PI']])
+        tmp <- WF_CCA(df, col = "y", family = 'poisson', R_PI = params[['R_PI']])
+        return(tmp)
+      }
+    }else if(model == 'WF_NB'){
+      fit_fxn <- function(df){
+        tmp <- WF_CCA(df, col = "y", family = 'negbin', R_PI = params[['R_PI']])
+        return(tmp)
+      }
+    }else if(model == 'freqGLM'){
+      fit_fxn <- function(df){
+        tmp <- freqGLMepi_CCA(df, R_PI = params[['R_PI']], verbose = F) 
         return(tmp)
       }
     }
     
-    return_list <- tryCatch({
-      res <- fit_fxn(df)
-      return_list[['df_miss']] <- res$df
-      return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
-      return_list
-      if(model == 'WF'){
-        return_list[['WF_betas']] <- res$betas
-      }
-    },error = function(e){
-      return_list[['errors']][[model]] <- rbind(return_list[['errors']][[model]], data.frame(i = i, error = e[[1]]))
-      return_list
+    # run the model
+    res <- tryCatch({
+      fit_fxn(return_list[['df_miss']])
+    }, error = function(e){
+      e[[1]]
     })
     
-    
-
-      return_list <- tryCatch({
-        res <- WF_CCA(return_list[['df_miss']], col = "y", family = WF_params[['family']], R_PI = WF_params[['R_PI']])
-        return_list[['df_miss']] <- res$df
-        return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
-        res$district_df
+    # store the results
+    if(class(res) == 'list'){
+      return_list[['df_miss']] <- res$df
+      return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
+      if(model == 'WF'){
         return_list[['WF_betas']] <- res$betas
-        return_list
-      }, error = function(e){
-        return_list[['errors']][['WF']] <- rbind(return_list[['errors']][['WF']], data.frame(i = i, error = e[[1]]))
-        return_list
-      })
+      }else if(model == 'WF_NB'){
+        return_list[['WF_NB_betas']] <- res$betas
+        return_list[['WF_NB_overdisp']] <- res$overdisp
+      }
+    }else{
+      return_list[['errors']][[model]] <- rbind(return_list[['errors']][[model]], data.frame(i = i, error = res[[1]]))
     }
+    
+    # keep track of timing
+    return_list[['timing']][[model]] <- as.numeric(difftime(Sys.time(), t1, units = 'm'))
   }
+  
+  print(sprintf('i = %i; time = %f minutes', i, difftime(Sys.time(), t0, units = 'm')))
+  
+  return(return_list)
 }
 
 model_list <- list(list(model = 'WF',
-                        params = list(R_PI = 200, family = 'negbin')),
-                   list(model = 'WF', 
-                        params = list(R_PI = 200, family = 'poisson')))
+                        params = list(R_PI = 200)),
+                   list(model = 'WF_NB', 
+                        params = list(R_PI = 200)))
+
+res <- one_run2(lst, 1, model_list)
+
+# OK GOT IT TO WORK FOR WF AND WF_NB, so I believe. 
+# Next freqGLM
+# Next CARStan
+# Next (Maybe) CARBayesST
 
 # run the models for each simulation dataset
 system.time({
