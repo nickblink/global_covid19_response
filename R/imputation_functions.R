@@ -997,7 +997,7 @@ WF_baseline <- function(df, train_end_date = '2019-12-01', family = 'poisson', R
   return(tmp)
 }
 
-# Bayes imputatioFfacility_Fixedsdfsdfn method
+# Bayes imputati of facility_Fixed method
 bayes_WF_fit <- function(df, df_OG = NULL, col, group = 'facility', family = 'NB', period = 12, iterations = 500, harmonic_priors = F){
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period) %>% as.data.frame()
@@ -1136,7 +1136,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = c('fixed','facility_intercept','facility_fixed'), burnin = 1000, n.sample = 2000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, MALA = T, MCMC_sampler = 'stan'){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'facility_fixed', burnin = 1000, n.sample = 2000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, MALA = T, MCMC_sampler = 'stan'){
 
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -1566,11 +1566,17 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   
   if(list(...)$MCMC_sampler == 'stan'){
     res_lst[['CARstan_summary']] <- res$model_chain$CARstan_summary
+    colnames(res_lst$df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res_lst$df))
+    colnames(res_lst$district_df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res_lst$district_df))
   }
   
   if(list(...)$MCMC_sampler == 'CARBayesST'){
     res_lst[['CARBayesST_summary']] <- res$model_chain$CARBayesST_summary
+    colnames(res_lst$df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res_lst$df))
+    colnames(res_lst$district_df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res_lst$district_df))
   }
+  
+  browser()
   
   return(res_lst)
 }
