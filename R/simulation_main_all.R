@@ -16,8 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-#inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:family=poisson:theta=5:empirical_betas=T\r','3')
-inputs <- c('p=0:missingness=mcar:DGP=WF:R=1000:num_jobs=10:output_path=NULL:family=negbin:empirical_betas=T\r','3')
+inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=T\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -126,6 +125,14 @@ lst <- do.call(simulate_data, arguments)
 
 print('data made')
 
+# initialize the error catcher for each run
+# errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
+#                WF = data.frame(i = NULL, error = NULL),
+#                CARBayesST = data.frame(i = NULL, error = NULL),
+#                CARstan = data.frame(i = NULL, error = NULL))
+
+
+
 ### File saving (for cluster only)
 {
 # set up the output folder
@@ -156,8 +163,7 @@ if(params[['job_id']] == 1){
 
 }
 
-### function to run all models for a specific dataset
-{
+# # function to run all models for a specific dataset
 # one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF_params = list(R_PI = 200, family = 'poisson'), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000)){
 #   
 #   
@@ -271,7 +277,6 @@ if(params[['job_id']] == 1){
 #   
 #   return(return_list)
 # }
-}
 
 one_run <- function(lst, i, model_list = NULL){
   
@@ -364,14 +369,11 @@ one_run <- function(lst, i, model_list = NULL){
 model_list <- list(list(model = 'WF',
                         params = list(R_PI = 200)),
                    list(model = 'WF_NB',
-                        params = list(R_PI = 200)))
-
-# model_list <- list(list(model = 'freqGLM',
-#                         params = list(R_PI = 20)))
-# 
-# model_list <- list(list(model = 'CARstan',
-#                         params = list(burnin = 1000, n.sample = 2000)))
-
+                        params = list(R_PI = 200)),
+                   list(model = 'freqGLM',
+                        params = list(R_PI = 200)),
+                   list(model = 'CARstan',
+                        params = list(burnin = 1000, n.sample = 2000)))
 # Next (Maybe) CARBayesST
 
 # run the models for each simulation dataset
@@ -381,5 +383,4 @@ system.time({
 
 true_betas <- lst$betas
 
-results_file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_Poisson_NB_comparison_NBDGP_R100_04082024.RData'
 save(all_model_results, seq, params, arguments, true_betas, file = results_file)
