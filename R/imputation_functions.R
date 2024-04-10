@@ -376,8 +376,8 @@ outcome_name_checker <- function(res, models = c('WF','CAR','freqGLM'), quant_pr
 }
 
 ### combine saved results from batch runs into one file
-combine_results <- function(input_folder, results_file = NULL, return_lst = T, return_raw_list = F, ignore_size_err = F, district_results = F, subset_results = NULL){
-  files <- dir(input_folder, full.names = T)
+combine_results <- function(input_folder, results_file = NULL, return_lst = T, return_raw_list = F, ignore_size_err = F, district_results = F, subset_results = NULL, expected_sims = 1000, ...){
+  files <- dir(input_folder, full.names = T,)
   files <- grep('sim_results', files, value = T)
   
   load(files[1])
@@ -388,15 +388,17 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   params_list <- c(params_list, tmp)
 
   rm(imputed_list)
-  for(i in 2:length(files)){
-    load(files[i])
-    lst_full <- c(lst_full, imputed_list)
-    tmp <- list(params); names(tmp) = files[i]
-    params_list <- c(params_list, tmp)
+  if(length(files) > 1){
+    for(i in 2:length(files)){
+      load(files[i])
+      lst_full <- c(lst_full, imputed_list)
+      tmp <- list(params); names(tmp) = files[i]
+      params_list <- c(params_list, tmp)
+    }
   }
   
-  if(length(lst_full) != 1000){
-    stop(sprintf('lst_full only has %s simulations. There should be 1000.', length(lst_full)))
+  if(length(lst_full) != expected_sims){
+    stop(sprintf('lst_full only has %s simulations. There should be %s.', length(lst_full), expected_sims))
   }
   
   # combine the parameters
@@ -563,7 +565,7 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     }
 
     # Calculate the metrics
-    tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, use_point_est = F, date = '2020-01-01', district_results = district_results, QP_variance_adjustment = QP_variance_adjustment) 
+    tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, use_point_est = F, date = '2020-01-01', district_results = district_results, QP_variance_adjustment = QP_variance_adjustment, ...) 
     #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
     tmp$prop_missing = as.numeric(p)/10
     
@@ -576,7 +578,8 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
   # replace the names
   if(!is.null(rename_vec)){
     for(i in 1:length(methods)){
-      res$method = gsub(methods[i], rename_vec[i], res$method)
+      #res$method = gsub(methods[i], rename_vec[i], res$method)
+      res$method[res$method == methods[i]] <- rename_vec[i] 
     }
     
     # make a factor so the ordering in the plots stays
@@ -2777,7 +2780,7 @@ clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL
 }
 
 # calculate the metrics across simulations
-calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes_ST"), results_by_point = F, date = '2020-01-01', min_date = NULL, rm_ARna = F, imputed_only = F,  use_point_est = F, k = NULL, district_results = F, QP_variance_adjustment){
+calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes_ST"), results_by_point = F, date = '2020-01-01', min_date = NULL, rm_ARna = F, imputed_only = F,  use_point_est = F, k = NULL, district_results = F, QP_variance_adjustment, family = 'Poisson', ...){
 
   if(results_by_point){
     # getting the results for each point across all simulations
@@ -2818,7 +2821,7 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
   }else{
     y_var = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y_var']))
     # check that it's equal to y_exp (as in QP not already adjusted for)
-    if(sum(y_var != y_exp) > 0){
+    if(sum(y_var != y_exp) > 0 & family == 'Poisson'){
       stop('QP variance adjustment error: Has it already been adjusted?')
     }else{
       y_var = QP_variance_adjustment*y_var
@@ -2894,7 +2897,7 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
     # update the results
     df = rbind(df, tmp)
   }
-  
+
   #res_lst = list(df = df, num_missing = num_missing)
   return(df)
 }

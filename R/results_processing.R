@@ -57,6 +57,38 @@ aggregate_results <- function(res, bar_quants = c(0.25, 0.75), metrics = c('spec
 
 load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### WF NB and Poisson Comparison ####
+
+## WF DGP
+# load(paste0(res_dir, '/WF_Poisson_NB_comparison_WFDGP_R100_04072024.RData'))
+# # 
+# # Called all_Model_results and not Imputation_lst. Ugh
+# imputed_list <- all_model_results
+# save(imputed_list, params, file = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_Poisson_NB_comparison_WFDGP_R100_04072024/sim_results_1(1).RData")
+
+# load(paste0(res_dir, '/WF_Poisson_NB_comparison_NBDGP_R100_04082024.RData'))
+# imputed_list <- all_model_results
+# save(imputed_list, params, file = "C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_Poisson_NB_comparison_NBDGP_R100_04082024/sim_results_1(1).RData")
+
+#load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_Poisson_NB_comparison_WFDGP_R100_04082024/sim_results_1(1).RData")
+
+res_WF <- combine_results_wrapper(files = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_Poisson_NB_comparison_WFDGP_R100_04072024', methods = c("y_pred_WF", "y_pred_WF_negbin"), rename_vec = c('WF_Pois','WF_NB'), district_results = F, QP_variance_adjustment = NULL, expected_sims = 100)
+
+res_WF_NB <- combine_results_wrapper(files = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WF_Poisson_NB_comparison_NBDGP_R100_04082024', methods = c("y_pred_WF", "y_pred_WF_negbin"), rename_vec = c('WF_Pois','WF_NB'), district_results = F, QP_variance_adjustment = NULL, expected_sims = 100, family = 'negbin')
+
+{
+WF_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+
+  p1 <- plot_all_methods(res = res_WF$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF Poisson DGP: Empirical Betas', include_legend = F)
+  # ok obvi wrong
+  
+  p2 <- plot_all_methods(res = res_WF_NB$results, fix_axis = WF_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'WF NB DGP: Empirical Betas', include_legend = F)
+
+  cowplot::plot_grid(p1$plot, p2$plot, p1$legend, ncol = 1, rel_heights = c(3,3,1))
+}
+ggsave('figures/WF_DGP_Poisson_NB_04102024.png', height = 5, width = 8)
+
+#
 #### Making main MDM figure with four panels ####
 load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 names(res_facility)
