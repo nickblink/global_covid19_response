@@ -2965,6 +2965,9 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
                 lower = stats::quantile(get(metric), probs = bar_quants[1]),
                 upper = stats::quantile(get(metric), probs = bar_quants[2])) 
     
+    print(metric)
+    print(tmp)
+    
     # remove parts of string not wanted in plot.
     tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
     
