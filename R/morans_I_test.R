@@ -30,6 +30,7 @@ var_y = var
 y_exp = mean(tmp$y)
 mean((tmp$y - y_exp)^2)
 
+TEST
 can use ape::moran.i to input adjacecny and data for each time point.
 
 # I'm confused. honestly I'm hungry. But if I do this and average across all time points that could add variance because of the high-missing time points.
