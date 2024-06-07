@@ -1181,12 +1181,14 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
   }
   
   if(prior == 'WF'){
+    stop('havent implemented priors for CARstan')
     # Get the WF estimates
     lm_fit <- glm(formula_col, family = 'poisson', data = df)
     coef_mat <- summary(lm_fit)$coefficients
     prior_mean_beta <- coef_mat[,1]
     prior_var_beta <- coef_mat[,2]^2*prior_var_scale
   }else if(prior == 'constant'){
+    stop('havent implemented priors for CARstan')
     prior_mean_beta = prior_mean
     prior_var_beta = prior_var
   }else if(prior == 'none'){

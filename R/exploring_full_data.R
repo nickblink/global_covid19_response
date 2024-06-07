@@ -19,6 +19,23 @@ remove_outliers <- function(x, k = 5){
   return(x)
 }
 
+##### Looking at district sizes #####
+district_count = D %>% 
+  filter(date < '2020-01-01') %>%
+  group_by(district) %>%
+  summarize(denom_miss = mean(is.na(indicator_denom)),
+            ari_miss = mean(is.na(indicator_count_ari_total)),
+            n = length(unique(facility)))
+
+district_count$n[district_count$n > 20] <- 20
+ggplot(district_count, aes(x = n)) + 
+  geom_histogram(breaks = c(0,5, 10, 15, 20)) +
+  scale_x_continuous(labels = c(0, 5, 10, 15, '20+')) + 
+  ylab('# of districts') + 
+  xlab('district size (number of facilities)') + 
+  ggtitle('District sizes in Liberia')
+
+#
 ##### Looking at variance across seasonal terms #####
 load("C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/all_indicators_all_facilities_12012023.RData")
 # now looking at the seasonal terms
@@ -126,6 +143,7 @@ D2 = D2 %>%
 res <- fit_WF_model(D)
 res2 <- fit_WF_model(D2)
 
+#
 ##### Fitting all facilities WF/freqGLM #####
 
 # fitting the mean model
