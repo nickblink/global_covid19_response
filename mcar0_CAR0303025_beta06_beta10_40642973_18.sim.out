@@ -1,0 +1,288 @@
+[1] "p=0:b0_mean=6:b1_mean=0:missingness=mcar:DGP=CAR:R=1000:num_jobs=50:output_path=mcar0_CAR0303025_beta06_beta10_ID822369_2024_06_17:rho_DGP=0.3:alpha_DGP=0.3:tau2_DGP=0.25:CARburnin=5000:CARnsample=10000"
+[2] "18"                                                                                                                                                                                                        
+$job_id
+[1] 18
+
+$p
+[1] 0
+
+$b0_mean
+[1] 6
+
+$b1_mean
+[1] 0
+
+$missingness
+[1] "mcar"
+
+$DGP
+[1] "car"
+
+$R
+[1] 1000
+
+$num_jobs
+[1] 50
+
+$output_path
+[1] "mcar0_car0303025_beta06_beta10_id822369_2024_06_17"
+
+$rho_DGP
+[1] 0.3
+
+$alpha_DGP
+[1] 0.3
+
+$tau2_DGP
+[1] 0.25
+
+$CARburnin
+[1] 5000
+
+$CARnsample
+[1] 10000
+
+[1] "proceeding with mcar missingness"
+[1] "Running on 24 facilities!!"
+[1] "data made"
+NULL
+[1] "i = 1"
+[1] "i = 2"
+[1] "i = 3"
+[1] "i = 4"
+[1] "i = 5"
+[1] "i = 6"
+[1] "i = 7"
+[1] "i = 8"
+[1] "i = 9"
+[1] "i = 10"
+[1] "i = 11"
+[1] "i = 12"
+[1] "i = 13"
+[1] "i = 14"
+[1] "i = 15"
+[1] "i = 16"
+[1] "i = 17"
+[1] "i = 18"
+[1] "i = 19"
+[1] "i = 20"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "poisson"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+[1] "negbin"
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.004337 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 43.37 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.004022 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 40.22 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.004163 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 41.63 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.004195 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 41.95 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.003987 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 39.87 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.004315 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 43.15 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.003979 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 39.79 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.004116 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 41.16 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.004222 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 42.22 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.017546 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 175.46 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.014707 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 147.07 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.004888 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 48.88 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.017961 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 179.61 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.017992 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 179.92 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.018261 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 182.61 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+
+SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+Chain 1: 
+Chain 1: Gradient evaluation took 0.005235 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 52.35 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.018276 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 182.76 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.018309 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 183.09 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.017608 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 176.08 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)
+Chain 1: 
+Chain 1: Gradient evaluation took 0.005563 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 55.63 seconds.
+Chain 1: Adjust your expectations accordingly!
+Chain 1: 
+Chain 1: 
+Chain 1: Iteration:    1 / 10000 [  0%]  (Warmup)

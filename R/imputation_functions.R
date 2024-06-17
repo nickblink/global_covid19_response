@@ -398,7 +398,7 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   }
   
   if(length(lst_full) != expected_sims){
-    stop(sprintf('lst_full only has %s simulations. There should be %s.', length(lst_full), expected_sims))
+    stop(sprintf('lst_full only has %s simulations. There should be %s. To bypass this error, change the expected_sims parameter.', length(lst_full), expected_sims))
   }
   
   # combine the parameters
@@ -1580,8 +1580,6 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     colnames(res_lst$df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res_lst$df))
     colnames(res_lst$district_df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res_lst$district_df))
   }
-  
-  browser()
   
   return(res_lst)
 }

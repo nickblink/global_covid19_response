@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=T\r','3')
+inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=F:CARburnin=2000:CARnsample=4000\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -31,7 +31,7 @@ for(str in strsplit(inputs[[1]],':')[[1]]){
   tmp = strsplit(str, '=')[[1]]
   nn = tmp[1]
   val = tolower(tmp[2])
-  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta', 'dispersion')){
+  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta', 'dispersion','CARburnin','CARnsample')){
     val = as.numeric(val)
   }else if(nn == 'b0_mean'){
     val = as.numeric(strsplit(val, '/')[[1]])
@@ -57,6 +57,14 @@ if(!(params[['missingness']] %in% c('mcar','mar','mnar'))){
   stop('please input a proper missingness')
 }else{
   print(sprintf('proceeding with %s missingness', params[['missingness']]))
+}
+
+# setting the CAR burnin and nsample params if not provided.
+if(is.null(params[['CARburnin']])){
+  params[['CARburnin']] <- 1000
+}
+if(is.null(params[['CARnsample']])){
+  params[['CARnsample']] <- 2000
 }
 
 print('Running on 24 facilities!!')
@@ -163,6 +171,7 @@ if(params[['job_id']] == 1){
 
 }
 
+{
 # # function to run all models for a specific dataset
 # one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF_params = list(R_PI = 200, family = 'poisson'), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000)){
 #   
@@ -277,6 +286,7 @@ if(params[['job_id']] == 1){
 #   
 #   return(return_list)
 # }
+}
 
 one_run <- function(lst, i, model_list = NULL){
   
@@ -373,7 +383,7 @@ model_list <- list(list(model = 'WF',
                    list(model = 'freqGLM',
                         params = list(R_PI = 200)),
                    list(model = 'CARstan',
-                        params = list(burnin = 1000, n.sample = 2000)))
+                        params = list(burnin = params[['CARburnin']], n.sample = params[['CARnsample']])))
 # Next (Maybe) CARBayesST
 
 # run the models for each simulation dataset

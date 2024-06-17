@@ -16,8 +16,8 @@ if(file.exists('C:/Users/Admin-Dell')){
 }
 
 # get the results and name the simulations
-get_results <- function(file_names, sim_name, district_results = F, QP_variance_adjustment = NULL){
-  res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARBayes'), district_results = district_results, QP_variance_adjustment = QP_variance_adjustment)
+get_results <- function(file_names, sim_name, district_results = F, ...){
+  res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARBayes'), district_results = district_results, ...)
   
   res$results$sim = sim_name 
   
@@ -54,8 +54,122 @@ aggregate_results <- function(res, bar_quants = c(0.25, 0.75), metrics = c('spec
   return(res_lst)
 }
 
+# get CAR convergence values from the results in a simulation.
+get_CARconvergence <- function(res){
+  # get CAR summary vals.
+  CARsums <- res$results[[1]]$CARstan_summary
+  
+  # get ESS values.
+  ESS <- sapply(CARsums, function(xx) xx[,'n_eff']) %>%
+    apply(1, median)
+  
+  # make ESS more concise.
+  ESS <- c(ESS[1:3], betas = median(ESS[4:length(ESS)]))
+  
+  # get rhat values.
+  rhat <- sapply(CARsums, function(xx) xx[,'Rhat']) %>%
+    apply(1, median)
+  
+  # make rhat concise.
+  rhat <- c(rhat[1:3], betas = median(rhat[4:length(rhat)]))
+  
+  # print the results
+  print('Median effective sample size'); print(ESS)
+  print('Median rhat value'); print(rhat)
+  #print(sprintf('Median effective sample sizes are %s. \n Median rhat values are %s', ESS, rhat))
+  
+  return(list(ESS = ESS, rhat = rhat))
+}
+
+# load the full main paper results
 load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Printing all the CAR results! ####
+
+# getting the file names
+{
+files = grep('2023_12_09|2023_12_10',dir(res_dir, full.names = T), value = T)
+
+files_MCAR <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+
+files_CAR <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
+
+files <- unique(c(files, files_MCAR, files_CAR))
+
+for(d in files){
+  ff = dir(d)
+  if(length(ff) < 51){
+    print(d)
+    print(length(ff))
+    print('-------')
+    #unlink(d, recursive = T) # deletes the directory
+  }
+}
+# all good
+
+# (1) WF MCAR; poisson; beta = 6, -0.25
+files_WF_MCAR_6n025 <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+
+# (2) freqglm0202 MCAR; poisson; beta = 6,-0.25
+files_freqglm0202_MCAR_6n025 <- grep('mcar[0-9]{1,2}_freqglm0202_beta05_beta1n025', files, value = T)
+
+# (3) CAR0303025 MCAR; poisson; beta = 6, -0.25
+files_CAR33025_MCAR_6n025 <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
+
+# (4) WF MCAR; QP theta = 4; beta = 6,-0.25
+files_WF_MCAR_QP4_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+
+# (5) WF MAR; QP theta = 4; beta = 6,-0.25
+files_WF_MAR_QP4_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+
+# (6) WF MNAR; QP theta = 4; beta = 6,-0.25
+files_WF_MNAR_QP4_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+
+# Putting all the files together
+file_name_str <- c('files_WF_MCAR_6n025', 'files_freqglm0202_MCAR_6n025', 'files_CAR33025_MCAR_6n025', 'files_WF_MCAR_QP4_6n025', 'files_WF_MAR_QP4_6n025','files_WF_MNAR_QP4_6n025')
+}
+
+all_file_names <- unlist(sapply(file_name_str, get))
+setdiff(files, all_file_names)
+setdiff(all_file_names, files)
+tt = table(all_file_names); tt[tt>1]
+# great
+
+### Processing results and combining
+# initialize
+res_facility = list()
+res_district = list()
+
+# grab the results from all runs
+for(name in file_name_str){
+  if(grepl('QP', name)){
+    res_facility[[name]] <- get_results(get(name), name, QP_variance_adjustment = 4, return_unprocessed = T)  %>% get_CARconvergence()
+    res_district[[name]] <-  get_results(get(name), name,  district_results = T, QP_variance_adjustment = 4, return_unprocessed = T)  %>% get_CARconvergence()
+  }else{
+    res_facility[[name]] <- get_results(get(name), name, return_unprocessed = T) %>% get_CARconvergence()
+    res_district[[name]] <-  get_results(get(name), name,  district_results = T, return_unprocessed = T)  %>% get_CARconvergence()
+  }
+}
+
+HERE AT 455pm.
+# saving CAR convergence from all the main paper runs.
+
+
+#
+#### Testing new simulation_main function ####
+file <- sprintf('%s/mcar02_freqglm0202_beta055_beta1n025_id91167_2024_06_17',res_dir)
+
+res <- get_results(file, sim_name = 'test', expected_sims = 10)
+
+#
+#### Testing CAR convergence ####
+res <- combine_results_wrapper(files = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mnar05_wf_qptheta9_beta06_beta1n025_2023_12_01/', methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARBayes'), return_unprocessed = T)
+
+get_CARconvergence(res)
+
+
+
+#
 #### WF NB and Poisson Comparison ####
 
 ## WF DGP
@@ -563,6 +677,7 @@ files_CAR <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), va
 
 files <- unique(c(files, files_MCAR, files_CAR))
 
+# ideally, should print nothing.
 for(d in files){
   ff = dir(d)
   if(length(ff) < 51){

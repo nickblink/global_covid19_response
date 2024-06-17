@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -p short
-#SBATCH -t 0-8:00
+#SBATCH -t 0-12:00
 #SBATCH -c 10
-#SBATCH --mem=25G
+#SBATCH --mem=50G
 #SBATCH --mail-type=END
 #SBATCH -x compute-f-17-[09-25]
 #SBATCH -e errors_outputs/%x_%A_%a.sim.err

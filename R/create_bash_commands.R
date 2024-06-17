@@ -1,6 +1,6 @@
 ## This script makes bash commands for given simulations
 
-bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL){
+bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = NULL, CARnsample = NULL){
   
   if(tolower(DGP) == 'wf'){
     DGP_name = 'WF'
@@ -92,9 +92,17 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
     }
   }
 
+  # if adding in CAR burnin and nsample
+  if(!is.null(CARburnin)){
+    params[['CARburnin']] = CARburnin
+  }
+  if(!is.null(CARnsample)){
+    params[['CARnsample']] = CARnsample
+  }
+  
   param_str = paste(paste(names(params), params, sep = '='), collapse=':')
   
-  command_str = sprintf('sbatch --array=1-50 -J %s run_sim.sh %s', job_name, param_str)
+  command_str = sprintf('sbatch --array=1-%s -J %s run_sim.sh %s', num_jobs, job_name, param_str)
   
   return(command_str)
 }
@@ -128,6 +136,20 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   
   return(cmds)
 }
+
+#### 6/17/2024: Testing higher n.sample and burnin ####
+#	CAR0303025 EB0 = 6, EB1 = 0: MCAR
+bash_wrapper(missingness = 'mcar',DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, b1_mean = 0, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06172024.txt')
+
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_v2_06172024.txt')
+
+#	WF EB0 = 6, EB1 = 0: MCAR
+bash_wrapper(missingness = 'mcar', b0_mean = 6, b1_mean = -0.25, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_v2_06172024.txt')
+
+#
+#### 6/17/2024: Testing newer code ####
+bash_command(p = 0.2, missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, R = 10, num_jobs = 5)
+
 
 #### 12/14/2023: Results for the appendix! ####
 # freqGLM0202 EB0 = 5.5, EB1 = -0.25: MCAR (not actually the appendix though)
