@@ -11,6 +11,7 @@ get_p_from_name <- function(file){
   return(p)
 }
 
+# random quasi poisson
 rqpois <- function(n, mu, theta) {
   rnbinom(n = n, mu = mu, size = mu/(theta-1))
 }
@@ -237,7 +238,7 @@ get_district_facilities <- function(df){
   tt = unique(df[,c('district','facility')])
   res_lst <- NULL
   for(i in 1:nrow(tt)){
-    res_lst[[tt[i,1]]] <- c(res_lst[[as.character(tt[i,1])]], as.character(tt[i,2]))
+    res_lst[[as.character(tt[i,1])]] <- c(res_lst[[as.character(tt[i,1])]], as.character(tt[i,2]))
   }
   return(res_lst)
 }
@@ -1312,26 +1313,27 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
   fitted_quants_C = as.data.frame(fitted_quants_C)
   colnames(fitted_quants_C) = paste0(paste0(col, '_CARBayes_ST_'), quant_probs)
   
-  # aggregate the county results
-  df_county = df %>% 
-    dplyr::select(date, y_true, y_CARBayes_ST) %>% 
-    group_by(date) %>%
-    summarize(y_true = sum(y_true),
-    y_CARBayes_ST = sum(y_CARBayes_ST)) %>% 
-    arrange(date)
-  
-  if(!identical(df_county$date, dates)){
-    browser()
-  }
-
-  df_county = cbind(df_county, fitted_quants_C)
+  # # aggregate the county results
+  # df_county = df %>% 
+  #   dplyr::select(date, y_true, y_CARBayes_ST) %>% 
+  #   group_by(date) %>%
+  #   summarize(y_true = sum(y_true),
+  #   y_CARBayes_ST = sum(y_CARBayes_ST)) %>% 
+  #   arrange(date)
+  # 
+  # if(!identical(df_county$date, dates)){
+  #   browser()
+  # }
+  # 
+  # df_county = cbind(df_county, fitted_quants_C)
   
   if(return_type == 'data.frame'){
     return(df)
   }else if(return_type == 'model'){
     return(chain1)
   }else if(return_type == 'all'){
-    lst = list(facility_df = df, county_df = df_county, model_chain = model_chain)
+    #lst = list(facility_df = df, county_df = df_county, model_chain = model_chain)
+    lst = list(facility_df = df, model_chain = model_chain)
     return(lst)
   }
 }
@@ -1909,6 +1911,7 @@ fit_freqGLMepi <- function(df, num_inits = 10, BFGS = T, verbose = T, target_col
   # BFGS_control = list(maxit = 10000, factr = 1e-11))
   BFGS_control = list(maxit = 10000)
   
+  browser()
   # fit using Nelder-Mead and L-BFGS-B and pick the better one
   tryCatch({
     params = optim(par = init, fn = ll.wrapper, D = df, target_col = target_col, control = NM_control)
@@ -2048,7 +2051,7 @@ fit_freqGLMepi_nnls <- function(df, num_inits = 10, verbose = T, target_col = 'y
 freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol = 1e-4, individual_facility_models = T, family = 'poisson', R_PI = 100, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), verbose = F, optim_init = NULL, scale_by_num_neighbors = T, blocksize = 10, nnls = T){
   # check that we have the right columns
   if(!('y' %in% colnames(df) & 'y_true' %in% colnames(df))){
-    stop('make sure the data has y (with NAs) and y_true')
+    warning('make sure the data has y (with NAs) and y_true')
   }
   
   # get districts and facilities
@@ -2132,6 +2135,12 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   while(prop_diffs[length(prop_diffs)] > tol & iter <= max_iter){
     iter = iter + 1
     
+    # tmp = df %>% filter(facility == 'A1')
+    # formula_col = as.formula(sprintf("y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"))
+    # res <- MASS::glm.nb(formula_col, data = tmp, link = 'identity')
+    # # THIS IS NOT ACCOUNTING FOR EXPONENTIATING BUT WHO CARES
+    # 
+    # browser()
     if(individual_facility_models){
       # run the individual model for each group.
       tmp <- lapply(uni_group, function(xx) {
@@ -2644,8 +2653,12 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       df_f$method = factor(df_f$method, levels = imp_names)
       
       # get the ymax value
-      ymax <- min(1.1*max(tmp[,c(12:ncol(tmp))], na.rm = T), 
-                  2*max(tmp$y_true))
+      if(!is.null(tmp$y_true)){
+        ymax <- min(1.1*max(tmp[,c(12:ncol(tmp))], na.rm = T), 
+                    2*max(tmp$y_true))
+      }else{
+        ymax <- 1.1*max(tmp[,c(12:ncol(tmp))], na.rm = T)
+      }
       
       # make the plot!
       p1 <- ggplot() +

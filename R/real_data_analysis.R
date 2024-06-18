@@ -7,6 +7,7 @@ library(ggplot2)
 library(doRNG)
 library(doParallel)
 library(rstan)
+library(cowplot)
 
 source('R/imputation_functions.R')
 
@@ -19,7 +20,8 @@ if(file.exists('C:/Users/Admin-Dell')){
 # most recent data on github.
 D = readRDS(sprintf('%s/data/liberia_cleaned_01-06-2021.rds', res_dir)) %>%
   filter(county == 'Maryland') %>%
-  select(date, district, facility, ari = indicator_count_ari_total, indicator_denom)
+  select(date, district, facility, ari = indicator_count_ari_total, indicator_denom) %>%
+  add_periodic_cov()
 
 # get the dates
 dates = unique(D$date)
@@ -40,13 +42,32 @@ for(d in unique(D$district)){
   df = rbind(df, tmp)
 }
 
-# run WF model (this only needs to be fit once).
+df$y <- df$ari
 
-# run freqGLM (this needs to be fit for each date because of rolling baseline).
+res_list <- list()
 
-# run CAR (this needs to be fit for each date because of rolling baseline).
+# run WF model
+res_list[['WF']] <- WF_CCA(df, col = "y", family = 'poisson', R_PI = 200)
+df <- res_list[['WF']]$df
 
-for(d in eval_dates){
-}
+# run freqGLM
+res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = 10, verbose = F)
+df <- res_list[['freqGLM']]$df
+
+# run CAR
+res_list[['CAR']] <- CARBayes_wrapper(df, burnin = 100, n.sample = 200, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
+df <- res_list[['CAR']]$df
+df$y_CARstan <- df$y_CARstan_0.5
+
+# merge all the results together
+district_df <- merge(res_list[['WF']]$district_df, res_list[['freqGLM']]$district_df, by= c('district', 'date')) %>%
+  merge(res_list[['CAR']]$district_df, by = c('district', 'date'))
+
+### Plot 1: Plotting the facility fits
+tmp  = df %>% filter(district == 'A')
+plot_facility_fits(tmp, methods = c('y_pred_WF','y_pred_freqGLMepi', 'y_CARstan'))
+
+### Plot 2: Plotting the proportion outbreaks over time.
+
 
 
