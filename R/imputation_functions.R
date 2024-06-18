@@ -565,7 +565,7 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
     }
 
     # Calculate the metrics
-    tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, use_point_est = F, date = '2020-01-01', district_results = district_results, QP_variance_adjustment = QP_variance_adjustment, ...) 
+    tmp <- calculate_metrics(lst_full[[output]], results_by_point = results_by_point, methods = methods, imputed_only = F, rm_ARna = F, date = '2020-01-01', district_results = district_results, QP_variance_adjustment = QP_variance_adjustment, ...) 
     #tmp$method = paste0(tmp$method, sprintf('_p%s_', p))
     tmp$prop_missing = as.numeric(p)/10
     
@@ -2797,7 +2797,9 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
   {
   if(district_results){
     # updating the y_true and y missing since we don't need those
-    y_true = do.call('cbind', lapply(imputed_list, function(xx) xx[,'y']))
+    y_true <- do.call('cbind', lapply(imputed_list, function(xx) xx[,'y']))
+    rownames(y_true) <- imputed_list[[1]]$district
+    # districts = do.call('cbind', lapply(imputed_list, function(xx) xx[,'district']))
     y_missing = matrix(NA, nrow = nrow(y_true), ncol = ncol(y_true))
   }else{
     # get the true values everywhere and at the deleted time points
@@ -2827,6 +2829,10 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
       y_var = QP_variance_adjustment*y_var
     }
   }
+  print('y var')
+  print(head(y_var[,1]))
+  print('y exp')
+  print(head(y_exp[,1]))
   
   # calculate the outbreak values
   y_outbreak3 <- y_exp + 3*sqrt(y_var)
@@ -2915,7 +2921,7 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
 ## title: title of overall plot
 ## ...: params to be passed into "combine_results_wrapper"
 
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, plot_indiv_points = F, legend_text = 17, ...){
   if(is.null(res)){
     if(!is.null(files)){
       tmp <- combine_results_wrapper(files,  ...)
@@ -2959,14 +2965,19 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     i = i + 1
     
     # aggregate the results by the metric and quantile of plots.
-    tmp <- res %>%
-      group_by(method, prop_missing) %>% 
-      summarize(median = median(get(metric)),
-                lower = stats::quantile(get(metric), probs = bar_quants[1]),
-                upper = stats::quantile(get(metric), probs = bar_quants[2])) 
+    if(plot_indiv_points){
+      tmp = res %>% mutate(outcome = get(metric))
+    }else{
+      tmp <- res %>%
+        group_by(method, prop_missing) %>% 
+        summarize(median = median(get(metric)),
+                  lower = stats::quantile(get(metric), probs = bar_quants[1]),
+                  upper = stats::quantile(get(metric), probs = bar_quants[2])) 
+    }
+    
     
     print(metric)
-    print(tmp)
+    #print(tmp)
     
     # remove parts of string not wanted in plot.
     tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
@@ -2977,18 +2988,31 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     }
     
     # plot!
-    p1 <- ggplot() + 
-      # plot the background shading
-      geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
-      # plot the median points
-      geom_point(data = tmp, aes(x = prop_missing, y = median, color = method, shape = method), position = position_dodge(width = 0.1)) +
-      # plot the error bars
-      geom_errorbar(data = tmp, aes(x = prop_missing, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) + 
-      scale_color_manual(values = method_colors) + 
-      labs(x = 'proportion missing') + 
-      guides(alpha = 'none') +
-      theme_bw() + 
-      ylab(metric) + guides(color = guide_legend(title = 'model fit', override.aes = list(size = 4)), shape = guide_legend(title = 'model fit'))
+    if(plot_indiv_points){
+      p1 <- ggplot() + 
+        # plot the background shading
+        geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
+        geom_point(data = tmp, aes(x = prop_missing, y = outcome, color = method, shape = district), position = position_dodge(width = 0.1)) + 
+        scale_color_manual(values = method_colors) + 
+        labs(x = 'proportion missing') + 
+        guides(alpha = 'none') +
+        theme_bw() + 
+        ylab(metric) + guides(color = guide_legend(title = 'model fit', override.aes = list(size = 3)), shape = guide_legend(title = 'district', override.aes = list(size = 3)))
+      
+    }else{
+      p1 <- ggplot() + 
+        # plot the background shading
+        geom_rect(data = rects, aes(xmin = xstart, xmax = xend, ymin = -Inf, ymax = Inf, fill = stripe), alpha = 0.2,show.legend = F)  + scale_fill_manual(values = c('white', 'grey50')) + 
+        # plot the median points
+        geom_point(data = tmp, aes(x = prop_missing, y = median, color = method, shape = method), position = position_dodge(width = 0.1)) +
+        # plot the error bars
+        geom_errorbar(data = tmp, aes(x = prop_missing, ymin = lower, ymax = upper, color = method), position = position_dodge(width = 0.1)) + 
+        scale_color_manual(values = method_colors) + 
+        labs(x = 'proportion missing') + 
+        guides(alpha = 'none') +
+        theme_bw() + 
+        ylab(metric) + guides(color = guide_legend(title = 'model fit', override.aes = list(size = 4)), shape = guide_legend(title = 'model fit'))
+    }
     
     # fix axis limits
     if(!is.logical(fix_axis[[i]])){
@@ -3000,7 +3024,7 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     }
 
     legend = get_legend(p1 + theme(legend.position = 'bottom', 
-                                   legend.text = element_text(size = 17),
+                                   legend.text = element_text(size = legend_text),
                                    legend.title = element_text(size = 20),
                                    legend.key.size = unit(0.1, 'cm')))
     

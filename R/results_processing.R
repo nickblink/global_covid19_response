@@ -84,49 +84,123 @@ get_CARconvergence <- function(res){
 # load the full main paper results
 load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
-#### Printing all the CAR results! ####
-
+#### Get the results by point for each district ####
 # getting the file names
 {
-files = grep('2023_12_09|2023_12_10',dir(res_dir, full.names = T), value = T)
+  files = grep('2023_12_09|2023_12_10',dir(res_dir, full.names = T), value = T)
+  files2 = grep('2023_12_14',dir(res_dir, full.names = T), value = T)
+  
+  files_MCAR <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+  
+  files_CAR <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
+  
+  files <- unique(c(files, files_MCAR, files_CAR))
+  
+  for(d in files){
+    ff = dir(d)
+    if(length(ff) < 51){
+      print(d)
+      print(length(ff))
+      print('-------')
+      #unlink(d, recursive = T) # deletes the directory
+    }
+  }
+  # all good
+  
+  # (1) WF MCAR; poisson; beta = 6, -0.25
+  files_WF_MCAR_6n025 <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+  
+  # (2) freqGLM0202 EB0 = 5.5, EB1 = -0.25: MCAR
+  files_freqglm0202_MCAR_55n025 <- grep('beta055_beta1n025',grep('freqglm', files2, value = T), value = T)
+  
+  # (3) CAR0303025 MCAR; poisson; beta = 6, -0.25
+  files_CAR33025_MCAR_6n025 <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
+  
+  # (4) WF MCAR; QP theta = 4; beta = 6,-0.25
+  files_WF_MCAR_QP4_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+  
+  # (5) WF MAR; QP theta = 4; beta = 6,-0.25
+  files_WF_MAR_QP4_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+  
+  # (6) WF MNAR; QP theta = 4; beta = 6,-0.25
+  files_WF_MNAR_QP4_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+  
+  # Putting all the files together
+  file_name_str <- c('files_WF_MCAR_6n025', 'files_freqglm0202_MCAR_55n025', 'files_CAR33025_MCAR_6n025', 'files_WF_MCAR_QP4_6n025', 'files_WF_MAR_QP4_6n025','files_WF_MNAR_QP4_6n025')
+}
 
-files_MCAR <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+# initialize
+res_district = list()
 
-files_CAR <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
-
-files <- unique(c(files, files_MCAR, files_CAR))
-
-for(d in files){
-  ff = dir(d)
-  if(length(ff) < 51){
-    print(d)
-    print(length(ff))
-    print('-------')
-    #unlink(d, recursive = T) # deletes the directory
+# grab the results from all runs
+for(name in file_name_str){
+  if(grepl('QP', name)){
+    res_district[[name]] <-  get_results(get(name), name, QP_variance_adjustment = 4, district_results = T, results_by_point = T)
+  }else{
+    res_district[[name]] <-  get_results(get(name), name,  district_results = T, results_by_point = T)
   }
 }
-# all good
 
-# (1) WF MCAR; poisson; beta = 6, -0.25
-files_WF_MCAR_6n025 <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+save(res_district, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/main_paper_district_by_point_results_06182024.RData')
 
-# (2) freqglm0202 MCAR; poisson; beta = 6,-0.25
-files_freqglm0202_MCAR_6n025 <- grep('mcar[0-9]{1,2}_freqglm0202_beta05_beta1n025', files, value = T)
+text_size = 12
+## DGP district plots
+{
+  p1 <- plot_all_methods(res = res_district[["files_WF_MCAR_6n025"]]$results, fix_axis = ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with WF model, assuming MCAR', include_legend = F, plot_indiv_points = T, legend_text = text_size)
+  
+  p2 <- plot_all_methods(res = res_district[["files_freqglm0202_MCAR_55n025"]]$results, fix_axis = ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F, plot_indiv_points = T, legend_text = text_size)
+  
+  p3 <- plot_all_methods(res = res_district[["files_CAR33025_MCAR_6n025"]]$results, fix_axis = ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MCAR', include_legend = F, plot_indiv_points = T, legend_text = text_size)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_district_bypoint_comparison_plots_06182024.pdf', height = 7.5, width = 10)
+}
 
-# (3) CAR0303025 MCAR; poisson; beta = 6, -0.25
-files_CAR33025_MCAR_6n025 <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
 
-# (4) WF MCAR; QP theta = 4; beta = 6,-0.25
-files_WF_MCAR_QP4_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
-
-# (5) WF MAR; QP theta = 4; beta = 6,-0.25
-files_WF_MAR_QP4_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
-
-# (6) WF MNAR; QP theta = 4; beta = 6,-0.25
-files_WF_MNAR_QP4_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
-
-# Putting all the files together
-file_name_str <- c('files_WF_MCAR_6n025', 'files_freqglm0202_MCAR_6n025', 'files_CAR33025_MCAR_6n025', 'files_WF_MCAR_QP4_6n025', 'files_WF_MAR_QP4_6n025','files_WF_MNAR_QP4_6n025')
+#
+#### Printing all the CAR results! ####
+# getting the file names
+{
+  files = grep('2023_12_09|2023_12_10',dir(res_dir, full.names = T), value = T)
+  files2 = grep('2023_12_14',dir(res_dir, full.names = T), value = T)
+  
+  files_MCAR <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+  
+  files_CAR <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
+  
+  files <- unique(c(files, files_MCAR, files_CAR))
+  
+  for(d in files){
+    ff = dir(d)
+    if(length(ff) < 51){
+      print(d)
+      print(length(ff))
+      print('-------')
+      #unlink(d, recursive = T) # deletes the directory
+    }
+  }
+  # all good
+  
+  # (1) WF MCAR; poisson; beta = 6, -0.25
+  files_WF_MCAR_6n025 <- grep('2023_10_19',dir(res_dir, full.names = T), value = T)
+  
+  # (2) freqGLM0202 EB0 = 5.5, EB1 = -0.25: MCAR
+  files_freqglm0202_MCAR_55n025 <- grep('beta055_beta1n025',grep('freqglm', files2, value = T), value = T)
+  
+  # (3) CAR0303025 MCAR; poisson; beta = 6, -0.25
+  files_CAR33025_MCAR_6n025 <- grep('car33025', grep('2023_10_21',dir(res_dir, full.names = T), value = T), value = T)
+  
+  # (4) WF MCAR; QP theta = 4; beta = 6,-0.25
+  files_WF_MCAR_QP4_6n025 <- grep('mcar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+  
+  # (5) WF MAR; QP theta = 4; beta = 6,-0.25
+  files_WF_MAR_QP4_6n025 <- grep('mar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+  
+  # (6) WF MNAR; QP theta = 4; beta = 6,-0.25
+  files_WF_MNAR_QP4_6n025 <- grep('mnar[0-9]{1,2}_wf_qptheta4_beta06_beta1n025', files, value = T)
+  
+  # Putting all the files together
+  file_name_str <- c('files_WF_MCAR_6n025', 'files_freqglm0202_MCAR_55n025', 'files_CAR33025_MCAR_6n025', 'files_WF_MCAR_QP4_6n025', 'files_WF_MAR_QP4_6n025','files_WF_MNAR_QP4_6n025')
 }
 
 all_file_names <- unlist(sapply(file_name_str, get))
@@ -151,9 +225,8 @@ for(name in file_name_str){
   }
 }
 
-HERE AT 455pm.
 # saving CAR convergence from all the main paper runs.
-
+TO DO
 
 #
 #### Testing new simulation_main function ####
