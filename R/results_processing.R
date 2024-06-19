@@ -84,6 +84,77 @@ get_CARconvergence <- function(res){
 # load the full main paper results
 load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Making new DGP plots ####
+load(paste0(res_dir, '/DGP_comparison_results_higherCARnsample_06192024.RData'))
+
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  p1 <- plot_all_methods(res = res_facility[["files_WF_MCAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with WF model, assuming MCAR', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_beta6_beta10"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model (BETA1 = 0), assuming MCAR', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_facility_comparison_plots_nsample10000_burnin5000_06192024.pdf', height = 7.5, width = 10)
+}
+
+#
+#### Getting new DGP results with higher n.sample and burnin ####
+files = grep('2024_06_17',dir(res_dir, full.names = T), value = T)
+files = files[-grep('91167', files)]
+
+for(d in files){
+  ff = dir(d)
+  if(length(ff) < 51){
+    print(d)
+    print(length(ff))
+    print('-------')
+    #unlink(d, recursive = T) # deletes the directory
+  }
+}
+
+files_WF_MCAR_beta6_n025 <- grep('wf_beta06', files, value = T)
+
+files_freqglm0202_MCAR_beta55_n025 <- grep('beta055_beta1n025',grep('freqglm', files, value = T), value = T)
+
+files_CAR33025_MCAR_beta6_beta10 <- grep('car0303025_beta06_beta10', files, value = T)
+
+
+file_name_str <- c('files_WF_MCAR_beta6_n025',
+                   'files_freqglm0202_MCAR_beta55_n025',
+                   'files_CAR33025_MCAR_beta6_beta10')
+
+all_file_names <- unlist(sapply(file_name_str, get))
+setdiff(files, all_file_names)
+setdiff(all_file_names, files)
+tt = table(all_file_names); tt[tt>1]
+# ok all gravy
+
+# initialize
+res_facility = list()
+res_district = list()
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name, expected_sims = NULL)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL)
+}
+
+# check the burnin and nsample
+load(dir(files_CAR33025_MCAR_beta6_beta10[1], full.names = T)[1])
+params$CARburnin
+params$CARnsample
+
+# check the CAR convergence!
+tmp1 <- get_results(files_WF_MCAR_beta6_n025, 'files_WF_MCAR_beta6_n025', return_unprocessed = T) %>% get_CARconvergence()
+tmp2 <- get_results(files_freqglm0202_MCAR_beta55_n025, 'files_freqglm0202_MCAR_beta55_n025', return_unprocessed = T, expected_sims = NULL) %>% get_CARconvergence()
+
+# save the results
+save(res_facility, res_district, file = paste0(res_dir, '/DGP_comparison_results_higherCARnsample_06192024.RData'))
+
+
+#
 #### Get the results by point for each district ####
 # getting the file names
 {
