@@ -668,15 +668,7 @@ process_CAR_params_wrapper <- function(files, rename_params = T, all_betas = F, 
 WF_fit <- function(df, col, group = 'facility', family = 'negbin', period = 12, R_PI = 500, bias_correction_chen = F, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
   print(family)
-  # # check if this method has already been run
-  # if(any(grepl('y_pred_WF', colnames(df)))){
-  #   print('previous WF predictions found. Removing them')
-  #   df[,grep('y_pred_WF', colnames(df))] <- NULL
-  # }
-  # if(family == 'negbin'){
-  #   stop('in the name of love')
-  # }
-  
+
   # prep the data with the harmonic functions
   df <- add_periodic_cov(df, period = period)
   
@@ -843,52 +835,6 @@ WF_fit <- function(df, col, group = 'facility', family = 'negbin', period = 12, 
     })
     names(tmp) = uni_group
     
-    # # combine the individual facility results into a larger data frame
-    # df <- do.call('rbind',lapply(tmp,'[[',1))
-    # 
-    # # take the sum of the bootstrap samples of each facility (this returns an n X R matrix itself)
-    # sim.full = Reduce('+', lapply(tmp, '[[', 2))
-    # 
-    # # initialize district results
-    # district_df = NULL
-    # 
-    # # district-level analysis
-    # for(d in names(dist_fac)){
-    #   tt = data.frame(district = d,
-    #                   date = tmp[[1]][[1]]$date)
-    #   facs = dist_fac[[d]]
-    #   
-    #   # get the sums by district: returns n x R data frame
-    #   sum_district = Reduce('+', lapply(facs, function(f){
-    #     tmp[[f]][[2]]
-    #   }))
-    #   
-    #   # get the quantiles and store them
-    #   fitted_quants = t(apply(sum_district, 1, function(xx){
-    #     quantile(xx, probs = quant_probs)
-    #   }))
-    #   fitted_quants = as.data.frame(fitted_quants)
-    #   colnames(fitted_quants) = paste0(paste0(col, '_pred_WF_'), quant_probs)
-    #   
-    #   # merge the quantiles back into data frame
-    #   tt = cbind(tt, fitted_quants)
-    #   
-    #   district_df = rbind(district_df, tt)
-    # }
-    # 
-    # betas <- do.call('rbind',lapply(1:length(tmp), function(ii){
-    #   tmp_fac <- tmp[[ii]][[3]]
-    #   tt <- matrix(NA, ncol = 8)
-    #   tt[1,] <- tmp_fac[[1]][[1]]
-    #   rownames(tt) <- names(tmp_fac)
-    #   colnames(tt) <- names(tmp_fac[[1]][[1]])
-    #   return(tt)
-    # }))
-    # 
-    # beta_vcovs <- lapply(1:length(tmp), function(ii){
-    #   return(tmp[[ii]][[3]])
-    # })
-
   }
   
   # combine the individual facility results into a larger data frame
@@ -2612,7 +2558,7 @@ plot_county_fits <- function(df, methods, color_vec, imp_names = NULL, PIs = T, 
 # plot the fits of the models for a group of facilities. Also plots the prediction intervals.
 # Also can plot the raw values if no imputations are provided (methods is NULL)
 ### Parameters
-plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec = NULL, PIs = T, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', outbreak_points = NULL, include_legend = T, ...){
+plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec = NULL, PIs = T, upper_lim = F, fac_list = NULL, plot_missing_points = T, vertical_line = '2020-01-01', outbreak_points = NULL, include_legend = T, ...){
   df = as.data.frame(df)
   
   # get facility list if not supplied
@@ -2654,10 +2600,12 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       
       # get the ymax value
       if(!is.null(tmp$y_true)){
-        ymax <- min(1.1*max(tmp[,c(12:ncol(tmp))], na.rm = T), 
+        # ymax <- min(1.1*max(tmp[,c(12:ncol(tmp))], na.rm = T), 
+        #             2*max(tmp$y_true))
+        ymax <- min(1.1*max(tmp[,paste0(col, '_0.975')], na.rm = T), 
                     2*max(tmp$y_true))
       }else{
-        ymax <- 1.1*max(tmp[,c(12:ncol(tmp))], na.rm = T)
+        ymax <- 1.1*max(tmp[,paste0(col, '_0.975')], na.rm = T)
       }
       
       # make the plot!
@@ -2675,6 +2623,10 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       
       if(PIs){
         p1 <- p1 + geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1, show.legend = F)
+      }else if(upper_lim){
+        p1 <- p1 + geom_line(data = df_f, aes(x = date, y = y_upper, colour = method), 
+                             linetype = 'dashed',
+                             show.legend = F)
       }
       
       if(!is.null(color_vec)){
@@ -2707,9 +2659,11 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
           guides(shape = guide_legend(title = "Outbreak size k:"))
       }
       
+      
       # store the legend for later
-      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20), 
-                                     legend.title = element_text(size = 20)))
+      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=15), 
+                                     legend.title = element_text(size = 15),
+                                     legend.key.size = unit(0.3, 'cm')))
       
       # remove the legend position on this plot
       p1 <- p1 + theme(legend.position = 'none') 
@@ -2742,7 +2696,7 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       }
       
       # store the legend for later
-      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=20)))
+      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=15)))
       
       # remove the legend position on this plot
       p1 <- p1 + theme(legend.position = 'none') 
