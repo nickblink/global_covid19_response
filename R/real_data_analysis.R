@@ -51,17 +51,22 @@ res_list[['WF']] <- WF_CCA(df, col = "y", family = 'poisson', R_PI = 200)
 df <- res_list[['WF']]$df
 
 # run freqGLM
-res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = 10, verbose = F)
+system.time({
+  res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = 200, verbose = F)
+}) # 20m
 df <- res_list[['freqGLM']]$df
 
 # run CAR
-res_list[['CAR']] <- CARBayes_wrapper(df, burnin = 100, n.sample = 200, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
+res_list[['CAR']] <- CARBayes_wrapper(df, burnin = 1000, n.sample = 2000, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
 df <- res_list[['CAR']]$df
 df$y_CARstan <- df$y_CARstan_0.5
+#430 s
 
 # merge all the results together
 district_df <- merge(res_list[['WF']]$district_df, res_list[['freqGLM']]$district_df, by= c('district', 'date')) %>%
   merge(res_list[['CAR']]$district_df, by = c('district', 'date'))
+
+save(df, district_df, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/Maryland_county_model_fits_06182024.RData')
 
 ### Plot 1: Plotting the facility fits
 tmp  = df %>% filter(district == 'A')
