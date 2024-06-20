@@ -84,6 +84,30 @@ get_CARconvergence <- function(res){
 # load the full main paper results
 load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Comparing new and old freqGLM - why so different? ####
+files = grep('2023_12_14',dir(res_dir, full.names = T), value = T)
+
+# freqGLM0202 EB0 = 5.5, EB1 = -0.25: MCAR (not actually the appendix though)
+files_freqglm0202_MCAR_beta55_n025 <- grep('beta055_beta1n025',grep('freqglm', files, value = T), value = T)
+
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar0_freqglm0202_beta055_beta1n025_id618184_2023_12_14/sim_results_p0.0_mcar_1(50).RData')
+params_OG <- params; rm(params)
+arguments_OG <- arguments; rm(arguments)
+imputed_list_OG <- imputed_list; rm(imputed_list)
+true_betas_OG <- true_betas;rm(true_betas)
+
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/mcar0_freqglm0202_beta055_beta1n025_id447944_2024_06_17/sim_results_p0.0_mcar_1(50).RData')
+params_new <- params; rm(params)
+arguments_new <- arguments; rm(arguments)
+imputed_list_new <- imputed_list; rm(imputed_list)
+true_betas_new <- true_betas;rm(true_betas)
+
+names(params_OG)
+names(params_new)
+params_OG
+params_new
+
+#
 #### Making new DGP plots ####
 load(paste0(res_dir, '/DGP_comparison_results_higherCARnsample_06192024.RData'))
 

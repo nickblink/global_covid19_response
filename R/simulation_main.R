@@ -16,7 +16,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=6:b1_mean=n0.25:missingness=mcar:DGP=WF:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta06_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=F:CARburnin=2000:CARnsample=4000\r','3')
+inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=F:CARburnin=2000:CARnsample=4000\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -81,7 +81,7 @@ if(params[['job_id']] < params[['num_jobs']]){
 R_new = length(seq)
 
 # input arguments to data simulation
-arguments = list(district_sizes = c(4, 6, 14), 
+arguments = list(district_sizes = c(4, 6, 10), 
                  R = R_new, 
                  seed = params[['job_id']],
                  end_date = '2020-12-01', 

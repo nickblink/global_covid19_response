@@ -137,6 +137,30 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+#### 6/19/2024: Running all DGP with higher CAR nsample and running freqGLM DGP with MAR, freqGLM DGP with MNAR, CAR DGP with MAR, CAR DGP with MNAR ####
+
+#	CAR0303025 EB0 = 6, EB1 = -0.25: MCAR
+bash_wrapper(missingness = 'mcar',DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06192024.txt')
+
+#	freqGLM EB0 = 5.5, EB1 = -0.25: MCAR
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06192024.txt')
+
+#	WF EB0 = 6, EB1 = -0.25: MCAR
+bash_wrapper(missingness = 'mcar', b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06192024.txt')
+
+#	freqGLM EB0 = 5.5, EB1 = -0.25: MAR
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06192024.txt')
+
+#	freqGLM EB0 = 5.5, EB1 = -0.25: MNAR
+bash_wrapper(missingness = 'mnar', gamma = 1, rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06192024.txt')
+
+#	CAR0303025 EB0 = 6, EB1 = -0.25: MAR
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06192024.txt')
+
+#	CAR0303025 EB0 = 6, EB1 = -0.25: MNAR
+bash_wrapper(missingness = 'mnar', gamma = 1, DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06192024.txt')
+
+#
 #### 6/17/2024: Testing higher n.sample and burnin ####
 #	CAR0303025 EB0 = 6, EB1 = 0: MCAR
 bash_wrapper(missingness = 'mcar',DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, b1_mean = 0, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06172024.txt')
