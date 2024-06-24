@@ -82,8 +82,98 @@ get_CARconvergence <- function(res){
 }
 
 # load the full main paper results
-load(paste0(res_dir,'/full_paper_results_12262023.RData'))
+# load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+
+#### Processing Results from freqGLM MAR, freqGLM MNAR, CAR MAR, CAR MNAR ####
+files <- grep('2024_06_20',dir(res_dir, full.names = T), value = T)
+
+files_freqglm0202_MCAR_beta55_n025 <- grep('freqglm0202_beta055_beta1n025',grep('mcar', files, value = T), value = T)
+
+files_freqglm0202_MNAR_beta55_n025 <- grep('freqglm0202_beta055_beta1n025',grep('mnar', files, value = T), value = T)
+
+files_freqglm0202_MAR_beta55_n025 <- grep('freqglm0202_beta055_beta1n025',grep('mar', files, value = T), value = T)
+
+files_CAR33025_MCAR_beta6_n025 <- grep('car0303025_beta06_beta1n025', files, value = T) %>% grep('mcar', ., value = T)
+
+files_CAR33025_MNAR_beta6_n025 <- grep('car0303025_beta06_beta1n025', files, value = T) %>% grep('mnar', ., value = T)
+
+files_CAR33025_MAR_beta6_n025 <- grep('car0303025_beta06_beta1n025', files, value = T) %>% grep('mar', ., value = T)
+
+file_name_str <- c('files_freqglm0202_MCAR_beta55_n025',
+                   'files_freqglm0202_MNAR_beta55_n025',
+                   'files_freqglm0202_MAR_beta55_n025',
+                   'files_CAR33025_MCAR_beta6_n025',
+                   'files_CAR33025_MNAR_beta6_n025',
+                   'files_CAR33025_MAR_beta6_n025')
+
+# initialize
+res_facility = list()
+res_district = list()
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name, expected_sims = NULL)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL)
+}
+
+save them!! HERE AT 257pm
+
+#
+#### Making new DGP with higher n.sample plots - CORRECTED version ####
+load(paste0(res_dir, '/DGP_comparison_results_higherCARnsample_06242024.RData'))
+
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  p1 <- plot_all_methods(res = res_facility[["files_WF_MCAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with WF model, assuming MCAR', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MCAR', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_facility_comparison_plots_nsample10000_burnin5000_06242024.pdf', height = 7.5, width = 10)
+}
+
+#### Getting new DGP results with higher n.sample and burnin - CORRECTED to have proper number of facilities and beta vals (for CAR) ####
+files <- grep('2024_06_20',dir(res_dir, full.names = T), value = T)
+
+files_WF_MCAR_beta6_n025 <- grep('wf_beta06', files, value = T)
+
+files_freqglm0202_MCAR_beta55_n025 <- grep('freqglm0202_beta055_beta1n025',grep('mcar', files, value = T), value = T)
+
+files_CAR33025_MCAR_beta6_n025 <- grep('car0303025_beta06_beta1n025', files, value = T) %>% grep('mcar', ., value = T)
+
+
+file_name_str <- c('files_WF_MCAR_beta6_n025',
+                   'files_freqglm0202_MCAR_beta55_n025',
+                   'files_CAR33025_MCAR_beta6_n025')
+
+# initialize
+res_facility = list()
+res_district = list()
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name, expected_sims = NULL)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL)
+}
+
+# check the burnin and nsample
+load(dir(files_CAR33025_MCAR_beta6_n025[1], full.names = T)[1])
+params$CARburnin
+params$CARnsample
+# good
+
+# check the CAR convergence!
+tmp1 <- get_results(files_WF_MCAR_beta6_n025, 'files_WF_MCAR_beta6_n025', return_unprocessed = T) %>% get_CARconvergence()
+tmp2 <- get_results(files_freqglm0202_MCAR_beta55_n025, 'files_freqglm0202_MCAR_beta55_n025', return_unprocessed = T, expected_sims = NULL) %>% get_CARconvergence()
+# alright alright.
+
+# save the results
+save(res_facility, res_district, file = paste0(res_dir, '/DGP_comparison_results_higherCARnsample_06242024.RData'))
+
+#
 #### Comparing new and old freqGLM - why so different? ####
 files = grep('2023_12_14',dir(res_dir, full.names = T), value = T)
 

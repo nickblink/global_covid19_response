@@ -137,6 +137,14 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+#### 6/24/2024: Running WF with MNAR and MAR - WITHOUT quasipoisson ####
+#	CAR0303025 EB0 = 6, EB1 = -0.25: MAR
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, DGP = 'WF', b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06242024.txt')
+
+#	CAR0303025 EB0 = 6, EB1 = -0.25: MNAR
+bash_wrapper(missingness = 'mnar', gamma = 1, DGP = 'WF', b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06242024.txt')
+
+#
 #### 6/19/2024: Running all DGP with higher CAR nsample and running freqGLM DGP with MAR, freqGLM DGP with MNAR, CAR DGP with MAR, CAR DGP with MNAR ####
 
 #	CAR0303025 EB0 = 6, EB1 = -0.25: MCAR
