@@ -2890,7 +2890,7 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
 ## title: title of overall plot
 ## ...: params to be passed into "combine_results_wrapper"
 
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, plot_indiv_points = F, legend_text = 17, ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, plot_indiv_points = F, legend_text = 17, squeeze_plots = F, remove_x_axis = F, remove_y_axis = T, y_lab = NULL, ...){
   if(is.null(res)){
     if(!is.null(files)){
       tmp <- combine_results_wrapper(files,  ...)
@@ -2980,7 +2980,32 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
         labs(x = 'proportion missing') + 
         guides(alpha = 'none') +
         theme_bw() + 
-        ylab(metric) + guides(color = guide_legend(title = 'model fit', override.aes = list(size = 4)), shape = guide_legend(title = 'model fit'))
+        ylab(metric) + 
+        guides(color = guide_legend(title = 'model fit', override.aes = list(size = 4)), shape = guide_legend(title = 'model fit'))
+    }
+    
+    if(remove_y_axis){
+      p1 <- p1 + theme(axis.text.y = element_blank(),
+                       axis.ticks.y = element_blank()) +
+        ylab(NULL)
+    }else{
+      if(metric == 'specificity'){
+        p1 <- p1 + ylab(y_lab)
+      }else{
+        p1 <- p1 + theme(axis.text.y = element_blank(),
+                         axis.ticks.y = element_blank()) +
+          ylab(NULL)
+      }
+    }
+    if(squeeze_plots){
+      p1 <- p1 + theme(plot.margin = unit(c(0, 0, 0, 0), "cm")) + 
+        ggtitle(metric) 
+    }
+    
+    if(remove_x_axis){
+      p1 <- p1 + theme(axis.text.x = element_blank(),
+                       axis.ticks.x = element_blank()) + 
+        xlab(NULL)
     }
     
     # fix axis limits

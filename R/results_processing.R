@@ -84,8 +84,105 @@ get_CARconvergence <- function(res){
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Testing making one mega plot ####
+# facilities
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  pWF1 <- plot_all_methods(res = res_facility[["files_WF_MCAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with WF model', include_legend = F, squeeze_plots = T, remove_x_axis = T, remove_y_axis = F, y_lab = 'MCAR')
+  
+  pWF2 <- plot_all_methods(res = res_facility[["files_WF_MAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, include_legend = F, squeeze_plots = T, remove_x_axis = T, remove_y_axis = F, y_lab = 'MAR')
+  
+  pWF3 <- plot_all_methods(res = res_facility[["files_WF_MNAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, include_legend = F, squeeze_plots = T, remove_x_axis = F, remove_y_axis = F, y_lab = 'MNAR')
+  
+  pfreq1 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model', include_legend = F, squeeze_plots = T, remove_x_axis = T)
+  
+  pfreq2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, include_legend = F, squeeze_plots = T, remove_x_axis = T)
+  
+  pfreq3 <- plot_all_methods(res = res_facility[["files_freqglm0202_MNAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, include_legend = F, squeeze_plots = T)
+  
+  pCAR1 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model', include_legend = F, squeeze_plots = T, remove_x_axis = T)
+  
+  pCAR2 <- plot_all_methods(res = res_facility[["files_CAR33025_MAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, include_legend = F, squeeze_plots = T, remove_x_axis = T)
+  
+  pCAR3 <- plot_all_methods(res = res_facility[["files_CAR33025_MNAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, include_legend = F, squeeze_plots = T)
+  
+  cowplot::plot_grid(pWF1$plot, pWF2$plot, pWF3$plot, 
+                     pfreq1$plot, pfreq2$plot, pfreq3$plot,
+                     pCAR1$plot, pCAR2$plot, pCAR3$plot,
+                     byrow = F) %>%
+    cowplot::plot_grid(pWF1$legend, 
+                       ncol = 1, 
+                       rel_heights = c(9,1))
+  ggsave('figures/TEST_06252024.pdf', height = 7.5, width = 12)
+}
 
-#### Processing Results from freqGLM MAR, freqGLM MNAR, CAR MAR, CAR MNAR ####
+#
+#### Making freqGLM and CAR DGP plots ####
+load(paste0(res_dir, '/DGP_freqGLM_and_CAR_results_06252024.RData'))
+
+# freqGLM
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  p1 <- plot_all_methods(res = res_facility[["files_freqglm0202_MCAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MCAR', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_facility[["files_freqglm0202_MAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MAR', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_facility[["files_freqglm0202_MNAR_beta55_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM model, assuming MNAR', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_freqGLM_facility_comparison_plots_06252024.pdf', height = 7.5, width = 7)
+}
+
+# CAR
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  p1 <- plot_all_methods(res = res_facility[["files_CAR33025_MCAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MCAR', include_legend = F)
+  
+  p2 <- plot_all_methods(res = res_facility[["files_CAR33025_MAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MAR', include_legend = F)
+  
+  p3 <- plot_all_methods(res = res_facility[["files_CAR33025_MNAR_beta6_n025"]]$results, fix_axis = DGP_ylims, add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model, assuming MNAR', include_legend = F)
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  ggsave('figures/DGP_CAR_facility_comparison_plots_06252024.pdf', height = 7.5, width = 7)
+}
+
+#
+#### Processing Results from WF MCAR, MAR and MNAR (w/o QP and with higher nsample and burnin) ####
+files <- grep('2024_06_24',dir(res_dir, full.names = T), value = T)
+files2 <- grep('2024_06_20',dir(res_dir, full.names = T), value = T)
+
+files_WF_MCAR_beta6_n025 <- grep('wf', files2, value = T)
+
+files_WF_MAR_beta6_n025 <- grep('mar', files, value = T)
+
+files_WF_MNAR_beta6_n025 <- grep('mnar', files, value = T)
+
+for(d in files){
+  ff = dir(d)
+  if(length(ff) < 51){
+    print(d)
+    print(length(ff))
+    print('-------')
+    #unlink(d, recursive = T) # deletes the directory
+  }
+}
+
+load(paste0(res_dir, '/DGP_freqGLM_and_CAR_results_06252024.RData'))
+
+file_name_str <- c('files_WF_MCAR_beta6_n025',
+                   'files_WF_MAR_beta6_n025',
+                   'files_WF_MNAR_beta6_n025')
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name, expected_sims = NULL)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL)
+}
+
+# save(res_facility, res_district, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/DGP_WF_and_freqGLM_and_CAR_results_06262024.RData')
+
+#
+#### Processing Results from freqGLM MCAR, MAR, and MNAR as well as CAR MCAR, MAR, and MNAR ####
 files <- grep('2024_06_20',dir(res_dir, full.names = T), value = T)
 
 files_freqglm0202_MCAR_beta55_n025 <- grep('freqglm0202_beta055_beta1n025',grep('mcar', files, value = T), value = T)
@@ -117,7 +214,7 @@ for(name in file_name_str){
   res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL)
 }
 
-save them!! HERE AT 257pm
+#save(res_facility, res_district, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/DGP_freqGLM_and_CAR_results_06252024.RData')
 
 #
 #### Making new DGP with higher n.sample plots - CORRECTED version ####
