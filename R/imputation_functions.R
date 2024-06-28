@@ -18,12 +18,11 @@ rqpois <- function(n, mu, theta) {
 
 # make the adjacency matrix according to all facilities in a district being neighbors
 make_district_adjacency <- function(df, scale_by_num_neighbors = F){
-  
   # get the adjacency matrix
   D2 = df %>% dplyr::select(district, facility) %>% 
     distinct() %>%
     arrange(facility)
-  W = full_join(D2, D2, by = 'district') %>%
+  W = full_join(D2, D2, by = 'district', relationship = 'many-to-many') %>%
     filter(facility.x != facility.y) %>%
     dplyr::select(-district) %>%
     igraph::graph_from_data_frame() %>%
@@ -2012,7 +2011,7 @@ fit_freqGLMepi_nnls_negbin <- function(df, num_inits = 10, verbose = T, target_c
   # params = nlminb(start = init, objective = ll.wrapper, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10)), upper = c(1, 1, rep(10, 10)))
   
   tryCatch({
-    params = nlminb(start = init, objective = ll.wrapper.negbin.exp, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10), 0), upper = c(1, 1, rep(10, 10), 100))
+    params = nlminb(start = init, objective = ll.wrapper.negbin.exp, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 8), 0), upper = c(1, 1, rep(10, 8), 100))
   }, error = function(e){
     browser()
   })
@@ -2026,7 +2025,7 @@ fit_freqGLMepi_nnls_negbin <- function(df, num_inits = 10, verbose = T, target_c
       
       # nelder-mead
       tryCatch({
-        params2 = nlminb(start = init, objective = ll.wrapper.negbin.exp, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10), 0), upper = c(1, 1, rep(10, 10), 100))
+        params2 = nlminb(start = init, objective = ll.wrapper.negbin.exp, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 8), 0), upper = c(1, 1, rep(10, 8), 100))
       }, error = function(e){
         browser()
       })
@@ -2159,13 +2158,6 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   # add the neighbors and auto-regressive
   df = add_autoregressive(df, 'y_imp') %>%
     add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors, W = W)
-
-  # 
-  # browser()
-  # # AR/rho, betas x 8, theta
-  # params <- c(0.2, 0.2, 6,-1,rep(0,6), 4)
-  # ll.wrapper.exp(params, df, 'y_imp')
-  # ll.wrapper.negbin.exp(params, df, 'y_imp')
   
   ### Run freqGLM_epidemic model iteratively
   iter = 1
@@ -2180,7 +2172,6 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
         # subset data
         tt <- df %>% filter(facility == xx)
         
-        browser()
         # fit the model
         params = fit_function(tt, verbose = verbose, init = optim_init[[xx]])
         
@@ -2246,27 +2237,26 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     print(sprintf('convergence reached in %s iterations', iter))
   }
   
-  # need to set up with negbin
-  browser()
   ### run the stationary bootstrap
   param_boots <- lapply(1:length(uni_group), function(i) {
     # subset data
     tt <- df %>% filter(facility == uni_group[i])
     tt_test <- df_test %>% filter(facility == uni_group[i])
-    
-    predict_function <- function(xx){
+
+    param_est_function <- function(xx){
       # fit model on bootstrapped data set
       # start the initialization at the values from the main model
       params = fit_function(xx, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])
       
       # predict model on original training data set
-      x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
+      # x = suppressWarnings(rpois(n = nrow(tt), model_function(tt, params$par)))
+      # x = suppressWarnings(MASS::rnegbin(n = nrow(tt), mu = model_function(tt, params$par), theta = params$par['theta']))
       
       return(params$par)
     }
     
     # run the stationary bootstrap and return the parameters from each fit
-    sim_boot <- boot::tsboot(tt, statistic = predict_function, R = R_PI, sim = 'geom', l = blocksize)$t
+    sim_boot <- boot::tsboot(tt, statistic = param_est_function, R = R_PI, sim = 'geom', l = blocksize)$t
     
     # match the parameter names
     colnames(sim_boot) <- names(fit_function(tt, BFGS = F, num_inits = 1, verbose = verbose, init = parmat[,1])$par)
@@ -2288,6 +2278,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     tmp$facility = fac
     tmp
   }))
+
   param_results <- param_results[,c(8,7,1:6)]
   rownames(param_results) <- NULL
   
@@ -2327,7 +2318,12 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     for(f in uni_group){
       tt <- df_tmp %>% filter(facility == f, date <= (train_end_date + 31))
       
-      y = suppressWarnings(rpois(n = nrow(tt), model_function(tt, param_boots[[f]][1,]))) 
+      if(family == 'poisson'){
+        y = suppressWarnings(rpois(n = nrow(tt), model_function(tt, param_boots[[f]][1,]))) 
+      }else if(family == 'negbin'){
+        y = suppressWarnings(MASS::rnegbin(n = nrow(tt), mu = model_function(tt, param_boots[[f]][1,]), theta = param_boots[[f]][1,'theta']))
+      }
+      
       
       # put the results back into the data frame
       df_tmp$y_pred[df_tmp$facility == f][1:length(y)] <- y
@@ -2345,7 +2341,11 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       for(f in uni_group){
         tt <- df_tmp %>% filter(facility == f, date == t)
         
-        y = suppressWarnings(rpois(n = nrow(tt), model_function(tt, param_boots[[f]][i,]))) 
+        if(family == 'poisson'){
+          y = suppressWarnings(rpois(n = nrow(tt), model_function(tt, param_boots[[f]][i,]))) 
+        }else if(family == 'negbin'){
+          y = suppressWarnings(MASS::rnegbin(n = nrow(tt), mu = model_function(tt, param_boots[[f]][i,]), theta = param_boots[[f]][i,'theta']))
+        }
         
         # put the results back into the data frame
         df_tmp$y_pred[df_tmp$facility == f & df_tmp$date == t] <- y
