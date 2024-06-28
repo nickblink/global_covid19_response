@@ -1,5 +1,5 @@
 library(MASS)
-library(CARBayesST)
+#library(CARBayesST)
 library(Matrix)
 library(dplyr)
 library(lubridate)
@@ -67,7 +67,7 @@ df$y <- df$ari
 res_list <- list()
 
 ### Testing
-res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = 200, verbose = F, family = 'negative binomial')
+res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = 200, verbose = F, family = 'negbin')
 
 # run WF model
 res_list[['WF']] <- WF_CCA(df, col = "y", family = 'poisson', R_PI = 200)
