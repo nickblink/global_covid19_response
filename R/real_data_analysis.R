@@ -83,6 +83,12 @@ system.time({
 }) # 20m
 df <- res_list[['freqGLM']]$df
 
+# run freqGLM NB
+system.time({
+  res_list[['freqGLM_NB']] <- freqGLMepi_CCA(df, R_PI = 200, verbose = F, family = 'negbin')
+}) # 20m
+df <- res_list[['freqGLM']]$df
+
 # run CAR
 res_list[['CAR']] <- CARBayes_wrapper(df, burnin = 1000, n.sample = 2000, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
 df <- res_list[['CAR']]$df
