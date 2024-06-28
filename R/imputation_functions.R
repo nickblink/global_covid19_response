@@ -1684,6 +1684,14 @@ ll.wrapper.exp = function(params, D, target_col){
   return(-logL)
 }
 
+ll.wrapper.negbin.exp = function(params, D, target_col){
+  mu = model.mean.exp(D, params)
+  theta = params[11]
+  logL_vec <- dnbinom(D[,target_col], mu = mu, size = theta, log = T)
+  logL = sum(logL_vec, na.rm = T)
+  return(-logL)
+}
+
 freqGLMepi_variance <- function(param_vec, D){
   
   warning('weird scoping in variance function. Try to make it like the freqGLM_epi fitting procedure')
@@ -1987,6 +1995,63 @@ fit_freqGLMepi_nnls <- function(df, num_inits = 10, verbose = T, target_col = 'y
   return(params)
 }
 
+### the NNLS freqGLMepi model (so lambda and phi are constrained rather than exponentiated)
+fit_freqGLMepi_nnls_negbin <- function(df, num_inits = 10, verbose = T, target_col = 'y_imp', init = NULL, BFGS = NULL){
+  t0 = Sys.time()
+  
+  # set up initialization
+  if(is.null(init)){
+    init = c(0.1, 0.1, rep(0,8), 5)
+  }
+  
+  parnames = c('By.AR1', 'By.neighbors', 'Bintercept', 'Byear', 'Bcos1', 'Bsin1', 'Bcos2', 'Bsin2', 'Bcos3', 'Bsin3', 'theta')
+  names(init) = parnames
+  
+  init_OG = init
+  
+  # params = nlminb(start = init, objective = ll.wrapper, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10)), upper = c(1, 1, rep(10, 10)))
+  
+  tryCatch({
+    params = nlminb(start = init, objective = ll.wrapper.negbin.exp, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10), 0), upper = c(1, 1, rep(10, 10), 100))
+  }, error = function(e){
+    browser()
+  })
+  
+  # try different initialization values to compare convergence
+  if(num_inits > 1){
+    for(i in 2:num_inits){
+      # init = rnorm(10,0,10*i/num_inits)
+      
+      init = init_OG + c(0.01*i, 0.01*i, rnorm(8,0,5*i/num_inits), i)
+      
+      # nelder-mead
+      tryCatch({
+        params2 = nlminb(start = init, objective = ll.wrapper.negbin.exp, D = df, target_col = target_col, lower = c(0, 0, rep(-10, 10), 0), upper = c(1, 1, rep(10, 10), 100))
+      }, error = function(e){
+        browser()
+      })
+      
+      if(params2$objective < params$objective & params2$convergence == 0){
+        if(verbose){print('using another initialization')}
+        params = params2
+      }
+    }
+  }
+  
+  # for error checking
+  if(params$convergence != 0){
+    if(verbose){print('didnt converge for one iteration')}
+    #browser()
+  }
+  
+  if(verbose){
+    print(sprintf('freqGLMepi fit in %s seconds', Sys.time() - t0))
+  }
+  
+  names(params$par) = parnames
+  return(params)
+}
+
 ### Given data with missing values, fits the freqGLMepi model on all data points
 #   df: data
 #   max_iter: number of iterations of imputation
@@ -2021,12 +2086,21 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   
   # set fitting function to be regular (exponentiated spatial and temporal parameters) or non-negative least squares 
   if(nnls){
-    fit_function <- fit_freqGLMepi_nnls
     model_function <- model.mean.exp
+    if(family == 'poisson'){
+      fit_function <- fit_freqGLMepi_nnls
+    }else if(family == 'negbin'){
+      fit_function <- fit_freqGLMepi_nnls_negbin
+    }
   }else{
-    fit_function <- fit_freqGLMepi
     model_function <- model.mean
+    if(family == 'poisson'){
+      fit_function <- fit_freqGLMepi
+    }else{
+      stop('havent coded non-poisson for the non-exponentiated formula.')
+    }
   }
+  
   
   y_pred_list = list()
   
@@ -2044,14 +2118,13 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       
       # run the model
       mod_col <- glm(formula_col, family = 'poisson', data = tt)
-      
+
       # update predictions
       tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
       
       return(tt)
     })
-  }
-  else if(family == 'negative_binomial'){
+  }else if(family == 'negbin'){
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(facility == xx)
       
@@ -2061,8 +2134,13 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       # update predictions
       tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
       
+      # save the theta values
+      tt$WF_theta = mod_col[['theta']]
+      
       return(tt)
     })
+  }else{
+    stop('please put in a proper family')
   }
   # combine into one data frame
   df = do.call('rbind',tmp)
@@ -2070,12 +2148,25 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   # filling in missing values by randomly sampling mean prediction from Poisson
   df$y_imp = df$y
   na.ind = which(is.na(df$y))
-  df$y_imp[na.ind] <- rpois(n = length(na.ind), df$y_pred_freqGLMepi[na.ind])
+  
+  if(family == 'poisson'){
+    df$y_imp[na.ind] <- rpois(n = length(na.ind), df$y_pred_freqGLMepi[na.ind])
+  }else if(family == 'negbin'){
+    df$y_imp[na.ind] = MASS::rnegbin(n = length(na.ind), mu = df$y_pred_freqGLMepi[na.ind], theta = df$WF_theta[na.ind])
+  }
+  
   
   # add the neighbors and auto-regressive
   df = add_autoregressive(df, 'y_imp') %>%
     add_neighbors(., 'y_imp', scale_by_num_neighbors = scale_by_num_neighbors, W = W)
 
+  # 
+  # browser()
+  # # AR/rho, betas x 8, theta
+  # params <- c(0.2, 0.2, 6,-1,rep(0,6), 4)
+  # ll.wrapper.exp(params, df, 'y_imp')
+  # ll.wrapper.negbin.exp(params, df, 'y_imp')
+  
   ### Run freqGLM_epidemic model iteratively
   iter = 1
   y_pred_list[[1]] = df$y_pred_freqGLMepi
@@ -2083,18 +2174,13 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   while(prop_diffs[length(prop_diffs)] > tol & iter <= max_iter){
     iter = iter + 1
     
-    # tmp = df %>% filter(facility == 'A1')
-    # formula_col = as.formula(sprintf("y ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3"))
-    # res <- MASS::glm.nb(formula_col, data = tmp, link = 'identity')
-    # # THIS IS NOT ACCOUNTING FOR EXPONENTIATING BUT WHO CARES
-    # 
-    # browser()
     if(individual_facility_models){
       # run the individual model for each group.
       tmp <- lapply(uni_group, function(xx) {
         # subset data
         tt <- df %>% filter(facility == xx)
         
+        browser()
         # fit the model
         params = fit_function(tt, verbose = verbose, init = optim_init[[xx]])
         
@@ -2160,6 +2246,8 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     print(sprintf('convergence reached in %s iterations', iter))
   }
   
+  # need to set up with negbin
+  browser()
   ### run the stationary bootstrap
   param_boots <- lapply(1:length(uni_group), function(i) {
     # subset data

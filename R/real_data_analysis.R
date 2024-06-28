@@ -17,6 +17,8 @@ if(file.exists('C:/Users/Admin-Dell')){
   res_dir = "C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance"
 }
 
+### Data prep
+{
 Dfull <- readRDS(sprintf('%s/data/liberia_cleaned_01-06-2021.rds', res_dir))
 
 Dfull %>% group_by(county) %>%
@@ -32,6 +34,10 @@ D %>%
   filter(date >= '2020-01-01') %>%
   group_by(date) %>% 
   summarize(n_miss = length(unique(is.na(ari))))
+
+D %>% 
+  filter(date < '2020-01-01') %>%
+  summarize(prop_miss = mean(is.na(ari)))
 
 # get the dates
 dates = unique(D$date)
@@ -56,8 +62,12 @@ for(d in unique(D$district)){
 }
 
 df$y <- df$ari
+}
 
 res_list <- list()
+
+### Testing
+res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = 200, verbose = F, family = 'negative binomial')
 
 # run WF model
 res_list[['WF']] <- WF_CCA(df, col = "y", family = 'poisson', R_PI = 200)
