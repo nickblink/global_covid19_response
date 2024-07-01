@@ -8,6 +8,13 @@ library(doParallel)
 library(rstan)
 library(cowplot)
 
+## To Do:
+# 1) Transfer over real_data_main.R
+# 2) Transfer over the data file (is this secure?)
+# 3) Transfer over the run_real_sim_anal
+# 4) Do an interactive session to test the code
+# 5) Once running, run a big job.
+
 source('R/imputation_functions.R')
 rstan_options(auto_write = TRUE)
 
