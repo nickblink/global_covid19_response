@@ -1,5 +1,4 @@
 library(MASS)
-#library(CARBayesST)
 library(Matrix)
 library(dplyr)
 library(lubridate)
@@ -63,18 +62,25 @@ for(d in unique(D$district)){
 
 df$y <- df$ari
 }
-
 res_list <- list()
-R_PI = 200
+R_PI = 2 # 200
+burnin = 100 # 1000
+nsample = 200 # 2000
 
 #### Rolling surveillance ####
+# get dates
 all_dates = sort(unique(df$date))
 eval_dates = all_dates[all_dates >= '2020-01-01']
 
-for(eval in eval_dates){
+# full res_list and prediction
+full_res_list <- list()
+df_predict <- NULL
+
+for(d in eval_dates){
+  res_list <- list()
   # get the dates
   # dates <- all_dates[all_dates >= (eval %m-% months(48)) & all_dates <= eval]
-  ind <- which(all_dates == eval)
+  ind <- which(all_dates == d)
   dates <- all_dates[(ind - 48):ind]
   train_end <- all_dates[ind-1]
   
@@ -104,23 +110,30 @@ for(eval in eval_dates){
   
   # run CAR
   system.time({
-    res_list[['CAR']] <- CARBayes_wrapper(df_roll, burnin = 1000, n.sample = 2000, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end)
+    res_list[['CAR']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = n.sample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end)
   }) # 143s
   df_roll <- res_list[['CAR']]$df
   df_roll$y_CARstan <- df_roll$y_CARstan_0.5
   colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_sample', colnames(df_roll))
   
   system.time({
-  res_list[['CAR_phifit']] <- CARBayes_wrapper(df_roll, burnin = 1000, n.sample = 2000, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end, use_fitted_phi = T)
+  res_list[['CAR_phifit']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = n.sample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end, use_fitted_phi = T)
   })
   df_roll <- res_list[['CAR_phifit']]$df
   df_roll$y_CARstan <- df_roll$y_CARstan_0.5
   colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_phifit', colnames(df_roll))
   
+  # update results
+  df_predict <- rbind(df_predict, 
+                      df_roll[df_roll$date == d,])
+  full_res_list[[d]] <- df_roll
 }
   
-save(df_roll, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/Maryland_county_model_fits(CAR test)_06302024.RData')
-TESTING ONE RUN OF ALL DEM (WITH LOW R_PI)
+#save(df_roll, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/Maryland_county_model_fits_rolling_06302024.RData')
+
+# tmp  = df_roll %>% filter(district == 'A')
+# plot_facility_fits(tmp, methods = c('y_pred_WF','y_CAR_sample','y_CAR_phifit'),
+#                    include_legend = T)
 
 #
 #### Predicting all of 2020 at once ####

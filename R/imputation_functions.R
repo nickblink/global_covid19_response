@@ -2141,7 +2141,6 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     }
   }
   
-  
   y_pred_list = list()
   
   ### Do initial filling of y
@@ -2194,7 +2193,6 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   }else if(family == 'negbin'){
     df$y_imp[na.ind] = MASS::rnegbin(n = length(na.ind), mu = df[na.ind,pred_col,drop=T], theta = df$WF_theta[na.ind])
   }
-  
   
   # add the neighbors and auto-regressive
   df = add_autoregressive(df, 'y_imp') %>%
@@ -2253,7 +2251,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     
     # update y_imp (need to update this code for negbin if using)
     if(max_iter > 1){
-      browser()
+      stop('havent coded for max_iter > 1')
       na.ind.2 = intersect(na.ind, which(!is.na(df[,pred_col])))
       df$y_imp[na.ind.2] <- rpois(n = length(na.ind.2), df[na.ind.2,pred_col])
       
@@ -2367,7 +2365,6 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       }else if(family == 'negbin'){
         y = suppressWarnings(MASS::rnegbin(n = nrow(tt), mu = model_function(tt, param_boots[[f]][1,]), theta = param_boots[[f]][1,'theta']))
       }
-      
       
       # put the results back into the data frame
       df_tmp$y_pred[df_tmp$facility == f][1:length(y)] <- y
