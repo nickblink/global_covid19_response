@@ -65,37 +65,39 @@ df$y <- df$ari
 }
 
 res_list <- list()
+R_PI = 200
 
-### Testing
-res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = 200, verbose = F, family = 'negbin')
-
+### Running the models
+{
 # run WF model
-res_list[['WF']] <- WF_CCA(df, col = "y", family = 'poisson', R_PI = 200)
+res_list[['WF']] <- WF_CCA(df, col = "y", family = 'poisson', R_PI = R_PI)
 df <- res_list[['WF']]$df
 
 # run WF NB model
-res_list[['WF_NB']] <- WF_CCA(df, col = "y", family = 'negbin', R_PI = 200)
+res_list[['WF_NB']] <- WF_CCA(df, col = "y", family = 'negbin', R_PI = R_PI)
 df <- res_list[['WF_NB']]$df
 
 # run freqGLM
 system.time({
-  res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = 200, verbose = F)
+  res_list[['freqGLM']] <- freqGLMepi_CCA(df, R_PI = R_PI, verbose = F)
 }) # 20m
 df <- res_list[['freqGLM']]$df
 
 # run freqGLM NB
 system.time({
-  res_list[['freqGLM_NB']] <- freqGLMepi_CCA(df, R_PI = 200, verbose = F, family = 'negbin')
+  res_list[['freqGLM_NB']] <- freqGLMepi_CCA(df, R_PI = R_PI, verbose = F, family = 'negbin')
 }) # 20m
-df <- res_list[['freqGLM']]$df
+df <- res_list[['freqGLM_NB']]$df
 
 # run CAR
 res_list[['CAR']] <- CARBayes_wrapper(df, burnin = 1000, n.sample = 2000, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
 df <- res_list[['CAR']]$df
 df$y_CARstan <- df$y_CARstan_0.5
-#430s
+# 430s
+}
 
-
+### Rolling up district data
+{
 # make the base district values, imputing missing ones with WF. 
 tmp = df
 tmp$y_rollup <- ifelse(is.na(tmp$y), tmp$y_pred_WF, tmp$y)
@@ -111,20 +113,24 @@ district_df <- tmp %>%
 
 # merge all the district results together
 district_df <- merge(res_list[['WF']]$district_df, res_list[['freqGLM']]$district_df, by= c('district', 'date')) %>%
+  merge(res_list[['freqGLM_NB']]$district_df, by= c('district', 'date')) %>%
   merge(res_list[['WF_NB']]$district_df, by = c('district', 'date')) %>%
   merge(res_list[['CAR']]$district_df, by = c('district', 'date')) %>%
   merge(district_df, by = c('district', 'date'))
 district_df$y_pred_WF <- district_df$y_pred_WF_0.5
 district_df$y_pred_WF_negbin <- district_df$y_pred_WF_negbin_0.5
 district_df$y_pred_freqGLMepi <- district_df$y_pred_freqGLMepi_0.5
+district_df$y_pred_freqGLMepi_negbin <- district_df$y_pred_freqGLMepi_negbin_0.5
 district_df$y_CARstan <- district_df$y_CARstan_0.5
+}
 
-# save(df, district_df, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/Maryland_county_model_fits_06182024.RData')
+#save(df, district_df, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/Maryland_county_model_fits(TEST-200RPI)_06302024.RData')
 
 ### Plot 1: Plotting the facility fits
 tmp  = df %>% filter(district == 'A')
-plot_facility_fits(tmp, methods = c('y_pred_WF','y_pred_freqGLMepi', 'y_CARstan'))
-
+plot_facility_fits(tmp, methods = c('y_pred_WF','y_pred_freqGLMepi', 'y_CARstan', 'y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin'))
+# plot_facility_fits(tmp, methods = c('y_CARstan', 'y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin'))
+# plot_facility_fits(tmp, methods = c('y_CARstan', 'y_pred_freqGLMepi', 'y_pred_freqGLMepi_negbin'))
 
 dist_n <- df %>% group_by(district) %>%
   summarize(n = length(unique(facility)))
@@ -133,12 +139,12 @@ district_df$district_nn <- dist_n$new_name[match(district_df$district, dist_n$di
 
 district_rename <- district_df %>%
   mutate(facility = district_nn)
-#plot_facility_fits(district_rename, methods = c('y_pred_WF', 'y_pred_WF_negbin', 'y_pred_freqGLMepi', 'y_CARstan'))
+plot_facility_fits(district_rename, methods = c('y_pred_freqGLMepi', 'y_pred_freqGLMepi_negbin', 'y_pred_WF'), PI = F, upper_lim = T)
 p1 <- plot_facility_fits(district_rename, 
                          methods = c('y_pred_WF', 'y_pred_freqGLMepi', 'y_CARstan'), 
                          color_vec = c('orange3', 'forestgreen', 'blue'), PI = F, upper_lim = T)
 
-ggsave(plot = p1, filename = 'figures/Maryland_analysis_district_fits.pdf', height = 5, width = 10)
+#ggsave(plot = p1, filename = 'figures/Maryland_analysis_district_fits.pdf', height = 5, width = 10)
 
 
 test <- district_df %>% 

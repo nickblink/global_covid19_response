@@ -2066,6 +2066,15 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     warning('make sure the data has y (with NAs) and y_true')
   }
   
+  # get outcome col
+  if(family == 'poisson'){
+    pred_col <- 'y_pred_freqGLMepi'
+  }else if(family == 'negbin'){
+    pred_col <- 'y_pred_freqGLMepi_negbin'
+  }else{
+    stop('please input either family = poisson or negbin.')
+  }
+  
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
   
@@ -2076,7 +2085,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   df_test <- df %>%
     filter(date > train_end_date)
   df_test$y_imp <- NA
-  df_test$y_pred_freqGLMepi <- NA
+  df_test[,pred_col] <- NA
   df <- df %>%
     filter(date <= train_end_date)
   
@@ -2119,7 +2128,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       mod_col <- glm(formula_col, family = 'poisson', data = tt)
 
       # update predictions
-      tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
+      tt[,pred_col] = predict(mod_col, tt, type = 'response')
       
       return(tt)
     })
@@ -2131,7 +2140,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       mod_col <- MASS::glm.nb(formula_col, data = tt)
       
       # update predictions
-      tt$y_pred_freqGLMepi = predict(mod_col, tt, type = 'response')
+      tt[,pred_col] = predict(mod_col, tt, type = 'response')
       
       # save the theta values
       tt$WF_theta = mod_col[['theta']]
@@ -2149,9 +2158,9 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   na.ind = which(is.na(df$y))
   
   if(family == 'poisson'){
-    df$y_imp[na.ind] <- rpois(n = length(na.ind), df$y_pred_freqGLMepi[na.ind])
+    df$y_imp[na.ind] <- rpois(n = length(na.ind), df[na.ind,pred_col,drop=T])
   }else if(family == 'negbin'){
-    df$y_imp[na.ind] = MASS::rnegbin(n = length(na.ind), mu = df$y_pred_freqGLMepi[na.ind], theta = df$WF_theta[na.ind])
+    df$y_imp[na.ind] = MASS::rnegbin(n = length(na.ind), mu = df[na.ind,pred_col,drop=T], theta = df$WF_theta[na.ind])
   }
   
   
@@ -2161,7 +2170,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   
   ### Run freqGLM_epidemic model iteratively
   iter = 1
-  y_pred_list[[1]] = df$y_pred_freqGLMepi
+  y_pred_list[[1]] = df[,pred_col]
   prop_diffs = c(1)
   while(prop_diffs[length(prop_diffs)] > tol & iter <= max_iter){
     iter = iter + 1
@@ -2176,7 +2185,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
         params = fit_function(tt, verbose = verbose, init = optim_init[[xx]])
         
         # update y_pred
-        tt$y_pred_freqGLMepi = model_function(tt, params$par)
+        tt[,pred_col] = model_function(tt, params$par)
         
         return(list(df = tt, params = params))
       })
@@ -2198,28 +2207,31 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
       parmat = fit_function(df)$par
       
       # update y_pred 
-      df$y_pred_freqGLMepi = model_function(df, parmat)
+      df[,pred_col] = model_function(df, parmat)
       
     }
     
     # store the predictions for this iteration
-    y_pred_list[[iter]] = df$y_pred_freqGLMepi
+    y_pred_list[[iter]] = df[,pred_col]
     
     if(length(na.ind) == 0){
       if(verbose){print('only running one iteration because there is no missingness')}
       break
     }
     
-    # update y_imp
-    na.ind.2 = intersect(na.ind, which(!is.na(df$y_pred_freqGLMepi)))
-    df$y_imp[na.ind.2] <- rpois(n = length(na.ind.2), df$y_pred_freqGLMepi[na.ind.2])
-    
-    # compare y_imps
-    prop_diffs = c(prop_diffs, mean(abs(y_pred_list[[iter]][na.ind] - y_pred_list[[iter-1]][na.ind])/y_pred_list[[iter-1]][na.ind], na.rm = T))
-
-    # update the neighbors and auto-regressive
-    df = add_autoregressive(df, 'y_imp') %>%
-      add_neighbors(., 'y_imp', W = W)
+    # update y_imp (need to update this code for negbin if using)
+    if(max_iter > 1){
+      browser()
+      na.ind.2 = intersect(na.ind, which(!is.na(df[,pred_col])))
+      df$y_imp[na.ind.2] <- rpois(n = length(na.ind.2), df[na.ind.2,pred_col])
+      
+      # compare y_imps
+      prop_diffs = c(prop_diffs, mean(abs(y_pred_list[[iter]][na.ind] - y_pred_list[[iter-1]][na.ind])/y_pred_list[[iter-1]][na.ind], na.rm = T))
+      
+      # update the neighbors and auto-regressive
+      df = add_autoregressive(df, 'y_imp') %>%
+        add_neighbors(., 'y_imp', W = W)
+    }
     
     # update
     if(iter %% 10 == 0 & verbose){
@@ -2362,12 +2374,18 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
   # combine into a data frame
   pred_boots <- do.call('cbind', pred_boots)
   
+  if(family == 'poisson'){
+    pred_name <- 'y_pred_freqGLMepi_'
+  }else if(family == 'negbin'){
+    pred_name <- 'y_pred_freqGLMepi_negbin_'
+  }
+  
   # get the quantiles and store them
   fitted_quants = t(apply(pred_boots, 1, function(xx){
     quantile(xx, probs = quant_probs, na.rm = T)
   }))
   fitted_quants = as.data.frame(fitted_quants)
-  colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
+  colnames(fitted_quants) = paste0(pred_name, quant_probs)
 
   # combine the final results and return
   df_combined = cbind(df_combined, fitted_quants)
@@ -2389,7 +2407,7 @@ freqGLMepi_CCA = function(df, train_end_date = '2019-12-01', max_iter = 1, tol =
     quantile(xx, probs = quant_probs, na.rm = T)
   }))
   fitted_quants = as.data.frame(fitted_quants)
-  colnames(fitted_quants) = paste0(paste0('y_pred_freqGLMepi_'), quant_probs)
+  colnames(fitted_quants) = paste0(pred_name, quant_probs)
   
   district_df = cbind(district_df[,c('date','district')], fitted_quants)
   
@@ -2695,7 +2713,9 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
         ymax <- min(1.1*max(tmp[,paste0(col, '_0.975')], na.rm = T), 
                     2*max(tmp$y_true))
       }else{
-        ymax <- 1.1*max(tmp[,paste0(col, '_0.975')], na.rm = T)
+        ymax<- 2*max(tmp$y)
+        # ymax <- min(1.1*max(tmp[,paste0(col, '_0.975')], na.rm = T),
+        #             2*max(tmp$y))
       }
       
       # make the plot!
