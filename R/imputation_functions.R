@@ -1292,7 +1292,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, ...){
+CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = F, ...){
   
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
@@ -1302,9 +1302,11 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   max_date <- max(df$date)
   
   if(is.null(predict_start_date)){
+    browser()
+    # is this really what you want?
     dates = df %>% 
       dplyr::filter(date > train_end_date) %>%
-      dplry::select(date) %>%
+      dplyr::select(date) %>%
       unique() %>%
       .$date
     predict_start_date = min(dates)
@@ -1325,6 +1327,12 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     filter(date <= train_end_date) %>%
     arrange(facility, date)
   
+  # checking the sorting
+  order_check <- order(train$facility, train$date)
+  if(!identical(order(order_check), order_check)){
+    stop('incorrect ordering of train data frame')
+  }
+  
   # fit the model!
   res <- CARBayes_fitting(train, col, ...)
   
@@ -1336,7 +1344,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   #### the rest is for future model prediction
   betas <- res$model_chain$beta
   
-  phi <- res$model_chain$phi
+  phi_fit <- res$model_chain$phi
   rho <- res$model_chain$rho
   alpha <- res$model_chain$alpha
   tau2 <- res$model_chain$tau2
@@ -1410,10 +1418,28 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     return(V)
   })
   
+  # phi_fit_r <- phi_fit[1,]
+  # tt <- data.frame(date = train$date,
+  #                     facility = train$facility,
+  #                     phi = phi_fit_r) %>%
+  #   tidyr::pivot_wider(names_from = facility,
+  #                      values_from = phi)
+  # 
+  # test <- matrix(phi_fit[1,], 
+  #                byrow = F, 
+  #                nrow = length(unique(train$date)))
+  # 
+  # test <- order(train$facility, train$date)
+  
   # make R sampled sets of data
   phi_lst = lapply(1:R_posterior, function(i){
     ### get the spatio-temporal random effects
-    # initialize phi
+    # pull in the phi from the stan fit
+    phi_fit_r <- matrix(phi_fit[i,], 
+                        byrow = F, 
+                        nrow = length(unique(train$date)))
+    
+    # initialize phi to sample
     phi = matrix(0, nrow = length(dates), ncol = length(facilities))
     colnames(phi) = facilities
     
@@ -1421,8 +1447,14 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, ncol(phi)), Sigma = covar_mats[[i]])
     
     # cycle through other time steps, using auto-correlated priors
-    for(t in 2:length(dates)){
-      phi[t,] = MASS::mvrnorm(n = 1, mu = alpha[i]*phi[t-1,], Sigma = covar_mats[[i]])
+    if(use_fitted_phi){
+      for(t in 2:length(dates)){
+        phi[t,] = MASS::mvrnorm(n = 1, mu = alpha[i]*phi_fit_r[t-1,], Sigma = covar_mats[[i]])
+      }
+    }else{
+      for(t in 2:length(dates)){
+        phi[t,] = MASS::mvrnorm(n = 1, mu = alpha[i]*phi[t-1,], Sigma = covar_mats[[i]])
+      }
     }
     
     # convert to matching format

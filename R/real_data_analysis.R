@@ -67,6 +67,63 @@ df$y <- df$ari
 res_list <- list()
 R_PI = 200
 
+#### Rolling surveillance ####
+all_dates = sort(unique(df$date))
+eval_dates = all_dates[all_dates >= '2020-01-01']
+
+for(eval in eval_dates){
+  # get the dates
+  # dates <- all_dates[all_dates >= (eval %m-% months(48)) & all_dates <= eval]
+  ind <- which(all_dates == eval)
+  dates <- all_dates[(ind - 48):ind]
+  train_end <- all_dates[ind-1]
+  
+  # get the data frame
+  df_roll <- df %>% 
+    filter(date %in% dates)
+  
+  # run WF model
+  res_list[['WF']] <- WF_CCA(df_roll, col = "y", family = 'poisson', R_PI = R_PI, train_end_date = train_end)
+  df_roll <- res_list[['WF']]$df
+  
+  # run WF NB model
+  res_list[['WF_NB']] <- WF_CCA(df_roll, col = "y", family = 'negbin', R_PI = R_PI, train_end_date = train_end)
+  df_roll <- res_list[['WF_NB']]$df
+  
+  # run freqGLM
+  system.time({
+    res_list[['freqGLM']] <- freqGLMepi_CCA(df_roll, R_PI = R_PI, verbose = F, train_end_date = train_end)
+  }) # 20m
+  df_roll <- res_list[['freqGLM']]$df
+  
+  # run freqGLM NB
+  system.time({
+    res_list[['freqGLM_NB']] <- freqGLMepi_CCA(df_roll, R_PI = R_PI, verbose = F, family = 'negbin', train_end_date = train_end)
+  }) # 20m
+  df_roll <- res_list[['freqGLM_NB']]$df
+  
+  # run CAR
+  system.time({
+    res_list[['CAR']] <- CARBayes_wrapper(df_roll, burnin = 1000, n.sample = 2000, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end)
+  }) # 143s
+  df_roll <- res_list[['CAR']]$df
+  df_roll$y_CARstan <- df_roll$y_CARstan_0.5
+  colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_sample', colnames(df_roll))
+  
+  system.time({
+  res_list[['CAR_phifit']] <- CARBayes_wrapper(df_roll, burnin = 1000, n.sample = 2000, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end, use_fitted_phi = T)
+  })
+  df_roll <- res_list[['CAR_phifit']]$df
+  df_roll$y_CARstan <- df_roll$y_CARstan_0.5
+  colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_phifit', colnames(df_roll))
+  
+}
+  
+save(df_roll, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/Maryland_county_model_fits(CAR test)_06302024.RData')
+TESTING ONE RUN OF ALL DEM (WITH LOW R_PI)
+
+#
+#### Predicting all of 2020 at once ####
 ### Running the models
 {
 # run WF model
@@ -126,6 +183,7 @@ district_df$y_CARstan <- district_df$y_CARstan_0.5
 
 #save(df, district_df, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/Maryland_county_model_fits(TEST-200RPI)_06302024.RData')
 
+#### Plotting all of 2020 at once ####
 ### Plot 1: Plotting the facility fits
 tmp  = df %>% filter(district == 'A')
 plot_facility_fits(tmp, methods = c('y_pred_WF','y_pred_freqGLMepi', 'y_CARstan', 'y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin'))
