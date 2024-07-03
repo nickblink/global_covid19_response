@@ -9,21 +9,31 @@ library(rstan)
 library(cowplot)
 
 ## To Do:
-# 1) Transfer over real_data_main.R
+# 1) Transfer over real_data_main.R and imputation_functions.R
 # 2) Transfer over the data file (is this secure?)
 # 3) Transfer over the run_real_sim_anal
 # 4) Do an interactive session to test the code
 # 5) Once running, run a big job.
 
+# Rscript R/real_data_main.R R_PI=10:CARburnin=100:CARnsample=200:output_path=results/real_data_analysis_TEST.RData
+# sbatch -J real_anal run_sim_real_anal.sh R_PI=10:CARburnin=100:CARnsample=200:output_path=results/real_data_analysis_TEST.RData
+
 source('R/imputation_functions.R')
 rstan_options(auto_write = TRUE)
+
+# register the cores
+registerDoParallel(cores = 20)
 
 inputs <- c('R_PI=200:CARburnin=2000:CARnsample=4000:output_path=results/real_data_analysis_07012024.RData\r')
 inputs <- commandArgs(trailingOnly = TRUE)
 
+print(inputs)
+print(str(inputs))
+print(class(inputs))
+
 params <- list()
-inputs[[1]] <- gsub('\r', '', inputs[[1]])
-for(str in strsplit(inputs[[1]],':')[[1]]){
+inputs <- gsub('\r', '', inputs)
+for(str in strsplit(inputs,':')[[1]]){
   tmp = strsplit(str, '=')[[1]]
   nn = tmp[1]
   val = tolower(tmp[2])
@@ -93,10 +103,13 @@ eval_dates = all_dates[all_dates >= '2020-01-01']
 full_res_list <- list()
 df_predict <- NULL
 
-for(d in eval_dates){
+print('sup')
+
+one_run <- function(i){
   res_list <- list()
   # get the dates
   # dates <- all_dates[all_dates >= (eval %m-% months(48)) & all_dates <= eval]
+  d = eval_dates[i]
   ind <- which(all_dates == d)
   dates <- all_dates[(ind - 48):ind]
   train_end <- all_dates[ind-1]
@@ -127,14 +140,14 @@ for(d in eval_dates){
   
   # run CAR
   system.time({
-    res_list[['CAR']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = n.sample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end)
+    res_list[['CAR']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = nsample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end)
   }) # 143s
   df_roll <- res_list[['CAR']]$df
   df_roll$y_CARstan <- df_roll$y_CARstan_0.5
   colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_sample', colnames(df_roll))
   
   system.time({
-    res_list[['CAR_phifit']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = n.sample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end, use_fitted_phi = T)
+    res_list[['CAR_phifit']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = nsample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end, use_fitted_phi = T)
   })
   df_roll <- res_list[['CAR_phifit']]$df
   df_roll$y_CARstan <- df_roll$y_CARstan_0.5
@@ -144,7 +157,71 @@ for(d in eval_dates){
   df_predict <- rbind(df_predict, 
                       df_roll[df_roll$date == d,])
   full_res_list[[d]] <- df_roll
+  
+  return(df_roll)
 }
 
-save(full_res_list, df_predict, file = params[['output_path']])
+# print('starting one run')
+# test <- one_run(1)
+# print('done')
+
+system.time({
+  results_list <- foreach(i = 1:length(eval_dates)) %dorng% one_run(i)
+})
+
+save(results_list, file = params[['output_path']])
+
+# for(d in eval_dates){
+#   res_list <- list()
+#   # get the dates
+#   # dates <- all_dates[all_dates >= (eval %m-% months(48)) & all_dates <= eval]
+#   ind <- which(all_dates == d)
+#   dates <- all_dates[(ind - 48):ind]
+#   train_end <- all_dates[ind-1]
+#   
+#   # get the data frame
+#   df_roll <- df %>% 
+#     filter(date %in% dates)
+#   
+#   # run WF model
+#   res_list[['WF']] <- WF_CCA(df_roll, col = "y", family = 'poisson', R_PI = R_PI, train_end_date = train_end)
+#   df_roll <- res_list[['WF']]$df
+#   
+#   # run WF NB model
+#   res_list[['WF_NB']] <- WF_CCA(df_roll, col = "y", family = 'negbin', R_PI = R_PI, train_end_date = train_end)
+#   df_roll <- res_list[['WF_NB']]$df
+#   
+#   # run freqGLM
+#   system.time({
+#     res_list[['freqGLM']] <- freqGLMepi_CCA(df_roll, R_PI = R_PI, verbose = F, train_end_date = train_end)
+#   }) # 20m
+#   df_roll <- res_list[['freqGLM']]$df
+#   
+#   # run freqGLM NB
+#   system.time({
+#     res_list[['freqGLM_NB']] <- freqGLMepi_CCA(df_roll, R_PI = R_PI, verbose = F, family = 'negbin', train_end_date = train_end)
+#   }) # 20m
+#   df_roll <- res_list[['freqGLM_NB']]$df
+#   
+#   # run CAR
+#   system.time({
+#     res_list[['CAR']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = n.sample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end)
+#   }) # 143s
+#   df_roll <- res_list[['CAR']]$df
+#   df_roll$y_CARstan <- df_roll$y_CARstan_0.5
+#   colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_sample', colnames(df_roll))
+#   
+#   system.time({
+#     res_list[['CAR_phifit']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = n.sample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end, use_fitted_phi = T)
+#   })
+#   df_roll <- res_list[['CAR_phifit']]$df
+#   df_roll$y_CARstan <- df_roll$y_CARstan_0.5
+#   colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_phifit', colnames(df_roll))
+#   
+#   # update results
+#   df_predict <- rbind(df_predict, 
+#                       df_roll[df_roll$date == d,])
+#   full_res_list[[d]] <- df_roll
+# }
+
 
