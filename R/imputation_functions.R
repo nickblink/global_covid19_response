@@ -2798,11 +2798,19 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
           guides(shape = guide_legend(title = "Outbreak size k:"))
       }
       
+      legend <- get_plot_component(p1 + theme(legend.position = 'bottom',
+                                              legend.text=element_text(size=15), 
+                                              legend.title = element_text(size = 15),
+                                              legend.key.size = unit(0.3, 'cm')),
+                                   'guide-box',
+                                   return_all = T)
+      legend <- legend[[which(sapply(legend, function(xx){!identical(xx, zeroGrob())}))]]
       
       # store the legend for later
-      legend = get_legend(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=15), 
-                                     legend.title = element_text(size = 15),
-                                     legend.key.size = unit(0.3, 'cm')))
+      # legend = get_legend(p1 + theme(legend.position = 'bottom',
+      #                                legend.text=element_text(size=15), 
+      #                                legend.title = element_text(size = 15),
+      #                                legend.key.size = unit(0.3, 'cm')))
       
       # remove the legend position on this plot
       p1 <- p1 + theme(legend.position = 'none') 
@@ -2844,7 +2852,7 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
     }
     
   }
-  
+
   if(include_legend){
     final_plot <- cowplot::plot_grid(cowplot::plot_grid(plotlist = plot_list, ...),legend, ncol = 1, rel_heights = c(10,1))
   }else{
