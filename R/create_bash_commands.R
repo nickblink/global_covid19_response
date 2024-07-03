@@ -1,6 +1,6 @@
 ## This script makes bash commands for given simulations
 
-bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = NULL, CARnsample = NULL){
+bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = NULL, CARnsample = NULL, R_PI = 200, models = c(1,2,3,4,5,6)){
   
   if(tolower(DGP) == 'wf'){
     DGP_name = 'WF'
@@ -37,7 +37,9 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
                  DGP = DGP,
                  R = R, 
                  num_jobs = num_jobs,
-                 output_path = output_path)
+                 output_path = output_path,
+                 R_PI = R_PI,
+                 models = models)
   
   # check that the right params are supplied
   {
@@ -100,7 +102,8 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
     params[['CARnsample']] = CARnsample
   }
   
-  param_str = paste(paste(names(params), params, sep = '='), collapse=':')
+  param_str = paste(paste(names(params), params, sep = '='), collapse=':') %>%
+    gsub(' |c\\(|\\)','',.)
   
   command_str = sprintf('sbatch --array=1-%s -J %s run_sim.sh %s', num_jobs, job_name, param_str)
   
@@ -137,6 +140,13 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, DGP = 'WF', b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/TEST.txt')
+
+#### 7/03/2024: Comparing CAR prediction on freqGLM and CAR DGP ####
+bash_wrapper(missingness = 'mcar',DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_07032024.txt', models = c(5,6))
+
+bash_wrapper(missingness = 'mcar', DGP = 'freqglm', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_07032024.txt', models = c(5,6))
+#
 #### 6/24/2024: Running WF with MNAR and MAR - WITHOUT quasipoisson ####
 #	CAR0303025 EB0 = 6, EB1 = -0.25: MAR
 bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, DGP = 'WF', b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_06242024.txt')

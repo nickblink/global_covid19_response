@@ -8,15 +8,8 @@ library(doParallel)
 library(rstan)
 library(cowplot)
 
-## To Do:
-# 1) Transfer over real_data_main.R and imputation_functions.R
-# 2) Transfer over the data file (is this secure?)
-# 3) Transfer over the run_real_sim_anal
-# 4) Do an interactive session to test the code
-# 5) Once running, run a big job.
-
-# Rscript R/real_data_main.R R_PI=10:CARburnin=100:CARnsample=200:output_path=results/real_data_analysis_TEST.RData
-# sbatch -J real_anal run_sim_real_anal.sh R_PI=10:CARburnin=100:CARnsample=200:output_path=results/real_data_analysis_TEST.RData
+# Rscript R/real_data_main.R R_PI=10:CARburnin=100:CARnsample=200:output_path=results/real_data_analysis_TEST3.RData
+# sbatch -J real_anal run_sim_real_anal.sh R_PI=200:CARburnin=2000:CARnsample=4000:output_path=results/real_data_analysis_rolling_07022024.RData
 
 source('R/imputation_functions.R')
 rstan_options(auto_write = TRUE)
@@ -26,10 +19,6 @@ registerDoParallel(cores = 20)
 
 inputs <- c('R_PI=200:CARburnin=2000:CARnsample=4000:output_path=results/real_data_analysis_07012024.RData\r')
 inputs <- commandArgs(trailingOnly = TRUE)
-
-print(inputs)
-print(str(inputs))
-print(class(inputs))
 
 params <- list()
 inputs <- gsub('\r', '', inputs)
@@ -145,6 +134,7 @@ one_run <- function(i){
   df_roll <- res_list[['CAR']]$df
   df_roll$y_CARstan <- df_roll$y_CARstan_0.5
   colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_sample', colnames(df_roll))
+  colnames(res_list[['CAR']]$district_df) <- gsub('y_CARstan', 'y_CAR_sample', colnames(res_list[['CAR']]$district_df))
   
   system.time({
     res_list[['CAR_phifit']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = nsample, prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end, use_fitted_phi = T)
@@ -152,13 +142,14 @@ one_run <- function(i){
   df_roll <- res_list[['CAR_phifit']]$df
   df_roll$y_CARstan <- df_roll$y_CARstan_0.5
   colnames(df_roll) <- gsub('y_CARstan', 'y_CAR_phifit', colnames(df_roll))
+  colnames(res_list[['CAR_phifit']]$district_df) <- gsub('y_CARstan', 'y_CAR_phifit', colnames(res_list[['CAR_phifit']]$district_df))
   
   # update results
   df_predict <- rbind(df_predict, 
                       df_roll[df_roll$date == d,])
   full_res_list[[d]] <- df_roll
   
-  return(df_roll)
+  return(list(df = df_roll, res_list = res_list))
 }
 
 # print('starting one run')
@@ -168,6 +159,7 @@ one_run <- function(i){
 system.time({
   results_list <- foreach(i = 1:length(eval_dates)) %dorng% one_run(i)
 })
+names(results_list) <- eval_dates
 
 save(results_list, file = params[['output_path']])
 

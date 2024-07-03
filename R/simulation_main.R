@@ -14,9 +14,12 @@ rstan_options(auto_write = TRUE)
 # register the cores
 registerDoParallel(cores = 20)
 
+## Interactive job command
+# Rscript R/simulation_main.R p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=50:num_jobs=50:output_path=TEST_2024_07_03:family=poisson:empirical_betas=F:CARburnin=100:CARnsample=200:models=1,2,3,4,5,6:R_PI=10 3
+
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=F:CARburnin=2000:CARnsample=4000\r','3')
+inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=F:CARburnin=2000:CARnsample=4000:R_PI=200:models=1,2,3,4,5,6\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -31,7 +34,7 @@ for(str in strsplit(inputs[[1]],':')[[1]]){
   tmp = strsplit(str, '=')[[1]]
   nn = tmp[1]
   val = tolower(tmp[2])
-  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta', 'dispersion','CARburnin','CARnsample')){
+  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta', 'dispersion','CARburnin','CARnsample','R_PI')){
     val = as.numeric(val)
   }else if(nn == 'b0_mean'){
     val = as.numeric(strsplit(val, '/')[[1]])
@@ -46,6 +49,8 @@ for(str in strsplit(inputs[[1]],':')[[1]]){
     val = as.integer(val)
   }else if(val %in% c('t','f')){
     val = as.logical(ifelse(val == 't', T, F))
+  }else if(nn == 'models'){
+    val <- as.numeric(strsplit(val, ',')[[1]])
   }
   params[[nn]] = val
 }
@@ -67,8 +72,6 @@ if(is.null(params[['CARnsample']])){
   params[['CARnsample']] <- 2000
 }
 
-print('Running on 24 facilities!!')
-
 # get sequence of simulation iterations to run
 # (deprecated - now I just simulate R_new # of data frames)
 if(params[['job_id']] < params[['num_jobs']]){
@@ -76,7 +79,6 @@ if(params[['job_id']] < params[['num_jobs']]){
 }else{
   seq <- (floor(params[['R']]/params[['num_jobs']])*(params[['job_id']] - 1) + 1):params[['R']]
 }
-
 
 R_new = length(seq)
 
@@ -171,123 +173,6 @@ if(params[['job_id']] == 1){
 
 }
 
-{
-# # function to run all models for a specific dataset
-# one_run <- function(lst, i, models = c('freq', 'WF', 'CARBayesST','CARstan'), WF_params = list(R_PI = 200, family = 'poisson'), freqGLM_params = list(R_PI = 200), MCMC_params = list(burnin.stan = 1000, n.sample.stan = 2000, burnin.CARBayesST = 5000, n.sample.CARBayesST = 10000)){
-#   
-#   
-#   t0 <- Sys.time()
-#   print(sprintf('i = %i',i))
-#   df = lst$df_list[[i]]
-#   
-#   set.seed(i)
-#   
-#    # add in missingness to the data
-#   if(params[['missingness']] == 'mcar'){
-#     df_miss = MCAR_sim(df, p = params[['p']], by_facility = T)
-#   }else if(params[['missingness']] == 'mar'){
-#     df_miss = MAR_spatiotemporal_sim(df, p = params[['p']], rho = params[['rho_MAR']], alpha = params[['alpha_MAR']], tau2 = params[['tau2_MAR']])
-#   }else{
-#     df_miss <- MNAR_sim(df, p = params[['p']], direction = 'upper', gamma = params[['gamma']], by_facility = T)
-#   }
-#   
-#   # initializing the return list
-#   return_list <- list(df_miss = df_miss, district_df = lst$district_list[[i]], errors = errors, timing = list())
-#   rm(df_miss)
-#   
-#   set.seed(i)
-#   # run the freqGLM_epi complete case analysis
-#   if('freq' %in% models){
-#     t1 = Sys.time()
-#     print('running freqGLM_epi')
-#     return_list <- tryCatch({
-#       freqGLMepi_list = freqGLMepi_CCA(return_list[['df_miss']], R_PI = freqGLM_params[['R_PI']], verbose = F)
-#       return_list[['df_miss']] <- freqGLMepi_list$df
-#       return_list[['district_df']] <- merge(return_list[['district_df']], freqGLMepi_list$district_df, by = c('district','date'))
-#       return_list[['freqGLM_params']] <- freqGLMepi_list$param_results
-#       return_list
-#     }, error = function(e){
-#       return_list[['errors']][['freqEpi']] <- rbind(return_list[['errors']][['freqEpi']], data.frame(i, error = e[[1]]))
-#       return_list
-#     })
-#     return_list[['timing']][['freq']] <- as.numeric(difftime(Sys.time(), t1, units = 'm'))
-#   }
-#   
-#   set.seed(i)
-#   # run the WF complete case analysis model
-#   if('WF' %in% models){
-#     t1 = Sys.time()
-#     print('running WF CCA')
-#     return_list <- tryCatch({
-#       res <- WF_CCA(return_list[['df_miss']], col = "y", family = WF_params[['family']], R_PI = WF_params[['R_PI']])
-#       return_list[['df_miss']] <- res$df
-#       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
-#         res$district_df
-#       return_list[['WF_betas']] <- res$betas
-#       return_list
-#     }, error = function(e){
-#       return_list[['errors']][['WF']] <- rbind(return_list[['errors']][['WF']], data.frame(i = i, error = e[[1]]))
-#       return_list
-#     })
-#     return_list[['timing']][['WF']] <- as.numeric(difftime(Sys.time(), t1, units = 'm'))
-#   }
-#   
-#   set.seed(i)
-#   # run the CAR complete case analysis model
-#   if('CARBayesST' %in% models){
-#     t1 = Sys.time()
-#     print('running CARBayes with CARBayesST')
-#     return_list <- tryCatch({
-#       res <- CARBayes_wrapper(return_list[['df_miss']], burnin = MCMC_params[['burnin.CARBayesST']], n.sample = MCMC_params[['n.sample.CARBayesST']], prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'CARBayesST')
-#       # rename the columns
-#       colnames(res$df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res$df))
-#       colnames(res$district_df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res$district_df))
-#       
-#       # update the results list
-#       return_list[['df_miss']] <- res$df
-#       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
-#       return_list[['CAR_summary']] <- res$CARBayesST_summary
-#       return_list
-#     }, error = function(e){
-#       print(e)
-#       return_list[['errors']][['CARBayesST']] <- rbind(return_list[['errors']][['CARBayesST']], data.frame(i, error = e[[1]]))
-#       return_list
-#     })
-#     return_list[['timing']][['CARBayesST']] <- as.numeric(difftime(Sys.time(), t1, units = 'm'))
-#   }
-#   
-#   set.seed(i)
-#   if('CARstan' %in% models){
-#     t1 = Sys.time()
-#     print('running CARBayes with stan')
-#     return_list <- tryCatch({
-#       res <- CARBayes_wrapper(return_list[['df_miss']], burnin = MCMC_params[['burnin.stan']], n.sample = MCMC_params[['n.sample.stan']], prediction_sample = T, model = 'facility_fixed', predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
-#       
-#       # rename the columns
-#       colnames(res$df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res$df))
-#       colnames(res$district_df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res$district_df))
-#       # update the results list
-#       return_list[['df_miss']] <- res$df
-#       return_list[['district_df']] <- merge(return_list[['district_df']], res$district_df, by = c('district','date'))
-#       return_list[['CARstan_summary']] <- res$CARstan_summary
-#       return_list
-#     }, error = function(e){
-#       print(e)
-#       return_list[['errors']][['CARstan']] <- rbind(return_list[['errors']][['CARstan']], data.frame(i, error = e[[1]]))
-#       return_list
-#     })
-#     return_list[['timing']][['CARstan']] <- as.numeric(difftime(Sys.time(), t1, units = 'm'))
-#   }
-# 
-#   print(sprintf('i = %i; time = %f minutes', i, difftime(Sys.time(), t0, units = 'm')))
-#   
-#   # check I got the correct result names
-#   # outcome_name_checker(return_list, models = models)
-#   
-#   return(return_list)
-# }
-}
-
 one_run <- function(lst, i, model_list = NULL){
   
   t0 <- Sys.time()
@@ -318,6 +203,7 @@ one_run <- function(lst, i, model_list = NULL){
   for(sub_lst in model_list){
     t1 = Sys.time()
     model = sub_lst$model
+    print(sprintf('------(%s)%s-------', i, model))
     params = sub_lst$params
     if(model == 'WF'){
       fit_fxn <- function(df){
@@ -334,12 +220,21 @@ one_run <- function(lst, i, model_list = NULL){
         tmp <- freqGLMepi_CCA(df, R_PI = params[['R_PI']], verbose = F) 
         return(tmp)
       }
-    }else if(model == 'CARstan'){
+    }else if(model == 'freqGLM_NB'){
+      fit_fxn <- function(df){
+        tmp <- freqGLMepi_CCA(df, R_PI = params[['R_PI']], verbose = F, family = 'negbin') 
+        return(tmp)
+      }
+    }else if(model == 'CAR_sample'){
       fit_fxn <- function(df){
         tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
         return(tmp)
       }
-      
+    }else if(model == 'CAR_phifit'){
+      fit_fxn <- function(df){
+        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T)
+        return(tmp)
+      }
     }
     
     # run the model
@@ -360,8 +255,12 @@ one_run <- function(lst, i, model_list = NULL){
         return_list[['WF_NB_overdisp']] <- res$overdisp
       }else if(model == 'freqGLM'){
         return_list[['freqGLM_params']] <- res$param_results
-      }else if(model == 'CARstan'){
-        return_list[['CARstan_summary']] <- res$CARstan_summary
+      }else if(model == 'freqGLM_NB'){
+        return_list[['freqGLM_NB_params']] <- res$param_results
+      }else if(model == 'CAR_sample'){
+        return_list[['CAR_sample_summary']] <- res$CARstan_summary
+      }else if(model == 'CAR_phifit'){
+        return_list[['CAR_phifit_summary']] <- res$CARstan_summary
       }
     }else{
       return_list[['errors']][[model]] <- rbind(return_list[['errors']][[model]], data.frame(i = i, error = res[[1]]))
@@ -377,14 +276,19 @@ one_run <- function(lst, i, model_list = NULL){
 }
 
 model_list <- list(list(model = 'WF',
-                        params = list(R_PI = 200)),
+                        params = list(R_PI = params[['R_PI']])),
                    list(model = 'WF_NB',
-                        params = list(R_PI = 200)),
+                        params = list(R_PI = params[['R_PI']])),
                    list(model = 'freqGLM',
-                        params = list(R_PI = 200)),
-                   list(model = 'CARstan',
+                        params = list(R_PI = params[['R_PI']])),
+                   list(model = 'freqGLM_NB',
+                        params = list(R_PI = params[['R_PI']])),
+                   list(model = 'CAR_sample',
+                        params = list(burnin = params[['CARburnin']], n.sample = params[['CARnsample']])),
+                   list(model = 'CAR_phifit',
                         params = list(burnin = params[['CARburnin']], n.sample = params[['CARnsample']])))
-# Next (Maybe) CARBayesST
+
+model_list <- model_list[params[['models']]]
 
 # run the models for each simulation dataset
 system.time({

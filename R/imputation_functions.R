@@ -2804,7 +2804,10 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
                                               legend.key.size = unit(0.3, 'cm')),
                                    'guide-box',
                                    return_all = T)
-      legend <- legend[[which(sapply(legend, function(xx){!identical(xx, zeroGrob())}))]]
+      
+      if(length(legend) > 2){browser()}
+      # browser()
+      # legend <- legend[[which(sapply(legend, function(xx){!identical(xx, zeroGrob())}))]]
       
       # store the legend for later
       # legend = get_legend(p1 + theme(legend.position = 'bottom',
