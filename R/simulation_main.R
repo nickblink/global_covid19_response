@@ -15,7 +15,7 @@ rstan_options(auto_write = TRUE)
 registerDoParallel(cores = 20)
 
 ## Interactive job command
-# Rscript R/simulation_main.R p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=50:num_jobs=50:output_path=TEST_2024_07_03:family=poisson:empirical_betas=F:CARburnin=100:CARnsample=200:models=1,2,3,4,5,6:R_PI=10 3
+# Rscript R/simulation_main.R p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=50:num_jobs=50:output_path=TEST_2024_07_05:family=poisson:empirical_betas=F:CARburnin=100:CARnsample=200:models=5,6:R_PI=10 3
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
@@ -227,12 +227,14 @@ one_run <- function(lst, i, model_list = NULL){
       }
     }else if(model == 'CAR_sample'){
       fit_fxn <- function(df){
-        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan')
+        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', 
+                                model_rename = 'y_CAR_sample')
         return(tmp)
       }
     }else if(model == 'CAR_phifit'){
       fit_fxn <- function(df){
-        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T)
+        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T, 
+                                model_rename = 'y_CAR_phifit')
         return(tmp)
       }
     }

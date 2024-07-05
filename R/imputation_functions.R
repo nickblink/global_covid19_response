@@ -501,7 +501,7 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
 }
 
 ### Takes in a list of files and/or directories. For each of these, pulls in the data using "combine_results" and then computes the metrics for these results together.
-combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_CCA_WF", "y_pred_CCA_CAR", "y_pred_CCA_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95','specificity', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F,  QP_variance_adjustment = NULL, ...){ 
+combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_WF", "y_CARstan", "y_pred_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95','specificity', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F,  QP_variance_adjustment = NULL, ...){ 
   
   # initialize results catchers
   res <- NULL
@@ -542,6 +542,8 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
                return(params)
              })
     #browser()
+    
+    browser()
     
     # Check that the names match
     lst_full[[output]] <- method_name_check(lst_full[[output]], methods, give_method_name_err = give_method_name_err)
@@ -1292,7 +1294,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = F, ...){
+CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = F, model_rename = NULL, ...){
   
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
@@ -1550,15 +1552,16 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     res_lst[['model_chain']] <- res$model_chain
   }
   
+
   if(list(...)$MCMC_sampler == 'stan'){
     res_lst[['CARstan_summary']] <- res$model_chain$CARstan_summary
-    colnames(res_lst$df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res_lst$df))
+    colnames(res_lst$df) <- gsub('y_pred_CAR', ifelse(is.null(model_rename), 'y_CARstan', model_rename), colnames(res_lst$df))
     colnames(res_lst$district_df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res_lst$district_df))
   }
   
   if(list(...)$MCMC_sampler == 'CARBayesST'){
     res_lst[['CARBayesST_summary']] <- res$model_chain$CARBayesST_summary
-    colnames(res_lst$df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res_lst$df))
+    colnames(res_lst$df) <- gsub('y_pred_CAR', ifelse(is.null(model_rename), 'y_CARBayesST', model_rename), colnames(res_lst$df))
     colnames(res_lst$district_df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res_lst$district_df))
   }
   

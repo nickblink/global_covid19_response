@@ -17,7 +17,7 @@ rstan_options(auto_write = TRUE)
 # register the cores
 registerDoParallel(cores = 20)
 
-inputs <- c('R_PI=200:CARburnin=2000:CARnsample=4000:output_path=results/real_data_analysis_07012024.RData\r')
+inputs <- c('R_PI=2:CARburnin=200:CARnsample=400:output_path=results/real_data_analysis_07052024.RData\r')
 inputs <- commandArgs(trailingOnly = TRUE)
 
 params <- list()
@@ -34,7 +34,8 @@ for(str in strsplit(inputs,':')[[1]]){
 
 ### Data prep
 {
-  Dfull <- readRDS('data/liberia_cleaned_01-06-2021.rds')
+  data_file <- ifelse(file.exists('data/liberia_cleaned_01-06-2021.rds'), 'data/liberia_cleaned_01-06-2021.rds', 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/liberia_cleaned_01-06-2021.rds')
+  Dfull <- readRDS(data_file)
   
   Dfull %>% group_by(county) %>%
     summarize(n = length(unique(facility)))
@@ -91,8 +92,6 @@ eval_dates = all_dates[all_dates >= '2020-01-01']
 # full res_list and prediction
 full_res_list <- list()
 df_predict <- NULL
-
-print('sup')
 
 one_run <- function(i){
   res_list <- list()

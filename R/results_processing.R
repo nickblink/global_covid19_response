@@ -17,7 +17,7 @@ if(file.exists('C:/Users/Admin-Dell')){
 
 # get the results and name the simulations
 get_results <- function(file_names, sim_name, district_results = F, ...){
-  res <- combine_results_wrapper(files = file_names, methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan'), rename_vec = c('WF','freqGLM', 'CARBayes'), district_results = district_results, ...)
+  res <- combine_results_wrapper(files = file_names, district_results = district_results, ...)
   
   res$results$sim = sim_name 
   
@@ -84,6 +84,31 @@ get_CARconvergence <- function(res){
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Processing CAR comparison plots (the two CAR prediction methods) ####
+files <- grep('2024_07_03', dir(res_dir, full.names = T), value = T)
+
+files_CAR_DGP <- grep('car0303', files, value = T)
+
+files_freqGLM_DGP <- grep('freqglm', files, value = T)
+
+res_facility <- list()
+res_district <- list()
+
+file_name_str <- c('files_CAR_DGP',
+                   'files_freqGLM_DGP')
+
+methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan')
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name, expected_sims = NULL)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL)
+}
+
+
+# SAVE 
+
+#
 #### Testing making one mega plot ####
 # facilities
 DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
