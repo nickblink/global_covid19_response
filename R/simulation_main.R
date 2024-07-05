@@ -15,7 +15,7 @@ rstan_options(auto_write = TRUE)
 registerDoParallel(cores = 20)
 
 ## Interactive job command
-# Rscript R/simulation_main.R p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=50:num_jobs=50:output_path=TEST_2024_07_05:family=poisson:empirical_betas=F:CARburnin=100:CARnsample=200:models=5,6:R_PI=10 3
+# Rscript R/simulation_main.R p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=50:num_jobs=50:output_path=TEST_2024_07_05:family=poisson:empirical_betas=F:CARburnin=10:CARnsample=20:models=5,6:R_PI=10 3
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
@@ -86,7 +86,7 @@ R_new = length(seq)
 arguments = list(district_sizes = c(4, 6, 10), 
                  R = R_new, 
                  seed = params[['job_id']],
-                 end_date = '2020-12-01', 
+                 end_date = '2020-01-01', 
                  b0_mean = params[['b0_mean']], 
                  b1_mean = params[['b1_mean']])
 

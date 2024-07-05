@@ -1445,6 +1445,10 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     phi = matrix(0, nrow = length(dates), ncol = length(facilities))
     colnames(phi) = facilities
     
+    if(length(dates) > nrow(phi)+1 | length(dates) > nrow(phi_fit_r) + 1){
+      stop('dimension mismatch. Probably due to more than one evaluation point.')
+    }
+    
     # first time step (at 2016-01-01, not 2020-01-01)
     phi[1,] = MASS::mvrnorm(n = 1, mu = rep(0, ncol(phi)), Sigma = covar_mats[[i]])
     
@@ -1556,13 +1560,13 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   if(list(...)$MCMC_sampler == 'stan'){
     res_lst[['CARstan_summary']] <- res$model_chain$CARstan_summary
     colnames(res_lst$df) <- gsub('y_pred_CAR', ifelse(is.null(model_rename), 'y_CARstan', model_rename), colnames(res_lst$df))
-    colnames(res_lst$district_df) <- gsub('y_pred_CAR', 'y_CARstan', colnames(res_lst$district_df))
+    colnames(res_lst$district_df) <- gsub('y_pred_CAR', ifelse(is.null(model_rename), 'y_CARstan', model_rename), colnames(res_lst$district_df))
   }
   
   if(list(...)$MCMC_sampler == 'CARBayesST'){
     res_lst[['CARBayesST_summary']] <- res$model_chain$CARBayesST_summary
     colnames(res_lst$df) <- gsub('y_pred_CAR', ifelse(is.null(model_rename), 'y_CARBayesST', model_rename), colnames(res_lst$df))
-    colnames(res_lst$district_df) <- gsub('y_pred_CAR', 'y_CARBayesST', colnames(res_lst$district_df))
+    colnames(res_lst$district_df) <- gsub('y_pred_CAR', ifelse(is.null(model_rename), 'y_CARBayesST', model_rename), colnames(res_lst$district_df))
   }
   
   return(res_lst)
