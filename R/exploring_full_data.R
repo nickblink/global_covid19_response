@@ -19,6 +19,20 @@ remove_outliers <- function(x, k = 5){
   return(x)
 }
 
+##### Theta values from negative binomial #####
+D <- read.csv('data/coef_nb_1_3.csv')
+thetas <- D[,9]
+thetas <- thetas[!is.na(thetas)]
+plot(density(thetas, na.rm = T))
+
+tt <- fitdistrplus::fitdist(thetas, distr = 'gamma', method = 'mle')
+
+plot(tt)
+
+rgamma(10, shape = 2.5, rate = 1/3)
+
+
+#
 ##### Looking at district sizes #####
 district_count = D %>% 
   filter(date < '2020-01-01') %>%
