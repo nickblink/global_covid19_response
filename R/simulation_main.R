@@ -19,7 +19,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=quasipoisson:theta=5:empirical_betas=F:CARburnin=2000:CARnsample=4000:R_PI=200:models=1,2,3,4,5,6\r','3')
+inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=negbin:theta=5:empirical_betas=F:CARburnin=2000:CARnsample=4000:R_PI=200:models=1,2,3,4,5,6\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -132,6 +132,19 @@ if('empirical_betas' %in% names(params)){
 
 # Simulate the data
 lst <- do.call(simulate_data, arguments)
+
+arguments2 <- arguments
+arguments2$family = 'poisson'
+
+lst2 <- do.call(simulate_data, arguments2)
+
+tt <- merge(lst$df_list[[1]] %>% select(date, facility, y_var_NB= y_var, y_NB = y),
+      lst2$df_list[[1]] %>% select(date, facility, y_var_P= y_var, y_P = y))
+
+ggplot(data = tt, aes(x = date, y = y_NB)) + 
+  geom_line() + 
+  geom_line(aes(x = date, y = y_P, colour = 'red')) + 
+  facet_wrap(~facility)
 
 print('data made')
 

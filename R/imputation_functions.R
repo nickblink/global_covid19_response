@@ -3335,7 +3335,8 @@ sample_real_betas <- function(facilities, file = 'data/coef_nb_1_3.csv'){
   return(return_lst)
 }
 
-sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25, ...){
+### sample the fixed effect betas for simulated data.
+sample_betas <- function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25, ...){
   betas = matrix(0, nrow = length(facilities), ncol = 8)
   
   if(length(b0_mean) == 1){
@@ -3356,6 +3357,15 @@ sample_betas = function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.25
   #paste0('B',0:7)
   #betas = cbind(facilities, as.data.frame(betas))
   return(betas)
+}
+
+### Sample the negative binomial thetas for simulated data.
+sample_thetas <- function(facilities, theta_shape = 2.5, theta_rate = 1/3, ...){
+  thetas <- rgamma(n = length(facilities), shape = theta_shape, rate = theta_rate)
+  
+  names(thetas) <- facilities
+  
+  return(thetas)
 }
 
 ### Function to simulate the data for a variety of situations
@@ -3396,6 +3406,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       y <- rqpois(n, mu, theta = list(...)$theta)
     }
   }else if(family == 'negbin'){
+    dispersion_vec <- sample_thetas(facilities, ...)
     # make the DGP below since it depends on a different dispersion parameter for each facility.
   }
   
@@ -3449,6 +3460,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
           DGP_function <- function(n, mu){
             y <- rnbinom(n = n, mu = mu, size = dispersion_parameter)
           }
+          
         }else{
           stop('input a proper family')
         }
@@ -3651,8 +3663,26 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       # the adjustment accounts for the fact that there aren't additive auto-regressive and spatial terms at the first time point.
       # this adjustment comes from the sum of a geometric series (since this is roughly the effect that the spatial and autoregressive terms approach as we increase the time series)
       adjustment = 1 + rho/(1-rho) + alpha/(1-alpha)
-      df$y_exp[ind] = df$y_var[ind] = adjustment*exp(df$mu[ind])
-      df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
+      if(family == 'poisson'){
+        df$y_exp[ind] = df$y_var[ind] = adjustment*exp(df$mu[ind])
+        
+        df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
+      }else if(family == 'negbin'){
+        matid = match(df$facility, names(dispersion_vec))
+        df$theta <- dispersion_vec[matid]
+        
+        df$y_exp[ind] = adjustment*exp(df$mu[ind])
+        
+        df$y_var[ind] = df$y_exp[ind] + df$y_exp[ind]^2/df$theta[ind]
+        
+        DGP_function <- function(n, mu, theta){
+          y <- rnbinom(n = n, mu = mu, size = theta)
+        }
+        
+        df$y[ind] = DGP_function(length(ind), df$y_exp[ind], theta = df$theta[ind])
+      }else{
+        stop('only coded poisson or negative binomial (negbin) families for freqGLM.')
+      }
       
       # update the neighbors and auto-regressive terms
       df <- add_autoregressive(df, 'y') %>%
@@ -3670,22 +3700,28 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         # get Poisson or quasipoisson variance
         if(family == 'poisson'){
           df$y_var[ind] <-df$y_exp[ind]
+          
+          # predict!
+          df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
         }else if(family == 'quasipoisson'){
           df$y_var[ind] <- list(...)$theta*df$y_exp[ind]
+          
+          # predict!
+          df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
+        }else if(family == 'negbin'){
+          df$y_var[ind] = df$y_exp[ind] + df$y_exp[ind]^2/df$theta[ind]
+          
+          # predict
+          df$y[ind] = DGP_function(length(ind), df$y_exp[ind], theta = df$theta[ind])
         }else{
           stop('input a proper family')
         }
-        
-        # predict!
-        df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
         
         # update the neighbors and auto-regressive terms
         df <- add_autoregressive(df, 'y') %>%
           add_neighbors(., 'y', scale_by_num_neighbors = T, W = W)
       }
-      # ggplot(df, aes(x = date, y = y)) + 
-      #   geom_line() + 
-      #   facet_wrap(~facility)
+
       df
     })
 
@@ -3705,6 +3741,10 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
   
   # make list of values to return
   res_lst = list(df_list = df_lst, district_list = district_lst, betas = betas)
+  
+  if(family == 'negbin'){
+    res_lst$thetas = dispersion_vec
+  }
   return(res_lst)
 }
 
