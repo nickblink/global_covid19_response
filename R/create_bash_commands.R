@@ -16,9 +16,11 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
   if(!is.null(family)){
     if(family=='quasipoisson'){
       DGP_name = paste0(DGP_name, sprintf('_QPtheta%s', theta))
-    }else{
+    }else if(!family %in% c('poisson', 'negbin')){
       stop('input a proper family type')
     }
+  }else{
+    family = 'poisson'
   }
   
   # make the output folder
@@ -34,6 +36,7 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
                  b0_mean = b0_mean, 
                  b1_mean = b1_mean,
                  missingness = missingness,
+                 family = family,
                  DGP = DGP,
                  R = R, 
                  num_jobs = num_jobs,
@@ -140,8 +143,12 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
-bash_wrapper(missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4, DGP = 'WF', b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/TEST.txt')
+#### Creating the WF and freqGLM negbin tests ####
+bash_command(p = 0.1, DGP = 'WF', family = 'negbin', R = 100, num_jobs = 5)
 
+bash_command(p = 0.1, DGP = 'freqGLM', family = 'negbin', R = 100, num_jobs = 5, rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5)
+
+#
 #### 7/03/2024: Comparing CAR prediction on freqGLM and CAR DGP ####
 bash_wrapper(missingness = 'mcar',DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, CARburnin = 5000, CARnsample = 10000, bash_file = 'cluster_code/cluster commands/bash_07032024.txt', models = c(5,6))
 

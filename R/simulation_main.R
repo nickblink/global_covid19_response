@@ -133,28 +133,20 @@ if('empirical_betas' %in% names(params)){
 # Simulate the data
 lst <- do.call(simulate_data, arguments)
 
-arguments2 <- arguments
-arguments2$family = 'poisson'
-
-lst2 <- do.call(simulate_data, arguments2)
-
-tt <- merge(lst$df_list[[1]] %>% select(date, facility, y_var_NB= y_var, y_NB = y),
-      lst2$df_list[[1]] %>% select(date, facility, y_var_P= y_var, y_P = y))
-
-ggplot(data = tt, aes(x = date, y = y_NB)) + 
-  geom_line() + 
-  geom_line(aes(x = date, y = y_P, colour = 'red')) + 
-  facet_wrap(~facility)
-
-print('data made')
-
-# initialize the error catcher for each run
-# errors <- list(freqEpi = data.frame(i = NULL, error = NULL),
-#                WF = data.frame(i = NULL, error = NULL),
-#                CARBayesST = data.frame(i = NULL, error = NULL),
-#                CARstan = data.frame(i = NULL, error = NULL))
-
-
+# arguments2 <- arguments
+# arguments2$family = 'poisson'
+# 
+# lst2 <- do.call(simulate_data, arguments2)
+# 
+# tt <- merge(lst$df_list[[1]] %>% select(date, facility, y_var_NB= y_var, y_NB = y),
+#       lst2$df_list[[1]] %>% select(date, facility, y_var_P= y_var, y_P = y))
+# 
+# ggplot(data = tt, aes(x = date, y = y_NB)) + 
+#   geom_line() + 
+#   geom_line(aes(x = date, y = y_P, colour = 'red')) + 
+#   facet_wrap(~facility)
+# 
+# print('data made')
 
 ### File saving (for cluster only)
 {
