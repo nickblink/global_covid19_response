@@ -16,8 +16,27 @@ if(file.exists('C:/Users/Admin-Dell')){
   res_dir = "C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance"
 }
 
-#### Pulling in test results with district ####
-load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/real_data_analysis_rolling_07022024.rdata')
+
+generate_outbreak_columns <- function(df, models = c('y_pred_WF_negbin','y_pred_freqGLMepi_negbin','y_CAR_phifit'), rename_vec = NULL){
+  
+  # setting names of outbreak cols.
+  if(is.null(rename_vec)){
+    rename_vec <- models
+  }
+  
+  # making outbreak columns
+  for(i in 1:length(models)){
+    col <- paste0(models[i], '_0.975')
+    out_col <- paste0('outbreak_', rename_vec[i])
+    print(col)
+    df[,out_col] <- ifelse(df$y > df[,col], 1, 0)
+  }
+  
+  return(df)
+}
+
+#### 07/03/2024: Pulling in results with district ####
+load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/real_data_analysis_rolling_07022024.rdata')
 
 df_predict <- NULL 
 district_df <- NULL
@@ -50,8 +69,40 @@ district_df <- tmp %>%
   summarize(y = sum(y_rollup)) %>%
   merge(district_df, by = c('district', 'date'))
 
+df_predict <- generate_outbreak_columns(df_predict, models = c('y_pred_WF','y_pred_WF_negbin','y_pred_freqGLMepi','y_pred_freqGLMepi_negbin','y_CAR_sample','y_CAR_phifit'), 
+                                        rename_vec = c('WF', 'WF_negbin', 'freqGLM','freqGLM_negbin','CAR_sample','CAR_phifit'))
+
+df_o <- df_predict %>%
+  group_by(date) %>%
+  summarize(WF = mean(outbreak_WF, na.rm = T),
+            WF_negbin = mean(outbreak_WF_negbin, na.rm = T),
+            freqGLM = mean(outbreak_freqGLM, na.rm = T),
+            freqGLM_negbin = mean(outbreak_freqGLM_negbin, na.rm = T),
+            CAR_sample = mean(outbreak_CAR_sample, na.rm = T),
+            CAR_phifit = mean(outbreak_CAR_phifit, na.rm = T)) %>%
+  tidyr::pivot_longer(c(WF, WF_negbin, freqGLM, freqGLM_negbin, CAR_sample, CAR_phifit), names_to='method', values_to = 'proportion_outbreak')
+df_o$method = factor(df_o$method, levels = c('WF','WF_negbin','freqGLM','freqGLM_negbin','CAR_sample','CAR_phifit'))
+
+district_df <- generate_outbreak_columns(district_df, models = c('y_pred_WF','y_pred_WF_negbin','y_pred_freqGLMepi','y_pred_freqGLMepi_negbin','y_CAR_sample','y_CAR_phifit'), 
+                                         rename_vec = c('WF', 'WF_negbin', 'freqGLM','freqGLM_negbin','CAR_sample','CAR_phifit'))
+
+district_df_o <- district_df %>%
+  group_by(date) %>%
+  summarize(WF = mean(outbreak_WF, na.rm = T),
+            WF_negbin = mean(outbreak_WF_negbin, na.rm = T),
+            freqGLM = mean(outbreak_freqGLM, na.rm = T),
+            freqGLM_negbin = mean(outbreak_freqGLM_negbin, na.rm = T),
+            CAR_sample = mean(outbreak_CAR_sample, na.rm = T),
+            CAR_phifit = mean(outbreak_CAR_phifit, na.rm = T)) %>%
+  tidyr::pivot_longer(c(WF, WF_negbin, freqGLM, freqGLM_negbin, CAR_sample, CAR_phifit), names_to='method', values_to = 'proportion_outbreak')
+district_df_o$method = factor(district_df_o$method, levels = c('WF','WF_negbin','freqGLM','freqGLM_negbin','CAR_sample','CAR_phifit'))
+
+
+# save(df_predict, district_df, df_o, district_df_o, file = 'C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/real_data_analysis_rolling_PROCESSED_07082024.RData')
+
 #
 #### 07/03/2024: Plotting district and facility fits from newest results ####
+load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/real_data_analysis_rolling_PROCESSED_07082024.RData')
 
 dist_n <- df_predict %>% group_by(district) %>%
   summarize(n = length(unique(facility)))
@@ -62,13 +113,49 @@ district_rename <- district_df %>%
 
 plot_facility_fits(district_rename, methods = c('y_pred_WF', 'y_pred_freqGLMepi', 'y_CAR_sample'), PI = F, upper_lim = T)
 
-plot_facility_fits(district_rename, methods = c('y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin', 'y_CAR_sample'), PI = F, upper_lim = T)
-
 plot_facility_fits(district_rename, methods = c('y_CAR_sample', 'y_CAR_phifit'), PI = F, upper_lim = T)
 
+p1 <- plot_facility_fits(district_rename, methods = c('y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin', 'y_CAR_phifit'), PI = F, imp_names = c('WF','freqGLM', 'CAR'), upper_lim = T)
+
+# ggsave(plot = p1, filename = 'figures/Maryland_analysis_district_fits_NB.pdf', height = 5, width = 10)
+
+p1 <- ggplot(df_o %>% filter(date >= '2020-01-01', 
+                       method %in% c('WF_negbin','freqGLM_negbin','CAR_phifit'))) +
+  geom_line(aes(x = date, y = proportion_outbreak, color = method)) + 
+  scale_color_manual(labels = c('WF','freqGLM','CAR'), values = c('orange3', 'forestgreen', 'blue')) +
+  ylab('proportion') + 
+  ggtitle('facility outbreaks') +  
+  theme_bw() + 
+  scale_y_continuous(breaks = seq(0,1,by = 0.2), limits = c(0,1)) + 
+  scale_x_date(date_breaks="1 months", date_labels="%b", minor_breaks = NULL) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+
+# legend <- get_plot_component(p1, 'guide-box', return_all = T)[[3]]
+# p1 <- p1 + theme(legend.position = 'none')
+
+p2 <- ggplot(district_df_o %>% filter(date >= '2020-01-01', 
+                       method %in% c('WF_negbin','freqGLM_negbin','CAR_phifit'))) +
+  geom_line(aes(x = date, y = proportion_outbreak, color = method)) + 
+  scale_color_manual(labels = c('WF','freqGLM','CAR'), values = c('orange3', 'forestgreen', 'blue')) +
+  #ylim(c(0,1)) + 
+  ylab('proportion') + 
+  theme_bw() + 
+  scale_y_continuous(breaks = seq(0,1,by = 0.2), limits = c(0,1)) + 
+  scale_x_date(date_breaks="1 months", date_labels="%b", minor_breaks = NULL) + 
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1)) +
+  ggtitle('district outbreaks')
+
+legend = get_plot_component(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=12)),
+                            'guide-box',
+                            return_all = T)[[3]]
+
+final_plot <- plot_grid(plot_grid(p1 + theme(legend.position = 'none'), p2 + theme(legend.position = 'none')),
+                        legend, ncol = 1, rel_heights = c(5,1))
+
+ggsave(plot = final_plot, filename = 'figures/Maryland_analysis_proportion_outbreaks_NB.pdf', height = 3, width = 7)
 
 #
-#### Pulling in test results ####
+#### (OLD) Pulling in test results ####
 setwd(res_dir)
 load('results/real_data_analysis_test2.rdata')
 
@@ -83,7 +170,7 @@ for(i in 1:length(results_list)){
 
 #
 
-#### Rolling up district data (ignore for now) ####
+#### (OLD) Rolling up district data (ignore for now) ####
 {
 # make the base district values, imputing missing ones with WF. 
 tmp = df
@@ -107,7 +194,7 @@ district_df$y_CARstan <- district_df$y_CARstan_0.5
 
 #save(df, district_df, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/Maryland_county_model_fits(TEST-200RPI)_06302024.RData')
 
-#### Plotting all of 2020 at once ####
+#### (OLD) Plotting all of 2020 at once ####
 ### Plot 1: Plotting the facility fits
 tmp  = df_predict %>% filter(district == 'E')
 plot_facility_fits(tmp, methods = c('y_pred_WF', 'y_pred_WF_negbin'), PI = F, upper_lim = T)
@@ -130,6 +217,7 @@ p1 <- plot_facility_fits(district_rename,
 
 test <- district_df %>% 
   filter(district == 'C', date >= '2020-01-01')
+
 
 ### Plot 2: Plotting the proportion outbreaks over time.
 # maybe I just need to show the actual numbers? 

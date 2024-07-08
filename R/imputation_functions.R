@@ -2767,6 +2767,7 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
         ggtitle(f) + 
         ylab('y') +
         theme_bw() +
+        scale_x_date( minor_breaks = '1 month') + 
         theme(text = element_text(size = 10))
       
       if(PIs){
@@ -2814,7 +2815,9 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
                                    'guide-box',
                                    return_all = T)
       
-      if(length(legend) > 2){browser()}
+      if(length(legend) > 2){
+        legend <- legend[[which(sapply(legend, function(xx){!identical(xx, zeroGrob())}))]]
+      }
       # browser()
       # legend <- legend[[which(sapply(legend, function(xx){!identical(xx, zeroGrob())}))]]
       
@@ -2838,7 +2841,8 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
         ggtitle(sprintf('facility %s', f)) + 
         ylab('y') +
         theme_bw() +
-        theme(text = element_text(size = 10))
+        theme(text = element_text(size = 10)) +
+        scale_x_date( minor_breaks = '1 month')
         
       # plot vertical line at outbreak point
       if(!is.null(vertical_line)){
