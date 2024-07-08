@@ -344,11 +344,15 @@ method_name_check <- function(lst, methods, give_method_name_err = T){
       ind_rm <- c(ind_rm, which(chk == F))
     }
   }
+  
+  ind_rm <- unique(ind_rm)
+  
   if(err){
     if(give_method_name_err){
       print(colnames(lst[[1]]))
       stop('incorrect methods specified')
     }else{
+      print(sprintf('removing %s/%s results without the methods specified.', length(ind_rm), length(lst)))
       lst <- lst[-ind_rm]
       lst <- method_name_check(lst, methods, give_method_name_err = T)
     }
@@ -501,7 +505,8 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
 }
 
 ### Takes in a list of files and/or directories. For each of these, pulls in the data using "combine_results" and then computes the metrics for these results together.
-combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_WF", "y_CARstan", "y_pred_freqGLMepi"), rename_vec = c('WF','CAR','freqGLM'), metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95','specificity', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F,  QP_variance_adjustment = NULL, ...){ 
+combine_results_wrapper <- function(files, district_results = F, methods = c("y_pred_WF", "y_CARstan", "y_pred_freqGLMepi"), rename_vec = NULL, #c('WF','CAR','freqGLM'), 
+                                    metrics = c('bias', 'relative_bias', 'RMSE', 'coverage95','specificity', 'interval_width','outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'),  results_by_point = F, give_method_name_err = T, return_unprocessed = F,  QP_variance_adjustment = NULL, ...){ 
   
   # initialize results catchers
   res <- NULL
@@ -541,9 +546,6 @@ combine_results_wrapper <- function(files, district_results = F, methods = c("y_
                params = plyr::rbind.fill(params, tmp)
                return(params)
              })
-    #browser()
-    
-    browser()
     
     # Check that the names match
     lst_full[[output]] <- method_name_check(lst_full[[output]], methods, give_method_name_err = give_method_name_err)
@@ -2953,10 +2955,10 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
       y_var = QP_variance_adjustment*y_var
     }
   }
-  print('y var')
-  print(head(y_var[,1]))
-  print('y exp')
-  print(head(y_exp[,1]))
+  # print('y var')
+  # print(head(y_var[,1]))
+  # print('y exp')
+  # print(head(y_exp[,1]))
   
   # calculate the outbreak values
   y_outbreak3 <- y_exp + 3*sqrt(y_var)

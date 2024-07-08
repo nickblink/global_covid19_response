@@ -1,6 +1,6 @@
 ## This script makes bash commands for given simulations
 
-bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = NULL, CARnsample = NULL, R_PI = 200, models = c(1,2,3,4,5,6)){
+bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = 5000, CARnsample = 10000, R_PI = 200, models = c(2,4,6)){
   
   if(tolower(DGP) == 'wf'){
     DGP_name = 'WF'
@@ -142,6 +142,23 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   
   return(cmds)
 }
+
+#### Running WF NB, freqGLM NB, and CAR DGP, with higher CAR burning and sample ####
+bash_wrapper(missingness = 'mcar',DGP = 'CAR', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, bash_file = 'cluster_code/cluster commands/bash_07082024.txt')
+
+bash_wrapper(DGP = 'WF', family = 'negbin',
+             bash_file = 'cluster_code/cluster commands/bash_07082024.txt')
+
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, 
+             bash_file = 'cluster_code/cluster commands/bash_07082024.txt')
+
+#### Running WF NB and freqGLM NB DGPs and CAR DGP with newer CAR method ####
+
+bash_wrapper(DGP = 'WF', family = 'negbin',
+             bash_file = 'cluster_code/cluster commands/bash_07072024.txt')
+
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, 
+                          bash_file = 'cluster_code/cluster commands/bash_07072024.txt')
 
 #### Creating the WF and freqGLM negbin tests ####
 bash_command(p = 0.1, DGP = 'WF', family = 'negbin', R = 100, num_jobs = 5)

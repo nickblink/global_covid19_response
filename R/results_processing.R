@@ -81,11 +81,40 @@ get_CARconvergence <- function(res){
   return(list(ESS = ESS, rhat = rhat))
 }
 
+# check file lengths 
+file_check <- function(files){
+  for(d in files){
+    ff = dir(d)
+    if(length(ff) < 51){
+      print(d)
+      print(length(ff))
+      print('-------')
+      #unlink(d, recursive = T) # deletes the directory
+    }
+  }
+}
+
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Making sure the new results work ####
+files <- grep('2024_07_07', dir(res_dir, full.names = T), value = T)
+
+file_check(files)
+
+WF <- files[2]
+freqGLM <- files[1]
+
+WF_res <- get_results(WF, name, expected_sims = NULL, methods = c('y_pred_WF_negbin','y_pred_freqGLMepi_negbin','y_CAR_phifit'), rename_vec = c('WF','freqGLM','CAR'),)
+freqGLM_res <- get_results(freqGLM, name, expected_sims = NULL, methods = c('y_pred_WF_negbin','y_pred_freqGLMepi_negbin','y_CAR_phifit'), rename_vec = c('WF','freqGLM','CAR'))
+
+plot_all_methods(res = WF_res$results, fix_axis = DGP_ylims,,  add_lines = list(F, F, F, F), metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with WF model', include_legend = T, squeeze_plots = T, remove_x_axis = T, remove_y_axis = F, y_lab = 'MCAR')
+
+#
 #### Processing CAR comparison plots (the two CAR prediction methods) ####
 files <- grep('2024_07_03', dir(res_dir, full.names = T), value = T)
+
+file_check(files)
 
 files_CAR_DGP <- grep('car0303', files, value = T)
 
@@ -94,19 +123,24 @@ files_freqGLM_DGP <- grep('freqglm', files, value = T)
 res_facility <- list()
 res_district <- list()
 
-file_name_str <- c('files_CAR_DGP',
-                   'files_freqGLM_DGP')
+# file_name_str <- c('files_CAR_DGP',
+#                    'files_freqGLM_DGP')
+file_name_str <- c('files_CAR_DGP')
 
-methods = c("y_pred_WF", "y_pred_freqGLMepi", 'y_CARstan')
+methods = c('y_CAR_sample','y_CAR_phifit')
 
 # grab the results from all runs
 for(name in file_name_str){
-  res_facility[[name]] <- get_results(get(name), name, expected_sims = NULL)
-  res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL)
+  res_facility[[name]] <- get_results(get(name), name, expected_sims = NULL, methods = methods, give_method_name_err = F)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL, methods = methods, give_method_name_err = F)
 }
 
+save(res_facility, res_district, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/CAR_DGP_CARpredict_comparison_07082024.RData')
 
-# SAVE 
+#
+#### Plotting CAR DGP - CAR prediction comparison ####
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+plot_all_methods(res = res_facility[["files_CAR_DGP"]]$results, fix_axis = DGP_ylims, methods = c('y_CAR_sample', 'y_CAR_phifit'),  add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model', include_legend = T, squeeze_plots = T, remove_x_axis = T, remove_y_axis = F, y_lab = 'MCAR')
 
 #
 #### Testing making one mega plot ####
