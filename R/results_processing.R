@@ -97,6 +97,35 @@ file_check <- function(files){
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Getting the results from NB DGP and NB fits ####
+files <- grep('2024_07_07', dir(res_dir, full.names = T), value = T)
+
+file_check(files)
+
+WF_NB <- grep('wf',files, value = T)
+freqGLM_NB <- grep('freqglm', files, value = T)
+CAR <- grep('2024_07_08', dir(res_dir, full.names = T), value = T)
+
+file_check(CAR)
+
+res_facility <- list()
+res_district <- list()
+
+file_name_str <- c('WF_NB','freqGLM_NB','CAR')
+
+methods <- c('y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin','y_CAR_phifit')
+rename_vec <- c('WF_NB', 'freqGLM_NB', 'CAR')
+
+# grab the results from all runs
+for(name in file_name_str){
+  res_facility[[name]] <- get_results(get(name), name, expected_sims = NULL, methods = methods, rename_vec = rename_vec, give_method_name_err = T)
+  res_district[[name]] <-  get_results(get(name), name,  district_results = T, expected_sims = NULL, methods = methods, rename_vec = rename_vec, give_method_name_err = T)
+}
+
+# save(res_facility, res_district, file = 'C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WFnegbin(nsample2000)_freqGLMnegbin(nsample2000)_CAR_07092024.RData')
+
+
+#
 #### Making sure the new results work ####
 files <- grep('2024_07_07', dir(res_dir, full.names = T), value = T)
 
