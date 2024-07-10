@@ -55,10 +55,10 @@ aggregate_results <- function(res, bar_quants = c(0.25, 0.75), metrics = c('spec
 }
 
 # get CAR convergence values from the results in a simulation.
-get_CARconvergence <- function(res){
+get_CARconvergence <- function(res, p = '0', CAR_name = 'CARstan_summary'){
   # get CAR summary vals.
-  CARsums <- res$results[[1]]$CARstan_summary
-  
+  CARsums <- res$results[[p]][[CAR_name]]
+
   # get ESS values.
   ESS <- sapply(CARsums, function(xx) xx[,'n_eff']) %>%
     apply(1, median)
@@ -97,6 +97,61 @@ file_check <- function(files){
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Testing processing without rename vec (7/10/2024) ####
+files <- grep('2024_07_07', dir(res_dir, full.names = T), value = T)
+WF_NB <- grep('wf',files, value = T)
+freqGLM_NB <- grep('freqglm', files, value = T)
+CAR <- grep('2024_07_08', dir(res_dir, full.names = T), value = T)
+methods <- c('y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin','y_CAR_phifit')
+res_test <- get_results(WF_NB, 'WF_NB', expected_sims = NULL, methods = methods, give_method_name_err = T)
+# yep it does not have to do with the naming, as expected.
+
+# Now looking at CAR convergence.
+tt <- get_results(WF_NB, 'WF_NB', return_unprocessed = T, methods = methods)
+tt2 <- get_results(freqGLM_NB, 'freqGLM_NB', return_unprocessed = T, methods = methods)
+tt3 <- get_results(CAR, 'CAR', return_unprocessed = T, methods = methods)
+
+
+get_CARconvergence(tt, p = '05', CAR_name = 'CAR_phifit_summary')
+get_CARconvergence(tt2, p = '05', CAR_name = 'CAR_phifit_summary')
+get_CARconvergence(tt3, p = '05', CAR_name = 'CAR_phifit_summary')
+
+# that sure looks like convergence to me.
+
+
+#
+#### Testing if the new results match the plots (7/10/2024) ####
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WFnegbin(nsample2000)_freqGLMnegbin(nsample2000)_CAR_07092024.RData')
+
+res <- res_facility[['WF_NB']]$results %>%
+  filter(prop_missing == 0.5)
+
+res %>% 
+  group_by(method) %>% 
+  summarize(median = median(outbreak_detection3),
+            lower = stats::quantile(outbreak_detection3, probs = 0.25),
+            upper = stats::quantile(outbreak_detection3, probs = 0.75)) 
+  
+# method     median lower upper
+# <fct>       <dbl> <dbl> <dbl>
+#   1 WF_NB        0.6   0.55  0.7 
+# 2 freqGLM_NB   0.75  0.7   0.85
+# 3 CAR          0.45  0.4   0.55
+# ok that matches
+
+res %>% 
+  group_by(method) %>% 
+  summarize(median = median(specificity),
+            lower = stats::quantile(specificity, probs = 0.25),
+            upper = stats::quantile(specificity, probs = 0.75))
+
+# method     median lower upper
+# <fct>       <dbl> <dbl> <dbl>
+#   1 WF_NB        0.95   0.9   1  
+# 2 freqGLM_NB   0.85   0.8   0.9
+# 3 CAR          0.95   0.9   1  
+
+#
 #### Plotting the MCAR results from NB DGP and NB fits ####
 load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/WFnegbin(nsample2000)_freqGLMnegbin(nsample2000)_CAR_07092024.RData')
 
@@ -128,7 +183,7 @@ DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
 
 
 #
-#### Getting the MCAR results from NB DGP and NB fits ####
+#### Processing the MCAR results from NB DGP and NB fits ####
 files <- grep('2024_07_07', dir(res_dir, full.names = T), value = T)
 
 file_check(files)
@@ -157,7 +212,7 @@ for(name in file_name_str){
 
 
 #
-#### Making sure the new results work ####
+#### Testing sure the new results work ####
 files <- grep('2024_07_07', dir(res_dir, full.names = T), value = T)
 
 file_check(files)
@@ -236,7 +291,7 @@ DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
 }
 
 #
-#### Making freqGLM and CAR DGP plots ####
+#### Plotting freqGLM and CAR DGP plots ####
 load(paste0(res_dir, '/DGP_freqGLM_and_CAR_results_06252024.RData'))
 
 # freqGLM
@@ -336,7 +391,7 @@ for(name in file_name_str){
 #save(res_facility, res_district, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/DGP_freqGLM_and_CAR_results_06252024.RData')
 
 #
-#### Making new DGP with higher n.sample plots - CORRECTED version ####
+#### Plotting new DGP with higher n.sample plots - CORRECTED version ####
 load(paste0(res_dir, '/DGP_comparison_results_higherCARnsample_06242024.RData'))
 
 DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
@@ -351,7 +406,7 @@ DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
   ggsave('figures/DGP_facility_comparison_plots_nsample10000_burnin5000_06242024.pdf', height = 7.5, width = 10)
 }
 
-#### Getting new DGP results with higher n.sample and burnin - CORRECTED to have proper number of facilities and beta vals (for CAR) ####
+#### Processing new DGP results with higher n.sample and burnin - CORRECTED to have proper number of facilities and beta vals (for CAR) ####
 files <- grep('2024_06_20',dir(res_dir, full.names = T), value = T)
 
 files_WF_MCAR_beta6_n025 <- grep('wf_beta06', files, value = T)
@@ -414,7 +469,7 @@ params_OG
 params_new
 
 #
-#### Making new DGP plots ####
+#### Plotting new DGP plots ####
 load(paste0(res_dir, '/DGP_comparison_results_higherCARnsample_06192024.RData'))
 
 DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
@@ -430,7 +485,7 @@ DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
 }
 
 #
-#### Getting new DGP results with higher n.sample and burnin ####
+#### Processing new DGP results with higher n.sample and burnin ####
 files = grep('2024_06_17',dir(res_dir, full.names = T), value = T)
 files = files[-grep('91167', files)]
 
@@ -485,7 +540,7 @@ save(res_facility, res_district, file = paste0(res_dir, '/DGP_comparison_results
 
 
 #
-#### Get the results by point for each district ####
+#### Processing the results by point for each district ####
 # getting the file names
 {
   files = grep('2023_12_09|2023_12_10',dir(res_dir, full.names = T), value = T)

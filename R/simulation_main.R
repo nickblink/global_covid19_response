@@ -19,7 +19,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=negbin:theta=5:empirical_betas=F:CARburnin=2000:CARnsample=4000:R_PI=200:models=1,2,3,4,5,6\r','3')
+inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=freqGLM:rho_DGP=0.2:alpha_DGP=0.2:R=1000:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=negbin:theta=5:empirical_betas=F:CARburnin=1000:CARnsample=2000:R_PI=200:models=5,6,7\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -232,14 +232,19 @@ one_run <- function(lst, i, model_list = NULL){
       }
     }else if(model == 'CAR_sample'){
       fit_fxn <- function(df){
-        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', 
+        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = F, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', 
                                 model_rename = 'y_CAR_sample')
         return(tmp)
       }
     }else if(model == 'CAR_phifit'){
       fit_fxn <- function(df){
-        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = T, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T, 
+        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = F, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T, 
                                 model_rename = 'y_CAR_phifit')
+        return(tmp)
+      }
+    }else if(model == 'CAR_phifit_negbin'){
+      fit_fxn <- function(df){
+        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = F, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T, model_rename = 'y_CAR_phifit', family = 'negbin')
         return(tmp)
       }
     }
@@ -268,6 +273,8 @@ one_run <- function(lst, i, model_list = NULL){
         return_list[['CAR_sample_summary']] <- res$CARstan_summary
       }else if(model == 'CAR_phifit'){
         return_list[['CAR_phifit_summary']] <- res$CARstan_summary
+      }else if(model == 'CAR_phifit_negbin'){
+        return_list[['CAR_phifit_negbin_summary']] <- res$CARstan_summary
       }
     }else{
       return_list[['errors']][[model]] <- rbind(return_list[['errors']][[model]], data.frame(i = i, error = res[[1]]))
@@ -291,9 +298,14 @@ model_list <- list(list(model = 'WF',
                    list(model = 'freqGLM_NB',
                         params = list(R_PI = params[['R_PI']])),
                    list(model = 'CAR_sample',
-                        params = list(burnin = params[['CARburnin']], n.sample = params[['CARnsample']])),
+                        params = list(burnin = params[['CARburnin']], 
+                                      n.sample = params[['CARnsample']])),
                    list(model = 'CAR_phifit',
-                        params = list(burnin = params[['CARburnin']], n.sample = params[['CARnsample']])))
+                        params = list(burnin = params[['CARburnin']], 
+                                      n.sample = params[['CARnsample']])),
+                   list(model = 'CAR_phifit_negbin',
+                        params = list(burnin = params[['CARburnin']], 
+                                      n.sample = params[['CARnsample']])))
 
 model_list <- model_list[params[['models']]]
 

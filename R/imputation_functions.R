@@ -168,7 +168,7 @@ add_neighbors <- function(df, target_col = 'y', lag = 1, scale_by_num_neighbors 
 }
 
 # prep the data for fitting the stan model
-prep_stan_data_rushworth_sparse <- function(df, formula){
+prep_stan_data_rushworth_sparse <- function(df, formula, theta_shape = NULL, theta_rate = NULL){
   N = nrow(df)
   N_T <- length(unique(df$date))
   N_F <- length(unique(df$facility))
@@ -228,6 +228,11 @@ prep_stan_data_rushworth_sparse <- function(df, formula){
     W_n = W_n,
     I = diag(1.0, N_F),
     lambda = lambda)
+  
+  if(!is.null(theta_shape) & !is.null(theta_rate)){
+    stan_data$theta_shape <- theta_shape
+    stan_data$theta_rate <- theta_rate
+  }
   
   return(stan_data)
 }
@@ -422,13 +427,19 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
     df_lst <- lst_full
     WF_lst <- error_lst <- true_betas <- NULL
   }else{
-    df_lst <- lapply(lst_full, function(tmp) {tmp$df_miss})
-    #if('WF_betas' %in% names(lst_full[[1]])){
-    WF_lst <- lapply(lst_full, function(tmp) {tmp$WF_betas})
-    #}
-    CARstan_summary <- lapply(lst_full, function(tmp) {tmp$CARstan_summary})
+    model_param_names <- setdiff(names(lst_full[[1]]), c('df_miss','district_df','errors','timing'))
+    model_param_res <- lapply(model_param_names, function(nn){
+      lapply(lst_full, function(tmp) {tmp[[nn]]})
+    })
+    names(model_param_res) <- model_param_names
     
-    freqGLM_lst <- lapply(lst_full, function(tmp) {tmp$freqGLM_params})
+    df_lst <- lapply(lst_full, function(tmp) {tmp$df_miss})
+    # #if('WF_betas' %in% names(lst_full[[1]])){
+    # WF_lst <- lapply(lst_full, function(tmp) {tmp$WF_betas})
+    # #}
+    # CARstan_summary <- lapply(lst_full, function(tmp) {tmp$CARstan_summary})
+    # 
+    # freqGLM_lst <- lapply(lst_full, function(tmp) {tmp$freqGLM_params})
     
     if(district_results){
       district_lst <- lapply(lst_full, function(tmp) {tmp$district_df})
@@ -476,11 +487,14 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   }
   
   # store the results
-  res_lst <- list(error_lst = error_lst, 
-                  WF_lst = WF_lst,
-                  CARstan_summary = CARstan_summary,
-                  freqGLM_lst = freqGLM_lst,
+  # res_lst <- list(error_lst = error_lst, 
+  #                 WF_lst = WF_lst,
+  #                 CARstan_summary = CARstan_summary,
+  #                 freqGLM_lst = freqGLM_lst,
+  #                 params = param_mat)
+  res_lst <- list(error_lst = error_lst,
                   params = param_mat)
+  res_lst <- c(res_lst, model_param_res)
   
   if(district_results){
     res_lst[['district_lst']] = district_lst 
@@ -1091,7 +1105,7 @@ cutoff_imputation <- function(df, df_spread = NULL, group = 'facility', method =
   return(df)
 }
 
-CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'facility_fixed', burnin = 1000, n.sample = 2000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, MALA = T, MCMC_sampler = 'stan'){
+CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'facility_fixed', burnin = 1000, n.sample = 2000, prediction_sample = T, thin = 10, prior = 'none', prior_var_scale = 1, prior_mean = NULL, prior_var = NULL, MALA = T, MCMC_sampler = 'stan' ,family = 'poisson', theta_shape = 5, theta_rate = 1){
 
   # check if this method has already been run
   if(any(grepl('y_CARBayes_ST', colnames(df)))){
@@ -1186,14 +1200,32 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
     )
     
   }else if(MCMC_sampler == 'stan'){
-    stan_data <- prep_stan_data_rushworth_sparse(df, formula_col)
-    stan_fit <- stan(file = "R/regression_rushworth_sparse.stan",
-               data = stan_data, 
-               iter = n.sample, 
-               warmup = burnin,
-               chains = 1, 
-               init = '0',
-               cores = 1)
+    if(family == 'poisson'){
+      stan_pars <- c('tau2','rho','alpha','beta')
+      stan_data <- prep_stan_data_rushworth_sparse(df, formula_col)
+      stan_fit <- stan(file = "R/regression_rushworth_sparse.stan",
+                       data = stan_data, 
+                       iter = n.sample, 
+                       warmup = burnin,
+                       chains = 1, 
+                       init = '0',
+                       cores = 1)
+    }else if(family == 'negbin'){
+      stan_pars <- c('tau2','rho','alpha','beta','theta')
+      stan_data <- prep_stan_data_rushworth_sparse(df, formula_col, theta_shape = theta_shape, theta_rate = theta_rate)
+      stan_fit <- stan(file = "R/regression_rushworth_sparse_negbin.stan",
+                       data = stan_data, 
+                       iter = n.sample, 
+                       warmup = burnin,
+                       chains = 1, 
+                       init = '0',
+                       cores = 1)
+      # make sure to check the results - is theta ordered properly?
+      # browser()
+      # test <- grep('theta',names(stan_fit))
+      # stan_fit[1,1,test[21:80]]
+    }
+    
     
     # extract out the important features from the model
     stan_out <- extract(stan_fit)
@@ -1204,7 +1236,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
     colnames(beta_df) <- model_col_names
     
     # pull out the summary values
-    stan_summary = summary(stan_fit, pars = c('tau2','rho','alpha','beta'))$summary
+    stan_summary = summary(stan_fit, pars = stan_pars)$summary
     rownames(stan_summary)[grep('beta', rownames(stan_summary))] <- model_col_names
     
     model_chain = list(
@@ -1217,14 +1249,19 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
       tau2 = stan_out$tau2,
       CARstan_summary = stan_summary
     )
+
+    if(family == 'negbin'){
+      model_chain[['theta']] = stan_out$theta
+    }
   }else{
     stop('input a proper MCMC sampler')
   }
   
   df[,paste0(col, '_CARBayes_ST')] = model_chain$fitted_mean
   
-  # Poisson sample the fitted values for the posterior predictive distribution
+  # Sample the fitted values for the posterior predictive distribution
   if(prediction_sample){
+    # browser()
     # pull the fitted values and randomly select prediction values based on the Poisson distribution
     tt = model_chain$fitted
     tt = apply(tt, 2, function(xx) rpois(n = length(xx), lambda = xx))
@@ -1264,20 +1301,6 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
   fitted_quants_C = as.data.frame(fitted_quants_C)
   colnames(fitted_quants_C) = paste0(paste0(col, '_CARBayes_ST_'), quant_probs)
   
-  # # aggregate the county results
-  # df_county = df %>% 
-  #   dplyr::select(date, y_true, y_CARBayes_ST) %>% 
-  #   group_by(date) %>%
-  #   summarize(y_true = sum(y_true),
-  #   y_CARBayes_ST = sum(y_CARBayes_ST)) %>% 
-  #   arrange(date)
-  # 
-  # if(!identical(df_county$date, dates)){
-  #   browser()
-  # }
-  # 
-  # df_county = cbind(df_county, fitted_quants_C)
-  
   if(return_type == 'data.frame'){
     return(df)
   }else if(return_type == 'model'){
@@ -1296,7 +1319,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = F, model_rename = NULL, ...){
+CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = F, model_rename = NULL, family = 'poisson', ...){
   
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
@@ -1338,7 +1361,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   }
   
   # fit the model!
-  res <- CARBayes_fitting(train, col, ...)
+  res <- CARBayes_fitting(train, col, family = family, ...)
   
   # return the fit if not doing post-processing
   if(return_raw_fit){
@@ -1347,11 +1370,14 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   
   #### the rest is for future model prediction
   betas <- res$model_chain$beta
-  
   phi_fit <- res$model_chain$phi
   rho <- res$model_chain$rho
   alpha <- res$model_chain$alpha
   tau2 <- res$model_chain$tau2
+  if(family == 'negbin'){
+    thetas <- res$model_chain$theta
+    names(thetas) <- facilities
+  }
   
   # set the R_posterior
   if(is.null(R_posterior)){
@@ -1503,9 +1529,17 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     res <- mean_pred[[f]]
     
     # get poisson sampled values from mean
-    tt <- apply(res, 2, function(xx){
-      rpois(length(dates), exp(xx))
-    })
+    if(family == 'poisson'){
+      tt <- apply(res, 2, function(xx){
+        rpois(length(dates), exp(xx))
+      })
+    }else if(family == 'negbin'){
+      theta <- thetas[[f]]
+      tt <- apply(res, 2, function(xx){
+        rnbinom(n = length(xx), mu = exp(xx), size = theta)
+      })
+    }
+    
   })
   names(predicted_vals) <- facilities
   
@@ -1520,7 +1554,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     return(res)
   }))
   
-  fitted_quants$y_pred_CCA_CAR <- fitted_quants$y_pred_CCA_CAR_0.5
+  fitted_quants$y_pred_CAR <- fitted_quants$y_pred_CAR_0.5
   
   # merge the results together
   df <- merge(df, fitted_quants, by = c('date', 'facility'), all = T)
@@ -1558,7 +1592,6 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     res_lst[['model_chain']] <- res$model_chain
   }
   
-
   if(list(...)$MCMC_sampler == 'stan'){
     res_lst[['CARstan_summary']] <- res$model_chain$CARstan_summary
     colnames(res_lst$df) <- gsub('y_pred_CAR', ifelse(is.null(model_rename), 'y_CARstan', model_rename), colnames(res_lst$df))
