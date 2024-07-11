@@ -3446,6 +3446,8 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
     }
   }else if(family == 'negbin'){
     dispersion_vec <- sample_thetas(facilities, ...)
+    matid = match(df$facility, names(dispersion_vec))
+    df$theta <- dispersion_vec[matid]
     # make the DGP below since it depends on a different dispersion parameter for each facility.
   }
   
@@ -3614,12 +3616,22 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
       }else if(family == 'quasipoisson'){
         df$y_var = list(...)$theta*df$y_exp + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
       }else{
-        stop('input a proper family')
+        df$y_var = df$y_exp + exp(2*df$mu_marginal + 2*df$sigma2_marginal)/df$theta + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
+        #browser()
+        # Need to do the variance calculations for this. And then test it - how? By comparing sds away to the standard normal.
+        #stop('input a proper family')
+        warning('no variance calculation.')
       }
       
       # simulate the observed values
-      df$y = DGP_function(nrow(df), exp(df$mu + df$phi))
-      
+      if(family %in% c('poisson','quasipoisson')){
+        df$y <- DGP_function(nrow(df), exp(df$mu + df$phi))
+      }else if(family == 'negbin'){
+        df$y <- rnbinom(n = nrow(df), mu = exp(df$mu + df$phi), size = df$theta)
+      }else{
+        stop('please input family = poisson, quasipoisson, or negbin')
+      }
+
       return(df)
     })
     
@@ -3707,11 +3719,7 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         
         df$y[ind] = DGP_function(length(ind), df$y_exp[ind])
       }else if(family == 'negbin'){
-        matid = match(df$facility, names(dispersion_vec))
-        df$theta <- dispersion_vec[matid]
-        
         df$y_exp[ind] = adjustment*exp(df$mu[ind])
-        
         df$y_var[ind] = df$y_exp[ind] + df$y_exp[ind]^2/df$theta[ind]
         
         DGP_function <- function(n, mu, theta){

@@ -143,6 +143,10 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+#### Running CAR NB DGP with all NB models ####
+bash_wrapper(missingness = 'mcar',DGP = 'CAR', family = 'negbin', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, CARburnin = 5000, CARnsample = 10000, output_path = 'mcar05_CAR0303025_beta_06_beta1n025_negbin_2024_07_11', bash_file = 'cluster_code/cluster commands/bash_07112024.txt')
+
+#
 #### Running WF NB, freqGLM NB with CAR NB fit ####
 bash_wrapper(DGP = 'WF', family = 'negbin',
              bash_file = 'cluster_code/cluster commands/bash_07102024.txt')
