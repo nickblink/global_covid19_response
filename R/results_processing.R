@@ -97,6 +97,24 @@ file_check <- function(files){
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Plotting with all sensitivities ####
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/All_DGPandFit_negbin_07122024.RData')
+
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+
+# facility plots
+{
+  p1 <-   plot_all_methods(res = res_facility[["WF"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  fix_axis = DGP_ylims, metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with WF NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  p2 <- plot_all_methods(res = res_facility[["freqGLM"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  fix_axis = DGP_ylims, metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  p3 <- plot_all_methods(res = res_facility[["CAR"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  fix_axis = DGP_ylims, metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), results_by_point = F, rows = 1, title = 'Data Generated with CAR NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  #cowplot::plot_grid(p1$plot, p2$plot,  p1$legend, ncol = 1, rel_heights = c(3,3,1))
+  ggsave('figures/option_2 - MCAR plot.pdf', height = 7.5, width = 10)
+}
+#
 #### Investigating the freqGLM results on WF DGP - why are they better now? ####
 
 
