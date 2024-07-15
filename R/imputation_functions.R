@@ -41,7 +41,7 @@ make_district_adjacency <- function(df, scale_by_num_neighbors = F){
 make_district_W2_matrix <- function(df){
   # create the list of matching facilities
   D2 = df %>% dplyr::select(district, facility) %>% distinct()
-  pairs = full_join(D2, D2, by = 'district') %>%
+  pairs = full_join(D2, D2, by = 'district', relationship = 'many-to-many') %>%
     filter(facility.x != facility.y) %>%
     dplyr::select(-district)
   
@@ -1127,7 +1127,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
   
   # create the adjacency matrix
   D2 = df %>% dplyr::select(district, facility) %>% distinct()
-  W = full_join(D2, D2, by = 'district') %>%
+  W = full_join(D2, D2, by = 'district', relationship = 'many-to-many') %>%
     filter(facility.x != facility.y) %>%
     dplyr::select(-district) %>%
     igraph::graph_from_data_frame() %>%

@@ -97,18 +97,21 @@ file_check <- function(files){
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
-#### Processing WF and freq DGP with ALL methods fit NB ####
+#### Processing WF and freq DGP and CAR DGP with ALL methods fit NB ####
 files <- grep('2024_07_10', dir(res_dir, full.names = T), value = T)
 
 file_check(files)
 
 WF <- grep('wf', files, value = T)
 freqGLM <- grep('freqglm', files, value = T)
+CAR <- grep('2024_07_11', dir(res_dir, full.names = T), value = T)
+file_check(CAR)
+
 
 res_facility <- list()
 res_district <- list()
 
-file_name_str <- c('WF','freqGLM')
+file_name_str <- c('WF','freqGLM', 'CAR')
 
 methods <- c('y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin','y_CAR_phifit')
 rename_vec <- c('WF_NB', 'freqGLM_NB', 'CAR')
@@ -120,20 +123,22 @@ for(name in file_name_str){
 }
 
 # not complete yet, I guess. Or because of errors. Jeez louise.
+$ save(res_facility, res_district, file = 'C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/All_DGPandFit_negbin_07122024.RData')
 
-#### Plotting WF and freq DGP with ALL methods fit NB ####
+#
+#### Plotting All MCAR DGP with ALL methods fit NB ####
 
-DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+DGP_ylims = list(ylim(0.5,1), ylim(0.5,1), ylim(0.5, 1), ylim(0.5,1))
 # facility plots
 {
   p1 <-   plot_all_methods(res = res_facility[["WF"]]$results, fix_axis = DGP_ylims, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with WF NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, remove_y_axis = F, y_lab = 'MCAR')
   
   p2 <- plot_all_methods(res = res_facility[["freqGLM"]]$results, fix_axis = DGP_ylims, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, remove_y_axis = F, y_lab = 'MCAR')
   
-  #p3 <- plot_all_methods(res = res_facility[["CAR"]]$results, fix_axis = DGP_ylims, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model', include_legend = F, squeeze_plots = T, remove_x_axis = F, remove_y_axis = F, y_lab = 'MCAR')
+  p3 <- plot_all_methods(res = res_facility[["CAR"]]$results, fix_axis = DGP_ylims, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model', include_legend = F, squeeze_plots = T, remove_x_axis = F, remove_y_axis = F, y_lab = 'MCAR')
   
-  #cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
-  cowplot::plot_grid(p1$plot, p2$plot,  p1$legend, ncol = 1, rel_heights = c(3,3,1))
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  #cowplot::plot_grid(p1$plot, p2$plot,  p1$legend, ncol = 1, rel_heights = c(3,3,1))
   #ggsave('figures/DGP_NB_facility_comparison_plots_WFfreqnsample2000_07092024.pdf', height = 7.5, width = 5)
 }
 

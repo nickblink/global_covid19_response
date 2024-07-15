@@ -1,6 +1,6 @@
 ## This script makes bash commands for given simulations
 
-bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = 5000, CARnsample = 10000, R_PI = 200, models = c(2,4,7)){
+bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path_addition = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = 5000, CARnsample = 10000, R_PI = 200, models = c(2,4,7)){
   
   if(tolower(DGP) == 'wf'){
     DGP_name = 'WF'
@@ -24,8 +24,11 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
   }
   
   # make the output folder
-  if(is.null(output_path)){
+  if(is.null(output_path_addition)){
     output_path <- sprintf('%s%s_%s_beta0%s_beta1%s_ID%s_%s', missingness, p, DGP_name, b0_mean, b1_mean, sample(1e6, size = 1), gsub('-','_',Sys.Date()))
+    output_path <- gsub('\\.','',output_path)
+  }else{
+    output_path <- sprintf('%s%s_%s_beta0%s_beta1%s_ID%s_%s_%s', missingness, p, DGP_name, b0_mean, b1_mean, sample(1e6, size = 1), output_path_addition, gsub('-','_',Sys.Date()))
     output_path <- gsub('\\.','',output_path)
   }
   
@@ -143,10 +146,47 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
   return(cmds)
 }
 
+#### Appendix simulations ####
+
+# All MCAR
+
+# (1) WF beta0 = 6, beta1 = 0
+
+# (2) freqGLM beta0 = 5.5, beta1 = 0
+
+# (3) CAR beta0 = 6, beta1 = 0
+
+# (4) WF beta0 = 2, beta1 = 0
+
+# (5) freqGLM beta0 = 1.5, beta1 = 0
+
+# (6) CAR beta0 = 2, beta1 = 0
+
+# (7) WF with more overdispersion (lower theta)
+
+# (8) freqGLM with more overdispersion (lower theta)
+
+# (9) CAR with more overdispersion (lower theta)
+
+#### Running NB fit and DGP for MAR and MNAR - and re-doing freq ####
+
+# (1) freqGLM MCAR
+
+# (2) WF MAR
+
+# (3) freqGLM MAR
+
+# (4) CAR MAR
+
+# (5) WF MNAR
+
+# (6) freqGLM MNAR
+
+# (7) CAR MNAR
+
 #### Running CAR NB DGP with all NB models ####
 #bash_wrapper(missingness = 'mcar',DGP = 'CAR', family = 'negbin', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, CARburnin = 5000, CARnsample = 10000, output_path = 'mcar05_CAR0303025_beta_06_beta1n025_negbin_2024_07_11', bash_file = 'cluster_code/cluster commands/bash_07112024.txt')
 DONT PUT SPECIFIC OUTPUT PATH SINCE IT WILL APPLY TO ALL p Values
-
 
 #
 #### Running WF NB, freqGLM NB with CAR NB fit ####

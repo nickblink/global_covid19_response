@@ -244,7 +244,7 @@ one_run <- function(lst, i, model_list = NULL){
       }
     }else if(model == 'CAR_phifit_negbin'){
       fit_fxn <- function(df){
-        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = F, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T, model_rename = 'y_CAR_phifit', family = 'negbin')
+        tmp <- CARBayes_wrapper(df, burnin = params[['burnin']], n.sample = params[['n.sample']], prediction_sample = F, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T, model_rename = 'y_CAR_phifit_negbin', family = 'negbin')
         return(tmp)
       }
     }
