@@ -3082,9 +3082,10 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
 ## metric_rename: a vector of what to ttile the metrics
 ## rows: number of rows of resulting plots
 ## title: title of overall plot
+## keep_y_axis: ('left','all','none') 
 ## ...: params to be passed into "combine_results_wrapper"
 
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, plot_indiv_points = F, legend_text = 17, squeeze_plots = F, remove_x_axis = F, remove_y_axis = T, y_lab = NULL, ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, plot_indiv_points = F, legend_text = 17, squeeze_plots = F, remove_x_axis = F, keep_y_axis = 'left', y_lab = NULL, ...){
   if(is.null(res)){
     if(!is.null(files)){
       tmp <- combine_results_wrapper(files,  ...)
@@ -3104,6 +3105,9 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
   # fixing the axis dimensions
   if(length(fix_axis) == 1){
     fix_axis = rep(fix_axis, length(metrics))
+  }
+  if(length(unique(fix_axis)) > 1){
+    warning('multiple different y axis')
   }
   
   options(dplyr.summarise.inform = FALSE)
@@ -3178,11 +3182,11 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
         guides(color = guide_legend(title = 'model fit', override.aes = list(size = 4)), shape = guide_legend(title = 'model fit'))
     }
     
-    if(remove_y_axis){
+    if(keep_y_axis == 'none'){
       p1 <- p1 + theme(axis.text.y = element_blank(),
                        axis.ticks.y = element_blank()) +
         ylab(NULL)
-    }else{
+    }else if(keep_y_axis == 'left'){
       if(metric == 'specificity'){
         p1 <- p1 + ylab(y_lab)
       }else{
@@ -3190,6 +3194,10 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
                          axis.ticks.y = element_blank()) +
           ylab(NULL)
       }
+    }else if(keep_y_axis == 'all'){
+      p1 <- p1 + ylab(y_lab)
+    }else{
+      stop('please put in keep_y_axis = c(left, all, or none)')
     }
     if(squeeze_plots){
       p1 <- p1 + theme(plot.margin = unit(c(0, 0, 0, 0), "cm")) + 

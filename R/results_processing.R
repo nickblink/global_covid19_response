@@ -97,6 +97,66 @@ file_check <- function(files){
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Investigating the freqGLM results on WF DGP - why are they better now? ####
+
+
+# to look at - how is their beta parameter estimation?
+# how is the theta estimation?
+# how is the spatio-temporal estimation? (should be low, ideally)
+# pull the alpha and rho params by simulation
+files <- grep('2024_07_10', dir(res_dir, full.names = T), value = T)
+WF <- grep('wf', files, value = T)
+freqGLM <- grep('freqglm', files, value = T)
+
+for(p in c('0','01','02','03','04','05')){
+  tt <- get_results(WF, 'WF', expected_sims = NULL, methods = methods, rename_vec = rename_vec, give_method_name_err = T, return_unprocessed = T, verbose = F)
+  
+  res <- tt$results[[p]]$freqGLM_NB_params %>% do.call('rbind', .)
+  
+  theta <- res %>% filter(param == 'theta')
+  rho <- res %>% filter(param == 'rho')
+  alpha <- res %>% filter(param == 'alpha')
+  
+  print('----')
+  print(p)
+  print(sprintf('theta mean/median: %s, %s', mean(theta$mean), median(theta$mean)))
+  print(sprintf('rho mean/median: %s, %s', mean(rho$mean), median(rho$mean)))
+  print(sprintf('alpha mean/median: %s, %s', mean(alpha$mean), median(alpha$mean)))
+}
+
+# over-predicting theta by a bit. 
+# rho predictions are around 0.1, but alpha is around 0.01-0.06, so doing much better.
+# theta INCREASES, meaning variance DECREASES, as missing data goes up.
+
+#
+#### Plotting All MCAR DGPs with different metrics. ####
+
+# facility plots
+{
+  p1 <-   plot_all_methods(res = res_facility[["WF"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  metrics = c('specificity', 'outbreak_detection3', 'bias', 'interval_width'), metric_rename = c('specificity', 'sensitivity-3', 'bias', 'interval_width'), results_by_point = F, rows = 1, title = 'Data Generated with WF NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  p2 <- plot_all_methods(res = res_facility[["freqGLM"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  metrics = c('specificity', 'outbreak_detection3', 'bias', 'interval_width'), metric_rename = c('specificity', 'sensitivity-3', 'bias', 'interval_width'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  p3 <- plot_all_methods(res = res_facility[["CAR"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  metrics = c('specificity', 'outbreak_detection3', 'bias', 'interval_width'), metric_rename = c('specificity', 'sensitivity-3', 'bias', 'interval_width'), results_by_point = F, rows = 1, title = 'Data Generated with CAR NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  #cowplot::plot_grid(p1$plot, p2$plot,  p1$legend, ncol = 1, rel_heights = c(3,3,1))
+  #ggsave('figures/DGP_NB_Allfits_NB_facility_comparison_plots_07152024.pdf', height = 7.5, width = 5)
+}
+
+# district plots
+{
+  p1 <-   plot_all_methods(res = res_district[["WF"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  metrics = c('specificity', 'outbreak_detection3', 'bias', 'interval_width'), metric_rename = c('specificity', 'sensitivity-3', 'bias', 'interval_width'), results_by_point = F, rows = 1, title = 'Data Generated with WF NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  p2 <- plot_all_methods(res = res_district[["freqGLM"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  metrics = c('specificity', 'outbreak_detection3', 'bias', 'interval_width'), metric_rename = c('specificity', 'sensitivity-3', 'bias', 'interval_width'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  p3 <- plot_all_methods(res = res_district[["CAR"]]$results, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, 0, F),  metrics = c('specificity', 'outbreak_detection3', 'bias', 'interval_width'), metric_rename = c('specificity', 'sensitivity-3', 'bias', 'interval_width'), results_by_point = F, rows = 1, title = 'Data Generated with CAR NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, keep_y_axis = 'all', y_lab = 'MCAR')
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  #cowplot::plot_grid(p1$plot, p2$plot,  p1$legend, ncol = 1, rel_heights = c(3,3,1))
+  #ggsave('figures/DGP_NB_Allfits_NB_facility_comparison_plots_07152024.pdf', height = 7.5, width = 5)
+}
+
 #### Processing WF and freq DGP and CAR DGP with ALL methods fit NB ####
 files <- grep('2024_07_10', dir(res_dir, full.names = T), value = T)
 
@@ -123,10 +183,11 @@ for(name in file_name_str){
 }
 
 # not complete yet, I guess. Or because of errors. Jeez louise.
-$ save(res_facility, res_district, file = 'C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/All_DGPandFit_negbin_07122024.RData')
+# save(res_facility, res_district, file = 'C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/All_DGPandFit_negbin_07122024.RData')
 
 #
 #### Plotting All MCAR DGP with ALL methods fit NB ####
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/All_DGPandFit_negbin_07122024.RData')
 
 DGP_ylims = list(ylim(0.5,1), ylim(0.5,1), ylim(0.5, 1), ylim(0.5,1))
 # facility plots
@@ -139,7 +200,22 @@ DGP_ylims = list(ylim(0.5,1), ylim(0.5,1), ylim(0.5, 1), ylim(0.5,1))
   
   cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
   #cowplot::plot_grid(p1$plot, p2$plot,  p1$legend, ncol = 1, rel_heights = c(3,3,1))
-  #ggsave('figures/DGP_NB_facility_comparison_plots_WFfreqnsample2000_07092024.pdf', height = 7.5, width = 5)
+  ggsave('figures/DGP_NB_Allfits_NB_facility_comparison_plots_07152024.pdf', height = 7.5, width = 5)
+}
+
+# district plots
+
+DGP_ylims = list(ylim(0,1), ylim(0,1), ylim(0, 1), ylim(0,1))
+{
+  p1 <-   plot_all_methods(res = res_district[["WF"]]$results, fix_axis = DGP_ylims, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with WF NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, remove_y_axis = F, y_lab = 'MCAR')
+  
+  p2 <- plot_all_methods(res = res_district[["freqGLM"]]$results, fix_axis = DGP_ylims, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with freqGLM NB model', include_legend = F, squeeze_plots = T, remove_x_axis = T, remove_y_axis = F, y_lab = 'MCAR')
+  
+  p3 <- plot_all_methods(res = res_district[["CAR"]]$results, fix_axis = DGP_ylims, methods = c('WF_NB', 'freqGLM_NB','CAR'),  add_lines = list(F, F, F, F),  metrics = c('specificity', 'outbreak_detection3'), metric_rename = c('specificity', 'sensitivity-3'), results_by_point = F, rows = 1, title = 'Data Generated with CAR model', include_legend = F, squeeze_plots = T, remove_x_axis = F, remove_y_axis = F, y_lab = 'MCAR')
+  
+  cowplot::plot_grid(p1$plot, p2$plot, p3$plot, p1$legend, ncol = 1, rel_heights = c(3,3,3,1))
+  #cowplot::plot_grid(p1$plot, p2$plot,  p1$legend, ncol = 1, rel_heights = c(3,3,1))
+  ggsave('figures/DGP_NB_Allfits_NB_district_comparison_plots_07152024.pdf', height = 7.5, width = 5)
 }
 
 #
