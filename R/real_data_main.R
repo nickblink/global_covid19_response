@@ -9,7 +9,7 @@ library(rstan)
 library(cowplot)
 
 # Rscript R/real_data_main.R R_PI=10:CARburnin=100:CARnsample=200:output_path=results/real_data_analysis_allnegbin.RData
-# sbatch -J real_anal run_sim_real_anal.sh R_PI=200:CARburnin=2000:CARnsample=4000:output_path=results/real_data_analysis_rolling_07022024.RData
+# sbatch -J real_anal run_sim_real_anal.sh R_PI=200:CARburnin=5000:CARnsample=10000:output_path=results/real_data_analysis_rolling_07162024.RData
 
 source('R/imputation_functions.R')
 rstan_options(auto_write = TRUE)
