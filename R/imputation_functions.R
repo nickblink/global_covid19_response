@@ -3407,8 +3407,9 @@ sample_betas <- function(facilities, b0_mean = 4.3, b1_mean = -0.25, b1_sd = 0.2
 }
 
 ### Sample the negative binomial thetas for simulated data.
-sample_thetas <- function(facilities, theta_shape = 2.5, theta_rate = 1/3, ...){
-  thetas <- rgamma(n = length(facilities), shape = theta_shape, rate = theta_rate)
+sample_thetas <- function(facilities, DGP_theta_shape = 2.5, DGP_theta_rate = 1/3, ...){
+  browser()
+  thetas <- rgamma(n = length(facilities), shape = DGP_theta_shape, rate = DGP_theta_rate)
   
   names(thetas) <- facilities
   

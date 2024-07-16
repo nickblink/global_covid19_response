@@ -1,5 +1,5 @@
 library(MASS)
-library(CARBayesST)
+# library(CARBayesST)
 library(Matrix)
 library(dplyr)
 library(lubridate)
@@ -19,7 +19,7 @@ registerDoParallel(cores = 20)
 
 # get the parameters (first line is for testing on my home computer)
 # p b0 b1 missingness ST rho alpha tau2 R #jobs name_output job_id
-inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=CAR:rho_DGP=0.2:alpha_DGP=0.2:tau2_DGP=1:R=50:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=negbin:theta=5:empirical_betas=F:CARburnin=1000:CARnsample=2000:R_PI=200:models=5,6,7\r','3')
+inputs <- c('p=0.1:b0_mean=5.5:b1_mean=n0.25:missingness=mcar:DGP=CAR:DGP_theta_shape=2.7:DGP_theta_rate=0.33:rho_DGP=0.2:alpha_DGP=0.2:tau2_DGP=1:R=50:num_jobs=50:output_path=mcar01_WF_QPtheta9_beta055_beta1n025_ID499135_2023_12_05:family=negbin:theta=5:empirical_betas=F:CARburnin=1000:CARnsample=2000:R_PI=200:models=5,6,7\r','3')
 inputs <- commandArgs(trailingOnly = TRUE)
 print(inputs)
 
@@ -34,7 +34,7 @@ for(str in strsplit(inputs[[1]],':')[[1]]){
   tmp = strsplit(str, '=')[[1]]
   nn = tmp[1]
   val = tolower(tmp[2])
-  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta', 'dispersion','CARburnin','CARnsample','R_PI')){
+  if(nn %in% c('p','rho_DGP','alpha_DGP','tau2_DGP','rho_MAR','alpha_MAR','tau2_MAR','gamma','theta', 'dispersion','CARburnin','CARnsample','R_PI','DGP_theta_shape','DGP_theta_rate')){
     val = as.numeric(val)
   }else if(nn == 'b0_mean'){
     val = as.numeric(strsplit(val, '/')[[1]])
@@ -118,6 +118,14 @@ if(!is.null(params[['family']])){
     if('dispersion' %in% names(params)){
       arguments = c(arguments,
                     list(dispersion = params[['dispersion']]))
+    }
+    if('DGP_theta_shape' %in% names(params)){
+      arguments = c(arguments,
+                    list(DGP_theta_shape = params[['DGP_theta_shape']]))
+    }
+    if('DGP_theta_rate' %in% names(params)){
+      arguments = c(arguments,
+                    list(DGP_theta_rate = params[['DGP_theta_rate']]))
     }
   }else if(params[['family']] != c('poisson')){
     stop('improper family for DGP')
