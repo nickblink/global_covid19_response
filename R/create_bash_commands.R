@@ -1,6 +1,6 @@
 ## This script makes bash commands for given simulations
 
-bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = NULL, R = 1000, num_jobs = 50, output_path_addition = NULL, theta = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = 5000, CARnsample = 10000, R_PI = 200, models = c(2,4,7)){
+bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar', DGP = 'WF', family = 'negbin', R = 1000, num_jobs = 50, output_path_addition = NULL, theta = NULL, DGP_theta_rate = NULL, DGP_theta_shape = NULL, rho_DGP = NULL, alpha_DGP = NULL, tau2_DGP = NULL, rho_MAR = NULL, alpha_MAR = NULL, tau2_MAR = NULL, gamma = NULL, CARburnin = 5000, CARnsample = 10000, R_PI = 200, models = c(2,4,7)){
   
   if(tolower(DGP) == 'wf'){
     DGP_name = 'WF'
@@ -93,8 +93,16 @@ bash_command <- function(p, b0_mean = 6, b1_mean = 'n0.25', missingness = 'mcar'
           stop('please input theta value for quasipoisson')
         }else{
           params <- c(params,
-                      list(theta = theta,
-                           family = family))
+                      list(theta = theta))
+        }
+      }else if(family == 'negbin'){
+        if(!is.null(DGP_theta_shape)){
+          params <- c(params,
+                      list(DGP_theta_shape = DGP_theta_shape))
+        }
+        if(!is.null(DGP_theta_rate)){
+          params <- c(params,
+                      list(DGP_theta_rate = DGP_theta_rate))
         }
       }
     }
@@ -147,42 +155,92 @@ bash_wrapper <- function(p_vec = seq(0, 0.5, 0.1), bash_file = NULL, ...){
 }
 
 #### Appendix simulations ####
+bash_0716 <- 'cluster_code/cluster commands/bash_07162024.txt'
 
 # All MCAR
 
 # (1) WF beta0 = 6, beta1 = 0
+bash_wrapper(DGP = 'WF', family = 'negbin', b1_mean = 0,
+             bash_file = bash_0716)
 
 # (2) freqGLM beta0 = 5.5, beta1 = 0
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, b1_mean = 0,
+             bash_file = bash_0716)
 
 # (3) CAR beta0 = 6, beta1 = 0
+bash_wrapper(DGP = 'CAR', family = 'negbin', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25, b1_mean = 0,
+             bash_file = bash_0716)
 
 # (4) WF beta0 = 2, beta1 = 0
+bash_wrapper(DGP = 'WF', family = 'negbin', b1_mean = 0, b0_mean = 2,
+             bash_file = bash_0716)
 
 # (5) freqGLM beta0 = 1.5, beta1 = 0
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 1.5, b1_mean = 0,
+             bash_file = bash_0716)
 
 # (6) CAR beta0 = 2, beta1 = 0
+bash_wrapper(DGP = 'CAR', family = 'negbin', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25, b1_mean = 0, b0_mean = 2,
+             bash_file = bash_0716)
 
-# (7) WF with more overdispersion (lower theta)
+# (7) CAR with higher spatial correlation (rho = 0.7 and tau2 = 1)
+bash_wrapper(DGP = 'CAR', family = 'negbin', rho_DGP = 0.7, alpha_DGP = 0.3, tau2_DGP = 1, 
+             bash_file = bash_0716)
 
-# (8) freqGLM with more overdispersion (lower theta)
+# (8) freqGLM with higher spatial correlation (rho = 0.4, alpha = 0.2)
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.4, alpha_DGP = 0.2, b0_mean = 5.5, 
+             bash_file = bash_0716)
 
-# (9) CAR with more overdispersion (lower theta)
+# (9) WF with more overdispersion (higher theta rate)
+bash_wrapper(DGP = 'WF', family = 'negbin', 
+             DGP_theta_shape = 2.5, DGP_theta_rate = 0.667, output_path_addition = 'DGPthetarate0667',
+             bash_file = bash_0716)
+
+# (10) freqGLM with more overdispersion (higher theta rate)
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, 
+             DGP_theta_shape = 2.5, DGP_theta_rate = 0.667, output_path_addition = 'DGPthetarate0667',
+             bash_file = bash_0716)
+
+# (11) CAR with more overdispersion (higher theta rate)
+bash_wrapper(DGP = 'CAR', family = 'negbin', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,
+             DGP_theta_shape = 2.5, DGP_theta_rate = 0.667, output_path_addition = 'DGPthetarate0667',
+             bash_file = bash_0716)
 
 #### Running NB fit and DGP for MAR and MNAR - and re-doing freq ####
 
 # (1) freqGLM MCAR
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, 
+             bash_file = bash_0716)
 
 # (2) WF MAR
+bash_wrapper(DGP = 'WF', family = 'negbin',
+             missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4,
+             bash_file = bash_0716)
 
 # (3) freqGLM MAR
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, 
+             missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4,
+             bash_file = bash_0716)
 
 # (4) CAR MAR
+bash_wrapper(DGP = 'CAR', family = 'negbin', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25, 
+             missingness = 'mar', rho_MAR = 0.7, alpha_MAR = 0.7, tau2_MAR = 4,
+             bash_file = bash_0716)
 
 # (5) WF MNAR
+bash_wrapper(DGP = 'WF', family = 'negbin',
+             missingness = 'mnar', gamma = 1, 
+             bash_file = bash_0716)
 
 # (6) freqGLM MNAR
+bash_wrapper(DGP = 'freqGLM', family = 'negbin', rho_DGP = 0.2, alpha_DGP = 0.2, b0_mean = 5.5, 
+             missingness = 'mnar', gamma = 1, 
+             bash_file = bash_0716)
 
 # (7) CAR MNAR
+bash_wrapper(DGP = 'CAR', family = 'negbin', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25, 
+             missingness = 'mnar', gamma = 1, 
+             bash_file = bash_0716)
 
 #### Running CAR NB DGP with all NB models ####
 #bash_wrapper(missingness = 'mcar',DGP = 'CAR', family = 'negbin', rho_DGP = 0.3, alpha_DGP = 0.3, tau2_DGP = 0.25,  b0_mean = 6, CARburnin = 5000, CARnsample = 10000, output_path = 'mcar05_CAR0303025_beta_06_beta1n025_negbin_2024_07_11', bash_file = 'cluster_code/cluster commands/bash_07112024.txt')
