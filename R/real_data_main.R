@@ -17,7 +17,7 @@ rstan_options(auto_write = TRUE)
 # register the cores
 registerDoParallel(cores = 20)
 
-inputs <- c('R_PI=2:CARburnin=200:CARnsample=400:output_path=results/real_data_analysis_07052024.RData\r')
+inputs <- c('R_PI=2:CARburnin=20:CARnsample=40:output_path=results/real_data_analysis_07052024.RData\r')
 inputs <- commandArgs(trailingOnly = TRUE)
 
 params <- list()
@@ -159,7 +159,7 @@ one_run <- function(i, models = c('WF','WF_NB','freqGLM','freqGLM_NB','CAR_nsamp
   }
   
   if('CAR_phifit_negbin' %in% models){
-    res_list[['CAR_phifit_negbin']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = nsample, prediction_sample = F, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', use_fitted_phi = T, model_rename = 'y_CAR_phifit_negbin', family = 'negbin')
+    res_list[['CAR_phifit_negbin']] <- CARBayes_wrapper(df_roll, burnin = burnin, n.sample = nsample, prediction_sample = F, predict_start_date = '2016-01-01', MCMC_sampler = 'stan', train_end_date = train_end, use_fitted_phi = T, model_rename = 'y_CAR_phifit_negbin', family = 'negbin')
     df_roll <- res_list[['CAR_phifit_negbin']]$df
   }
   
@@ -179,5 +179,13 @@ system.time({
   results_list <- foreach(i = 1:length(eval_dates)) %dorng% one_run(i, models = c('WF_NB', 'freqGLM_NB', 'CAR_phifit_negbin'))
 })
 names(results_list) <- eval_dates
+
+# if(file.exists('C:/Users/nickl/') | file.exists('C:/Users/Admin-Dell/')){
+#   results_list <- NULL
+#   for(i in 1:length(eval_dates)){
+#     print(i)
+#     results_list[[i]] <- one_run(i, models = 'CAR_phifit_negbin')
+#   }
+# }
 
 save(results_list, file = params[['output_path']])
