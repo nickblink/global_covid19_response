@@ -1474,6 +1474,7 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
     colnames(phi) = facilities
     
     if(length(dates) > nrow(phi)+1 | length(dates) > nrow(phi_fit_r) + 1){
+      browser()
       stop('dimension mismatch. Probably due to more than one evaluation point.')
     }
     
