@@ -17,17 +17,32 @@ rqpois <- function(n, mu, theta) {
 }
 
 # make the adjacency matrix according to all facilities in a district being neighbors
-make_district_adjacency <- function(df, scale_by_num_neighbors = F){
-  # get the adjacency matrix
+make_district_adjacency <- function(df, scale_by_num_neighbors = F, include_no_neighbors = F){
+  
+  # get unique districts and facilities
   D2 = df %>% dplyr::select(district, facility) %>% 
     distinct() %>%
     arrange(facility)
+  facs <- D2$facility
+  
+  # make the adjacency matrix
   W = full_join(D2, D2, by = 'district', relationship = 'many-to-many') %>%
     filter(facility.x != facility.y) %>%
     dplyr::select(-district) %>%
     igraph::graph_from_data_frame() %>%
     igraph::as_adjacency_matrix() %>%
     as.matrix()
+  
+  # add in rows and columns for places with no neighbors
+  if(include_no_neighbors){
+    if(nrow(W) != length(facs)){
+      W_star <- matrix(0, nrow = length(facs), ncol = length(facs))
+      rownames(W_star) <- colnames(W_star) <- facs
+      matid <- match(rownames(W), rownames(W_star))
+      W_star[matid, matid] <- W
+      W <- W_star
+    }
+  }
   
   # scale the neighbor sum by the number of neighbors
   if(scale_by_num_neighbors){

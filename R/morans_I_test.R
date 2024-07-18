@@ -32,15 +32,20 @@ get_morans_I <- function(df, out_col = 'y', start_date = NULL, end_date = NULL, 
     tmp <- tmp[!is.na(tmp[,out_col]),]
     
     # get adjacency
-    W2 <- make_district_adjacency(tmp)
-    print(dd)
+    W2 <- make_district_adjacency(tmp, include_no_neighbors = T)
     
-    browser()
+    if(nrow(tmp) != nrow(W2)){
+      browser()
+    }
+
     # compute Moran's I.
     y_exp = mean(tmp[,out_col])
     tmp$residual <- tmp[,out_col] - y_exp
     numerator <- sum(tmp$residual * W2%*%tmp$residual)/sum(W2)
     denominator <- mean((tmp[,out_col] - y_exp)^2)
+    # print('----')
+    # print(numerator)
+    # print(denominator)
     I_tmp <- numerator/denominator
     return(I_tmp)
   })
@@ -68,3 +73,14 @@ df <- imputed_list[[1]]$df_miss %>%
 
 get_morans_I(df)
 get_morans_I(df, out_col= 'y_true')
+
+
+for(i in 1:10){
+  print('-----------')
+  file_name <- sprintf('mcar05_car0303025_beta_06_beta1n025_negbin_2024_07_11/sim_results_p0.5_mcar_%s(50).RData',i)
+  load(file_name)
+  df <- imputed_list[[1]]$df_miss %>%
+    select(date, facility, district, year, month, y, y_true)
+  print(get_morans_I(df))
+  print(get_morans_I(df, out_col= 'y_true'))
+}
