@@ -90,7 +90,7 @@ get_correlation <- function(files, num_calc = 10, methods = c('y_pred_WF_negbin'
   res_spatial <- list()
   res_temporal <- list()
   for(p in c('0','01','02','03','04','05')){
-    tt <- WF_res$results[[p]]$df_lst
+    tt <- file_res$results[[p]]$df_lst
     tmp_lst <- lapply(sample(length(tt), num_calc), function(ii){
       tmp <- tt[[ii]]
       return(list(moran = get_morans_I(tmp), alpha = get_temporal_autocorrelation(tmp)))
@@ -124,8 +124,14 @@ WF <- grep('wf', files, value = T)
 freqGLM <- grep('freqglm', files, value = T)
 CAR <- grep('2024_07_11', dir(res_dir, full.names = T), value = T)
 
-get_correlation(WF)
+system.time({get_correlation(WF, num_calc)})
 
+C = 50
+WF_res <- get_correlation(WF, num_calc = C)
+freqGLM_res <- get_correlation(freqGLM, num_calc = C)
+CAR_res <- get_correlation(CAR, num_calc = C)
+
+# save(WF_res, freqGLM_res, CAR_res, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/spatial_and_temporal_correlation_07182024.RData')
 
 #
 #### Plotting with all sensitivities ####
