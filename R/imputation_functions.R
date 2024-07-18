@@ -3302,6 +3302,80 @@ plot_CAR_params <- function(files = NULL, res_df = NULL, expected = data.frame(p
   return(final_plot)
 }
 
+
+### Calculate the temporal autocorrelation
+# df: data frame to calculate on.
+# out_col: which column to use as outcome.
+# avg_across_facs: If true, return the average across all facilities. If false, return the vector across facilities.
+get_temporal_autocorrelation <- function(df, out_col = 'y', avg_across_facs = T){
+  facs <- unique(df$facility)
+  
+  alpha_vec <- sapply(facs, function(f){
+    # filter by facility
+    tmp = df %>% 
+      filter(facility == f)
+    
+    # compute the autocorrelation.
+    y_mean <- mean(tmp[,out_col], na.rm = T)
+    tmp$residual <- tmp[,out_col] - y_mean
+    numerator <- mean(tmp$residual[-1]*tmp$residual[-nrow(tmp)], na.rm = T)
+    denominator <- mean((tmp[,out_col] - y_mean)^2, na.rm = T)
+    alpha_tmp <- numerator/denominator
+    return(alpha_tmp)
+  })
+  
+  if(avg_across_facs){
+    return(mean(alpha_vec))
+  }else{
+    return(alpha_vec)
+  }
+}
+
+### Calculate the morans I
+# df: data frame to calculate on, where adjacency is determined by the district.
+# out_col: which column to use as outcome.
+# start_date and end_date: date limits. If null, will use the earliest and latest date.
+# avg_across_time: If true, return the average across all time points. If false, return the vector across time points.
+get_morans_I <- function(df, out_col = 'y', start_date = NULL, end_date = NULL, avg_across_time = T){
+  # get the dates
+  dates <- unique(df$date)
+  if(!is.null(start_date)){dates <- dates[dates >= start_date]}
+  if(!is.null(end_date)){dates <- dates[dates <= end_date]}
+  
+  # get data adjacency matrix
+  #W <- make_district_adjacency(df)
+  
+  I_vec<- sapply(dates, function(dd){
+    # filter by date and non-missingness
+    tmp <- df %>% filter(date == dd)
+    tmp <- tmp[!is.na(tmp[,out_col]),]
+    
+    # get adjacency
+    W2 <- make_district_adjacency(tmp, include_no_neighbors = T)
+    
+    if(nrow(tmp) != nrow(W2)){
+      browser()
+    }
+    
+    # compute Moran's I.
+    y_mean = mean(tmp[,out_col])
+    tmp$residual <- tmp[,out_col] - y_mean
+    numerator <- sum(tmp$residual * W2%*%tmp$residual)/sum(W2)
+    denominator <- mean((tmp[,out_col] - y_mean)^2)
+    # print('----')
+    # print(numerator)
+    # print(denominator)
+    I_tmp <- numerator/denominator
+    return(I_tmp)
+  })
+  
+  if(avg_across_time){
+    return(mean(I_vec))
+  }else{
+    return(I_vec)
+  }
+}
+
 #
 ##### Simulation functions #####
 # function to simulate data

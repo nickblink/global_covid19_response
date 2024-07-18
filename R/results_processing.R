@@ -81,6 +81,27 @@ get_CARconvergence <- function(res, p = '0', CAR_name = 'CARstan_summary'){
   return(list(ESS = ESS, rhat = rhat))
 }
 
+# get the spatial and temporal correlation from a set of runs
+get_correlation <- function(files, num_calc = 10, methods = c('y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin','y_CAR_phifit')){
+  # get the results
+  file_res <- get_results(files, 'NA', methods = methods, return_unprocessed = T, expected_sims = NULL)
+  
+  # get spatial and temporal correlation.
+  res_spatial <- list()
+  res_temporal <- list()
+  for(p in c('0','01','02','03','04','05')){
+    tt <- WF_res$results[[p]]$df_lst
+    tmp_lst <- lapply(sample(length(tt), num_calc), function(ii){
+      tmp <- tt[[ii]]
+      return(list(moran = get_morans_I(tmp), alpha = get_temporal_autocorrelation(tmp)))
+    })
+    res_spatial[[p]] <- sapply(tmp_lst, '[[', 1)
+    res_temporal[[p]] <- sapply(tmp_lst, '[[', 2)
+  }
+  
+  return(list(res_spatial = res_spatial, res_temporal = res_temporal))
+}
+
 # check file lengths 
 file_check <- function(files){
   for(d in files){
@@ -97,6 +118,16 @@ file_check <- function(files){
 # load the full main paper results
 # load(paste0(res_dir,'/full_paper_results_12262023.RData'))
 
+#### Calculate the Moran's I and temporal autocorrelation across simulations ####
+files <- grep('2024_07_10', dir(res_dir, full.names = T), value = T)
+WF <- grep('wf', files, value = T)
+freqGLM <- grep('freqglm', files, value = T)
+CAR <- grep('2024_07_11', dir(res_dir, full.names = T), value = T)
+
+get_correlation(WF)
+
+
+#
 #### Plotting with all sensitivities ####
 load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/All_DGPandFit_negbin_07122024.RData')
 
@@ -184,7 +215,6 @@ WF <- grep('wf', files, value = T)
 freqGLM <- grep('freqglm', files, value = T)
 CAR <- grep('2024_07_11', dir(res_dir, full.names = T), value = T)
 file_check(CAR)
-
 
 res_facility <- list()
 res_district <- list()

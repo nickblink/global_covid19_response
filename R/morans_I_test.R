@@ -17,6 +17,31 @@ if(file.exists('C:/Users/Admin-Dell')){
 
 setwd(res_dir)
 
+### Temporal autocorrelation
+get_temporal_autocorrelation <- function(df, out_col = 'y', avg_across_facs = T){
+  facs <- unique(df$facility)
+  
+  alpha_vec <- sapply(facs, function(f){
+    # filter by facility
+    tmp = df %>% 
+      filter(facility == f)
+    
+    # compute the autocorrelation.
+    y_mean <- mean(tmp[,out_col], na.rm = T)
+    tmp$residual <- tmp[,out_col] - y_mean
+    numerator <- mean(tmp$residual[-1]*tmp$residual[-nrow(tmp)], na.rm = T)
+    denominator <- mean((tmp[,out_col] - y_mean)^2, na.rm = T)
+    alpha_tmp <- numerator/denominator
+    return(alpha_tmp)
+  })
+  
+  if(avg_across_facs){
+    return(mean(alpha_vec))
+  }else{
+    return(alpha_vec)
+  }
+}
+
 get_morans_I <- function(df, out_col = 'y', start_date = NULL, end_date = NULL, avg_across_time = T){
   # get the dates
   dates <- unique(df$date)
@@ -39,10 +64,10 @@ get_morans_I <- function(df, out_col = 'y', start_date = NULL, end_date = NULL, 
     }
 
     # compute Moran's I.
-    y_exp = mean(tmp[,out_col])
-    tmp$residual <- tmp[,out_col] - y_exp
+    y_mean = mean(tmp[,out_col])
+    tmp$residual <- tmp[,out_col] - y_mean
     numerator <- sum(tmp$residual * W2%*%tmp$residual)/sum(W2)
-    denominator <- mean((tmp[,out_col] - y_exp)^2)
+    denominator <- mean((tmp[,out_col] - y_mean)^2)
     # print('----')
     # print(numerator)
     # print(denominator)
