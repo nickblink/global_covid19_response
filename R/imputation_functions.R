@@ -1334,7 +1334,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = F, model_rename = NULL, family = 'poisson', ...){
+CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = F, model_rename = NULL, family = 'poisson', one_prediction_date = T, ...){
   
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
@@ -1342,9 +1342,9 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
   
   # get the max date
   max_date <- max(df$date)
-  
+
   if(is.null(predict_start_date)){
-    browser()
+
     # is this really what you want?
     dates = df %>% 
       dplyr::filter(date > train_end_date) %>%
@@ -1352,6 +1352,10 @@ CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-0
       unique() %>%
       .$date
     predict_start_date = min(dates)
+    if(one_prediction_date){
+      df = df %>%
+        filter(date <= predict_start_date)
+    }
   }else{
     dates = df %>% 
       dplyr::filter(date >= predict_start_date) %>%
@@ -2805,18 +2809,19 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       }
       
       # make the plot!
+
       p1 <- ggplot() +
         geom_line(data = tmp, aes(x = date, y = y), size = 1) + 
         geom_line(data = df_f, aes(x = date, y = y, group = method, color = method), show.legend = include_legend) +
         #scale_color_manual(values = c(color_vec)) + 
         #scale_fill_manual(values = c(color_vec)) + 
-        ylim(c(0,ymax)) +
         # ggtitle(sprintf('facility %s', f)) +
         ggtitle(f) + 
         ylab('y') +
         theme_bw() +
         scale_x_date( minor_breaks = '1 month') + 
-        theme(text = element_text(size = 10))
+        theme(text = element_text(size = 10)) + 
+        coord_cartesian(ylim = c(0,ymax))
       
       if(PIs){
         p1 <- p1 + geom_ribbon(data = df_f, aes(x = date,ymin = y_lower, ymax = y_upper, fill = method, colour = method), alpha = 0.1, show.legend = F)
@@ -3024,9 +3029,10 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
   # get the number of times each data point was missing across simulations
   num_missing = apply(y_missing, 1, function(xx) sum(!is.na(xx)))
   }
-  
+
   df = NULL
   for(method in methods){
+    print(method)
     lower_025 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.025')]))
     upper_975 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.975')]))
     lower_25 = do.call('cbind', lapply(imputed_list, function(xx) xx[,paste0(method, '_0.25')]))
@@ -3100,7 +3106,7 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
 ## keep_y_axis: ('left','all','none') 
 ## ...: params to be passed into "combine_results_wrapper"
 
-plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, plot_indiv_points = F, legend_text = 17, squeeze_plots = F, remove_x_axis = F, keep_y_axis = 'left', y_lab = NULL, ...){
+plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, method_rename = NULL, methods = NULL, add_lines = rep(F, 4), bar_quants = c(0.25, 0.75), metrics = c('specificity', 'outbreak_detection3', 'outbreak_detection5', 'outbreak_detection10'), metric_rename = c('specificity', 'sensitivity-3', 'sensitivity-5', 'sensitivity-10'), rows = 2, title = NULL, include_legend = T, plot_indiv_points = F, legend_text = 17, squeeze_plots = F, remove_x_axis = F, keep_y_axis = 'left', y_lab = NULL, ...){
   if(is.null(res)){
     if(!is.null(files)){
       tmp <- combine_results_wrapper(files,  ...)
@@ -3110,19 +3116,9 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     }
   }
   
-  if((length(metric_rename) != length(metrics)) & (length(metrics) >0) & (length(metric_rename) > 0)){
-    stop('metric rename and metrics dont match in length')
-  }
-  
-  # get color set up
-  method_colors <- setNames(c('orange3', 'forestgreen', 'blue'), levels(res$method))
-  
   # fixing the axis dimensions
   if(length(fix_axis) == 1){
     fix_axis = rep(fix_axis, length(metrics))
-  }
-  if(length(unique(fix_axis)) > 1){
-    warning('multiple different y axis')
   }
   
   options(dplyr.summarise.inform = FALSE)
@@ -3133,6 +3129,10 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
                      xend = seq(0.05, max(res$prop_missing) + 0.05, by = 0.1),
                      stripe = stripes)
   
+  if((length(metric_rename) != length(metrics)) & (length(metrics) >0) & (length(metric_rename) > 0)){
+    stop('metric rename and metrics dont match in length')
+  }
+  
   # rename the metrics
   if(!is.null(metric_rename)){
     for(i in 1:length(metrics)){
@@ -3140,6 +3140,22 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
     }
     metrics <- metric_rename
   }
+  
+  # get the methods names
+  if(!is.null(method_rename) & !is.null(methods)){
+    methods <- method_rename[match(levels(res$method), methods)]
+  }
+  if(is.null(methods)){
+    methods <- levels(res$method)
+  }
+  
+  # refactor methods for ordering
+  if(class(res$method) == 'factor'){
+    res$method = factor(res$method, levels = levels(res$method), labels = methods)
+  }
+  
+  # get color set up
+  method_colors <- setNames(c('orange3', 'forestgreen', 'blue'), methods)
   
   plot_list = list()
   i = 0
@@ -3157,17 +3173,9 @@ plot_all_methods <- function(files = NULL, res = NULL, fix_axis = F, add_lines =
                   upper = stats::quantile(get(metric), probs = bar_quants[2])) 
     }
     
-    
     print(metric)
-    #print(tmp)
-    
     # remove parts of string not wanted in plot.
-    tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
-    
-    # refactor for ordering
-    if(class(res$method) == 'factor'){
-      tmp$method = factor(tmp$method, levels = levels(res$method))
-    }
+    #  tmp$method <- gsub('y_pred_|_MCAR', '', tmp$method)
     
     # plot!
     if(plot_indiv_points){
@@ -3336,7 +3344,7 @@ get_temporal_autocorrelation <- function(df, out_col = 'y', avg_across_facs = T)
 # out_col: which column to use as outcome.
 # start_date and end_date: date limits. If null, will use the earliest and latest date.
 # avg_across_time: If true, return the average across all time points. If false, return the vector across time points.
-get_morans_I <- function(df, out_col = 'y', start_date = NULL, end_date = NULL, avg_across_time = T){
+get_morans_I <- function(df, out_col = 'y', start_date = NULL, end_date = NULL, avg_across_time = T, normalize_weights = F){
   # get the dates
   dates <- unique(df$date)
   if(!is.null(start_date)){dates <- dates[dates >= start_date]}
@@ -3348,24 +3356,29 @@ get_morans_I <- function(df, out_col = 'y', start_date = NULL, end_date = NULL, 
   I_vec<- sapply(dates, function(dd){
     # filter by date and non-missingness
     tmp <- df %>% filter(date == dd)
-    tmp <- tmp[!is.na(tmp[,out_col]),]
-    
-    # get adjacency
-    W2 <- make_district_adjacency(tmp, include_no_neighbors = T)
-    
-    if(nrow(tmp) != nrow(W2)){
-      browser()
-    }
     
     # compute Moran's I.
-    y_mean = mean(tmp[,out_col])
-    tmp$residual <- tmp[,out_col] - y_mean
-    numerator <- sum(tmp$residual * W2%*%tmp$residual)/sum(W2)
-    denominator <- mean((tmp[,out_col] - y_mean)^2)
-    # print('----')
-    # print(numerator)
-    # print(denominator)
-    I_tmp <- numerator/denominator
+    if(normalize_weights){
+      W2 <- make_district_adjacency(tmp, include_no_neighbors = T)
+      I_tmp <- ape::Moran.I(tmp[,out_col], W2, na.rm = T)$observed
+    }else{
+      tmp <- tmp[!is.na(tmp[,out_col]),]
+      
+      # get adjacency
+      W2 <- make_district_adjacency(tmp, include_no_neighbors = T)
+      
+      if(any(colnames(W2) != rownames(W2)) | any(colnames(W2) != tmp$facility)){
+        browser()
+      }
+      y_mean = mean(tmp[,out_col])
+      tmp$residual <- tmp[,out_col] - y_mean
+      numerator <- sum(tmp$residual * W2%*%tmp$residual)/sum(W2)
+      denominator <- mean((tmp[,out_col] - y_mean)^2)
+      # print('----')
+      # print(numerator)
+      # print(denominator)
+      I_tmp <- numerator/denominator
+    }
     return(I_tmp)
   })
   
@@ -3714,10 +3727,6 @@ simulate_data <- function(district_sizes, R = 1, empirical_betas = F, seed = 10,
         df$y_var = list(...)$theta*df$y_exp + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
       }else{
         df$y_var = df$y_exp + exp(2*df$mu_marginal + 2*df$sigma2_marginal)/df$theta + (exp(df$sigma2_marginal) - 1)*exp(2*df$mu_marginal + df$sigma2_marginal)
-        #browser()
-        # Need to do the variance calculations for this. And then test it - how? By comparing sds away to the standard normal.
-        #stop('input a proper family')
-        warning('no variance calculation.')
       }
       
       # simulate the observed values
