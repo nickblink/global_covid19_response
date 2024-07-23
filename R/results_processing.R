@@ -515,12 +515,15 @@ CAR_res <- get_correlation(CAR, num_calc = C)
 
 # save(WF_res, freqGLM_res, CAR_res, file = 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/spatial_and_temporal_correlation_07182024.RData')
 
-WF_1 <- get_correlation(WF, num_calc = 10, normalize_weights = F)
-WF_2 <- get_correlation(WF, num_calc = 10, normalize_weights = T)
+load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/spatial_and_temporal_correlation_07182024.RData')
 
-sapply(WF_1$res_spatial, median)
-sapply(WF_2$res_spatial, median)
+sapply(WF_res$res_spatial, function(xx) mean(xx))
+sapply(freqGLM_res$res_spatial, function(xx) mean(xx))
+sapply(CAR_res$res_spatial, function(xx) mean(xx))
 
+sapply(WF_res$res_temporal, function(xx) mean(xx))
+sapply(freqGLM_res$res_temporal, function(xx) mean(xx))
+sapply(CAR_res$res_temporal, function(xx) mean(xx))
 #
 #### Plotting with all sensitivities ####
 load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/All_DGPandFit_negbin_07122024.RData')
