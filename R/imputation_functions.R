@@ -483,7 +483,7 @@ combine_results <- function(input_folder, results_file = NULL, return_lst = T, r
   }
   if(any(object_sizes < .9*mean(object_sizes))){
     ind <- which(object_sizes < .9*mean(object_sizes))
-    warning(sprintf('there are %s out of %s object sizes less than half the mean size. That shouldnt be. Removing them', length(ind), length(check_lst)))
+    warning(sprintf('there are %s out of %s object sizes less than half the mean size in %s. That shouldnt be. Removing them', length(ind), length(check_lst), input_folder))
     print(head(ind))
     if((length(ind) > 0.05*length(check_lst)) & !ignore_size_err){
       stop('too many files of incomplete size.')

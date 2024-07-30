@@ -103,7 +103,7 @@ district_df$district_nn <- dist_n$new_name[match(district_df$district, dist_n$di
 district_rename <- district_df %>%
   mutate(facility = district_nn)
 
-p1 <- plot_facility_fits(district_rename, methods = c('y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin', 'y_CAR_phifit_negbin'), PI = F, imp_names = c('WF','freqGLM', 'CAR'), upper_lim = T)
+p1 <- plot_facility_fits(district_rename, methods = c('y_pred_WF_negbin', 'y_pred_freqGLMepi_negbin', 'y_CAR_phifit_negbin'), PI = F, imp_names = c('WF','freqGLM', 'CAR'), upper_lim = T, color_vec = c('orange3', 'forestgreen', 'blue'))
 
 ggsave(plot = p1, filename = 'figures/Maryland_analysis_district_fits_NB_07232024.pdf', height = 5, width = 10)
 
@@ -135,7 +135,7 @@ p2 <- ggplot(district_df_o %>% filter(date >= '2020-01-01',
 
 legend = get_plot_component(p1 + theme(legend.position = 'bottom', legend.text=element_text(size=12)),
                             'guide-box',
-                            return_all = T)[[3]]
+                            return_all = T)
 
 final_plot <- plot_grid(plot_grid(p1 + theme(legend.position = 'none'), p2 + theme(legend.position = 'none')),
                         legend, ncol = 1, rel_heights = c(5,1))
