@@ -2809,7 +2809,6 @@ plot_facility_fits <- function(df, methods = NULL, imp_names = NULL, color_vec =
       }
       
       # make the plot!
-
       p1 <- ggplot() +
         geom_line(data = tmp, aes(x = date, y = y), size = 1) + 
         geom_line(data = df_f, aes(x = date, y = y, group = method, color = method), show.legend = include_legend) +
