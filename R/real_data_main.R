@@ -38,7 +38,7 @@ for(str in strsplit(inputs,':')[[1]]){
 
 ### Data prep
 {
-  data_file <- ifelse(file.exists('data/liberia_cleaned_01-06-2021.rds'), 'data/liberia_cleaned_01-06-2021.rds', 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/liberia_cleaned_01-06-2021.rds')
+  data_file <- ifelse(file.exists('data/liberia_cleaned_01-06-2021.rds'), 'data/liberia_cleaned_01-06-2021.rds', 'C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/liberia_cleaned_01-06-2021.rds')
   Dfull <- readRDS(data_file)
   
   Dfull %>% group_by(county) %>%

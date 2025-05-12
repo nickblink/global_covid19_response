@@ -7,6 +7,7 @@ library(doRNG)
 library(doParallel)
 library(rstan)
 library(cowplot)
+library(bayesplot)
 
 source('R/imputation_functions.R')
 
@@ -37,6 +38,7 @@ generate_outbreak_columns <- function(df, models = c('y_pred_WF_negbin','y_pred_
 
 
 #### 05/12/2025: Getting CAR stan diagnostics ####
+# First part - getting the convergence statistics.
 load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/real_data_analysis_rolling_07232024.rdata')
 
 # They were fit on rolling windows for 11 months so there are 11 model fits.
@@ -71,7 +73,23 @@ summary_medians <- all_data %>%
   )
 
 
+# Second part - getting the diagnostics 
+load('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/CAR_stan_fit_real_data_first_eval_date_05122025.RData')
 
+posterior_array <- as.array(stan_fit)
+nn <- dimnames(posterior_array)
+head(nn$parameters,30)
+
+mcmc_trace(posterior_array, pars = c("rho", "alpha", "tau2", "theta[1]", "beta[1]", "phi[1]"))
+# high autocorrelation for rho, alpha, tau2. This could be from centered parameterization and/or non-identifiability. But this explains the low ESS.
+
+ggsave(file = 'figures/real_data_singlerun_traceplots_05122025.pdf', width = 7, height = 5)
+
+mcmc_dens(posterior_array, pars = c("rho", "alpha", "tau2", "theta[1]", "beta[1]", "phi[1]"))
+
+ggsave(file = 'figures/real_data_singlerun_densityplots_05122025.pdf', width = 7, height = 5)
+
+#
 #### 07/23/2024: Pulling in newest results ####
 load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/real_data_analysis_rolling_07232024.rdata')
 
