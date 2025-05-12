@@ -1241,9 +1241,11 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
       # stan_fit[1,1,test[21:80]]
     }
     
-    
+    # browser()
+    # out_file <- 'C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/CAR_stan_fit_real_data_first_eval_date_05122025.RData'
+    # save(stan_fit, file = out_file)
     # extract out the important features from the model
-    stan_out <- extract(stan_fit)
+    stan_out <- rstan::extract(stan_fit)
     
     # pull out the beta params
     beta_df <- as.data.frame(stan_out$beta)

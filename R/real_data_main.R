@@ -18,7 +18,7 @@ rstan_options(auto_write = TRUE)
 # register the cores
 registerDoParallel(cores = 20)
 
-inputs <- c('R_PI=2:CARburnin=20:CARnsample=40:output_path=results/real_data_analysis_07052024.RData\r')
+inputs <- c('R_PI=2:CARburnin=5000:CARnsample=10000:output_path=results/real_data_analysis_05122025.RData:return_raw_fit=TRUE\r')
 inputs <- commandArgs(trailingOnly = TRUE)
 
 params <- list()
@@ -27,6 +27,9 @@ for(str in strsplit(inputs,':')[[1]]){
   tmp = strsplit(str, '=')[[1]]
   nn = tmp[1]
   val = tolower(tmp[2])
+  if(val == 'true'){
+    val <- T
+  }
   if(nn %in% c('R_PI','CARburnin','CARnsample')){
     val = as.numeric(val)
   }
@@ -172,9 +175,15 @@ one_run <- function(i, models = c('WF','WF_NB','freqGLM','freqGLM_NB','CAR_nsamp
   return(list(df = df_roll, res_list = res_list))
 }
 
-# print('starting one run')
-# test <- one_run(1)
-# print('done')
+## For at home testing
+eval_dates <- eval_dates[1]
+system.time({
+  for(i in 1:length(eval_dates)){
+    res <- one_run(i, models = c('CAR_phifit_negbin'))
+    results_list[[i]] <- res
+  } 
+}) # 11s for 40 samples on 1 loc, so 10k should only be 45m or less
+HERE AT 1012am
 
 system.time({
   results_list <- foreach(i = 1:length(eval_dates)) %dorng% one_run(i, models = c('WF_NB', 'freqGLM_NB', 'CAR_phifit_negbin'))

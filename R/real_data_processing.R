@@ -36,6 +36,42 @@ generate_outbreak_columns <- function(df, models = c('y_pred_WF_negbin','y_pred_
 }
 
 
+#### 05/12/2025: Getting CAR stan diagnostics ####
+load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/real_data_analysis_rolling_07232024.rdata')
+
+# They were fit on rolling windows for 11 months so there are 11 model fits.
+CAR_res <- lapply(results_list, function(xx){
+  tt <- xx$res_list$CAR_phifit_negbin$CARstan_summary
+  as.data.frame(tt)
+})
+
+# Step 1: Define a function to tag each parameter with a group
+label_groups <- function(df) {
+  df$param <- rownames(df)
+  
+  df$group <- "other"
+  df$group[df$param == "tau2"] <- "tau2"
+  df$group[df$param == "rho"] <- "rho"
+  df$group[df$param == "alpha"] <- "alpha"
+  df$group[grepl("^theta\\[[0-9]+\\]$", df$param)] <- "theta"
+  
+  return(df[, c("group", "n_eff", "Rhat")])
+}
+
+# Step 2: Apply the labeling function to each df and combine them
+all_data <- do.call(rbind, lapply(df_list, label_groups))
+
+# Step 3: Compute the median across all data frames for each group
+summary_medians <- all_data %>%
+  group_by(group) %>%
+  summarize(
+    median_n_eff = median(n_eff, na.rm = TRUE),
+    median_Rhat = median(Rhat, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+
 #### 07/23/2024: Pulling in newest results ####
 load('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/results/real_data_analysis_rolling_07232024.rdata')
 
