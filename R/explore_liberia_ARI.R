@@ -1,7 +1,7 @@
 library(tidyverse)
 setwd('github_projects/global_covid19_response/')
 
-D <- readRDS('C:/Users/Admin-Dell/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/liberia_cleaned_01-06-2021.rds')
+D <- readRDS('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/liberia_cleaned_01-06-2021.rds')
 
 D2 <- D %>%
   select(date, facility, ari = indicator_count_ari_total)

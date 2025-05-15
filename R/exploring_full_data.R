@@ -19,6 +19,172 @@ remove_outliers <- function(x, k = 5){
   return(x)
 }
 
+##### Exploring Maryland County Data for paper (05/15/2025) #####
+D <- readRDS('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/liberia_cleaned_01-06-2021.rds')
+
+D2 <- D %>%
+  filter(county == 'Maryland') %>%
+  select(date, facility, district, ari = indicator_count_ari_total) %>%
+  mutate(na = as.integer(is.na(ari))) %>%
+  group_by(facility) %>%
+  mutate(
+    ari_scaled = (ari - min(ari, na.rm = TRUE)) / 
+      (max(ari, na.rm = TRUE) - min(ari, na.rm = TRUE)),
+  )
+D2$na <- as.integer(is.na(D2$ari))
+
+D2$facility_clean <- D2$facility |>
+  gsub("Clinic", "", x = _) |>
+  gsub("Medical Center", "", x = _) |>
+  gsub("Health Center", "", x = _) |>
+  gsub("\\s*\\(.*?\\)", "", x = _) |>
+  trimws()
+
+# ari un-scaled
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+
+# Define date range
+start_date <- as.Date("2016-01-01")
+end_date <- as.Date("2019-12-31")
+expected <- 48  # expected number of months
+
+# Step 1–3: Count observed and assign generic names
+facility_labels <- D2 %>%
+  filter(date >= start_date & date <= end_date) %>%
+  group_by(facility_clean) %>%
+  summarise(observed = sum(!is.na(ari)), .groups = "drop") %>%
+  arrange(facility_clean) %>%  # or sort by observed if you prefer
+  mutate(facility_number = paste0("Facility ", row_number()),
+         label = paste0(facility_number, " (", observed, "/", expected, ")"))
+
+# Ensure the label is an ordered factor
+facility_labels$label <- factor(facility_labels$label, levels = facility_labels$label)
+
+# Join labels back to the main data
+D2 <- D2 %>%
+  left_join(facility_labels %>% select(facility_clean, label), by = "facility_clean")
+
+# Plot
+ggplot(data = D2) + 
+  geom_line(aes(x = date, y = ari)) + 
+  geom_vline(xintercept = as.Date("2020-01-01"), linetype = "dashed", color = "red") +
+  facet_wrap(~label, scales = "free_y") +
+  labs(y = "ARI") +
+  theme_minimal() +
+  theme(
+    panel.grid = element_blank(),
+    panel.background = element_blank(),
+    plot.background = element_blank()
+  )
+
+# ari scaled
+# ggplot(data = D2) + 
+#   geom_line(aes(x = date, y = ari_scaled)) + 
+#   geom_vline(xintercept = as.Date("2020-01-01"), linetype = "dashed", color = "red") +
+#   facet_wrap(~facility) + 
+#   theme_minimal()
+
+ggsave(filename = 'figures/Maryland_facilities_raw_05152025.pdf', width = 10, height = 7)
+
+### Making the maps of locations
+library(sf)
+library(rnaturalearth)
+library(patchwork)
+
+# loading facility locs
+D_fac <- read_csv('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/maryland_county_coordinates.csv')
+
+# loading district shapefile
+# # Read in GADM admin level 2 shapefile (this only showed two districts.)
+# adm2 <- st_read("C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/Liberia_district_shapefiles/gadm41_LBR_2.shp")
+# 
+# # Filter to Maryland County
+# maryland_districts <- adm2 %>% filter(NAME_1 == "Maryland")
+adm2 <- st_read('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/geoBoundaries-LBR-ADM2.geojson')
+
+# Filter to Maryland County
+maryland_districts <- adm2 %>% 
+  filter(shapeName %in% c('Karluway #1',
+                          'Karluway #2',
+                          'Harper',
+                          'Pleebo/Sodoken',
+                          #'Whojah',
+                          'Gwelekpoken',
+                          'Nyorken'))
+
+
+# Convert D_fac to sf using Longitude and Latitude
+D_fac_sf <- D_fac %>%
+  st_as_sf(coords = c("Longitude", "Latitude"), crs = 4326) 
+
+# Get Liberia country outline
+liberia <- ne_countries(scale = "medium", country = "Liberia", returnclass = "sf")
+
+liberia_admin1 <- ne_states(country = "Liberia", returnclass = "sf")
+
+# Filter Maryland County.
+maryland <- liberia_admin1 %>% filter(name == "Maryland")
+
+# Get the bounding box for Maryland.
+#maryland_bbox <- st_bbox(maryland_districts)
+maryland_bbox <- st_bbox(maryland)
+bbox_poly <- st_as_sfc(maryland_bbox)
+
+
+# Create p1: Liberia with Maryland highlighted and bounding box
+p1 <- ggplot() +
+  geom_sf(data = liberia, fill = "white", color = "black") +
+  #geom_sf(data = maryland_districts, fill = "lightblue", color = "blue") +
+  geom_sf(data = maryland, fill = 'lightblue') +
+  geom_sf(data = bbox_poly, fill = NA, color = "red", size = 3) +
+  labs(title = "Liberia") +
+  theme_minimal() +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank()
+  )
+
+# Create p2: Maryland with facility points
+p2 <- ggplot() +
+  geom_sf(data = maryland, fill = "white", color = "black") +
+  #geom_sf(data = maryland_districts, fill = 'white', color = 'black') +
+  geom_sf(data = D_fac_sf, color = 'red', size = 2) +
+  geom_sf(data = bbox_poly, fill = NA, color = "red", size = 3) + 
+  labs(title = "Maryland County") +
+  theme_minimal() +
+  theme(
+    axis.title = element_blank(),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank()
+  )
+
+# # option with districts colored
+# p2 <- ggplot() +
+#   geom_sf(data = maryland, fill = "white", color = "black") +
+#   geom_sf(data = D_fac_sf, aes(color = `Health  District`), size = 2) +
+#   geom_sf(data = bbox_poly, fill = NA, color = "red", size = 3) + 
+#   labs(title = "Maryland County") +
+#   theme_minimal() +
+#   theme(
+#     axis.title = element_blank(),
+#     axis.text = element_blank(),
+#     axis.ticks = element_blank(),
+#     panel.grid = element_blank(),
+#     legend.position = "none"
+#   )
+
+
+# Combine plots
+p1 + p2
+
+# ggsave(filename = 'figures/Liberia_Maryland_map_nodist_05152025.pdf', width = 6, height = 4)
+
+#
 ##### Theta values from negative binomial #####
 D <- read.csv('data/coef_nb_1_3.csv')
 thetas <- D[,9]
