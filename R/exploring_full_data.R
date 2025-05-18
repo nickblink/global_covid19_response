@@ -90,11 +90,12 @@ ggsave(filename = 'figures/Maryland_facilities_raw_05152025.pdf', width = 10, he
 
 ### Making the maps of locations
 library(sf)
+library(tidyverse)
 library(rnaturalearth)
 library(patchwork)
 
 # loading facility locs
-D_fac <- read_csv('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/maryland_county_coordinates.csv')
+D_fac <- read_csv('C:/Users/nickl/Dropbox/Academic/HSPH/Research/Syndromic Surveillance/Data/maryland_county_coordinates_DHIS2.csv')
 
 # loading district shapefile
 # # Read in GADM admin level 2 shapefile (this only showed two districts.)
@@ -149,7 +150,9 @@ p1 <- ggplot() +
   )
 
 # Create p2: Maryland with facility points
-p2 <- ggplot() +
+colormap = T
+if(!colormap){
+  p2 <- ggplot() +
   geom_sf(data = maryland, fill = "white", color = "black") +
   #geom_sf(data = maryland_districts, fill = 'white', color = 'black') +
   geom_sf(data = D_fac_sf, color = 'red', size = 2) +
@@ -163,26 +166,28 @@ p2 <- ggplot() +
     panel.grid = element_blank()
   )
 
-# # option with districts colored
-# p2 <- ggplot() +
-#   geom_sf(data = maryland, fill = "white", color = "black") +
-#   geom_sf(data = D_fac_sf, aes(color = `Health  District`), size = 2) +
-#   geom_sf(data = bbox_poly, fill = NA, color = "red", size = 3) + 
-#   labs(title = "Maryland County") +
-#   theme_minimal() +
-#   theme(
-#     axis.title = element_blank(),
-#     axis.text = element_blank(),
-#     axis.ticks = element_blank(),
-#     panel.grid = element_blank(),
-#     legend.position = "none"
-#   )
-
+}else{
+  # # option with districts colored
+  p2 <- ggplot() +
+    geom_sf(data = maryland, fill = "white", color = "black") +
+    #geom_sf(data = maryland_districts, fill = 'white', color = 'black') +
+    geom_sf(data = D_fac_sf, aes(color = `Health  District`), size = 2) +
+    geom_sf(data = bbox_poly, fill = NA, color = "red", size = 3) +
+    labs(title = "Maryland County") +
+    theme_minimal() +
+    theme(
+      axis.title = element_blank(),
+      axis.text = element_blank(),
+      axis.ticks = element_blank(),
+      panel.grid = element_blank(),
+      legend.position = "none"
+    )  
+}
 
 # Combine plots
 p1 + p2
 
-# ggsave(filename = 'figures/Liberia_Maryland_map_nodist_05152025.pdf', width = 6, height = 4)
+#ggsave(filename = 'figures/Liberia_Maryland_map_colordist_05152025.pdf', width = 6, height = 4)
 
 #
 ##### Theta values from negative binomial #####
