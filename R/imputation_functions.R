@@ -698,7 +698,15 @@ process_CAR_params_wrapper <- function(files, rename_params = T, all_betas = F, 
 #
 ##### Imputation Functions #####
 
-# Weingberger-Fulcher fitting method
+### Weingberger-Fulcher fitting method
+# df: data frame to fit model on. 
+# col: target column (usually "y").
+# group: hierarchical level to run analysis on. 
+# family: distribution.
+# period: period for adding periodic covariates. 
+# R_PI: Number of bootstrap iterations for prediction interval.
+# bias_correction_chen: Whether to apply a bias correction for estimating Poisson betas.
+# quant_probs: The quant probabilities to generate predictive intervals. 
 WF_fit <- function(df, col, group = 'facility', family = 'negbin', period = 12, R_PI = 500, bias_correction_chen = F, quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975)){
   
   print(family)
@@ -716,7 +724,7 @@ WF_fit <- function(df, col, group = 'facility', family = 'negbin', period = 12, 
   formula_col = as.formula(sprintf("%s ~ year + cos1 + sin1 + cos2 + sin2 + cos3 + sin3", col))
   
   if(family == 'quasipoisson'){
-    warning('havent coded PIs in quasipoisson or NB yet')
+    warning('havent coded PIs in quasipoisson yet')
     
     tmp <- lapply(uni_group, function(xx) {
       tt <- df %>% filter(get(group) == xx)
@@ -935,7 +943,11 @@ WF_fit <- function(df, col, group = 'facility', family = 'negbin', period = 12, 
   return(res_lst)
 }
 
-# run a complete case analysis for the WF method
+### run a complete case analysis for the WF method
+# df: df to fit on.
+# district_df: df of district-level analysis if that's what is done.
+# train_end_date: when to fit the model until.
+# ...: extra parameters that can be input into WF_fit.
 WF_CCA <- function(df, district_df = NULL, train_end_date = '2019-12-01', ...){
   # replace values in the test set with missing ones
   tmp <- df
@@ -1336,7 +1348,7 @@ CARBayes_fitting <- function(df, col, AR = 1, return_type = 'all', model = 'faci
 # predict_start_date: the starting time point for where predictions should be run. If null, defaults to all dates after train_end_date
 # col: outcome column
 # quant_probs: quantiles to be returned from prediction samples
-CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = F, model_rename = NULL, family = 'poisson', one_prediction_date = T, ...){
+CARBayes_wrapper <- function(df, R_posterior = NULL, train_end_date = '2019-12-01', predict_start_date = NULL, col = 'y', quant_probs = c(0.025, 0.05, 0.25, 0.5, 0.75, 0.95, 0.975), return_chain = F, return_raw_fit = F, use_fitted_phi = T, model_rename = NULL, family = 'poisson', one_prediction_date = T, ...){
   
   # get districts and facilities
   dist_fac <- get_district_facilities(df)
@@ -2965,7 +2977,7 @@ clean_data_list <- function(imputed_list, dates = '2020-01-01',  min_date = NULL
 
 # calculate the metrics across simulations
 calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes_ST"), results_by_point = F, date = '2020-01-01', min_date = NULL, rm_ARna = F, imputed_only = F,  use_point_est = F, k = NULL, district_results = F, QP_variance_adjustment, family = 'Poisson', ...){
-
+  browser()
   if(results_by_point){
     # getting the results for each point across all simulations
     avg_fxn = rowMeans
@@ -3013,10 +3025,6 @@ calculate_metrics <- function(imputed_list, methods = c("y_pred_WF", "y_CARBayes
       y_var = QP_variance_adjustment*y_var
     }
   }
-  # print('y var')
-  # print(head(y_var[,1]))
-  # print('y exp')
-  # print(head(y_exp[,1]))
   
   # calculate the outbreak values
   y_outbreak3 <- y_exp + 3*sqrt(y_var)
@@ -3392,57 +3400,6 @@ get_morans_I <- function(df, out_col = 'y', start_date = NULL, end_date = NULL, 
 
 #
 ##### Simulation functions #####
-# function to simulate data
-# simulate_imputation <- function(df, col, p = 0.1, group = NULL){
-#   set.seed(1)
-#   # if not worrying about the grouping of randomization
-#   
-#   # set the true value to null for the df
-#   df[,paste0(col, '_true')] = as.integer(NA)
-#   
-#   if(is.null(group)){
-#     # get the number of data points to impute
-#     num_impute = round(p*nrow(df)) - sum(is.na(df[,col]))
-#     
-#     if(num_impute <= 0){
-#       warning('skipping imputation. Already too many missing')
-#       return(df)
-#     }
-#     
-#     # sample the indices to impute
-#     ind_sample = sample(setdiff(1:nrow(df), which(is.na(df[,col]))), num_impute)
-#     
-#     # store the true value of the values to replace
-#     df[ind_sample, paste0(col, '_true')] <- df[ind_sample, col]
-#     
-#     # replace the values with NAs
-#     df[ind_sample, col] = NA
-#     
-#   }else{
-#     # doing grouping
-#     uni_group = df %>% pull(UQ(group)) %>% unique()
-#     
-#     # apply to each group
-#     tmp <- lapply(uni_group, function(xx) {
-#       tt <- df %>% filter(get(group) == xx)
-#       num_impute = round(p*nrow(tt)) - sum(is.na(tt[,col]))
-#       if(num_impute <= 0){
-#         print(sprintf('skipping imputation for %s', xx))
-#         return(tt)
-#       }
-#       ind_sample = sample(setdiff(1:nrow(tt), which(is.na(tt[,col]))), num_impute) 
-#       tt[ind_sample, paste0(col, '_true')] <- tt[ind_sample, col]
-#       tt[ind_sample, col] = NA
-#       return(tt)
-#     })
-#     
-#     # collapse results
-#     df <- data.table::rbindlist(tmp)
-#   }
-#   
-#   return(df)
-# }
-
 initialize_df <- function(district_sizes, start_date = '2016-01-01', end_date = '2019-12-01', ...){
   facilities = unlist(lapply(1:length(district_sizes), function(xx) {paste0(toupper(letters[xx]), sprintf('%03d',1:district_sizes[xx]))}))
   
